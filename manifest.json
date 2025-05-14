@@ -1,0 +1,24 @@
+{
+	"manifest_version": 3,
+	"name": "Search Popup",
+	"version": "1.29.0",
+	"description": "Allows you to Copy text or Search for selected text in Google using a popup interface similar to Opera.",
+	"icons": {
+		"16": "img/icon.png",
+		"32": "img/icon.png",
+		"48": "img/icon.png",
+		"64": "img/icon.png",
+		"128": "img/icon.png"
+	},
+	"permissions": [
+		"clipboardWrite"
+	],
+	"host_permissions": [
+		"<all_urls>"
+	],
+	"author": "Krasen Ivanov",
+	"content_scripts": [{
+		"matches": ["<all_urls>"],
+		"js": ["js/content.js"]
+	}]
+}
