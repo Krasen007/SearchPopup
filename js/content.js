@@ -125,27 +125,35 @@ popup.innerHTML = `
 document.body.appendChild(popup);
 
 // --- Helper function to handle clipboard fallback for copying text ---
-function handleClipboardFallback(textToCopy) {
-    const textArea = document.createElement('textarea');
-    textArea.value = textToCopy;
-    textArea.style.position = 'fixed';
-    textArea.style.left = '-9999px';
-    textArea.style.top = '-9999px';
-    document.body.appendChild(textArea);
-    textArea.focus();
-    textArea.select();
+async function handleClipboardFallback(textToCopy) {
     try {
-        const successful = document.execCommand('copy');
-        if (successful) {
-            console.log('Fallback: Text copied to clipboard.');
-        } else {
-            console.error('Fallback: Unable to copy text.');
-        }
+        // Try using the modern Clipboard API first
+        await navigator.clipboard.writeText(textToCopy);
+        console.log('Text copied to clipboard via Clipboard API.');
+        hidePopup();
     } catch (err) {
-        console.error('Fallback: Error copying text.', err);
+        console.warn('Clipboard API failed, trying fallback:', err);
+        // Fallback to a more modern approach using a temporary input
+        const textArea = document.createElement('textarea');
+        textArea.value = textToCopy;
+        textArea.style.position = 'fixed';
+        textArea.style.left = '-9999px';
+        textArea.style.top = '-9999px';
+        document.body.appendChild(textArea);
+        textArea.focus();
+        textArea.select();
+
+        try {
+            // Try using the modern Clipboard API with the selected text
+            await navigator.clipboard.writeText(textArea.value);
+            console.log('Text copied to clipboard via fallback method.');
+        } catch (err) {
+            console.error('All clipboard methods failed:', err);
+        } finally {
+            document.body.removeChild(textArea);
+            hidePopup();
+        }
     }
-    document.body.removeChild(textArea);
-    hidePopup();
 }
 
 // --- Theme and Background Detection Helpers (from previous robust version) ---
@@ -250,20 +258,7 @@ function initPopupButtons() {
     if (copyButton) {
         copyButton.addEventListener('click', () => {
             if (currentSelectedText) {
-                if (navigator.clipboard && navigator.clipboard.writeText) {
-                    navigator.clipboard.writeText(currentSelectedText)
-                        .then(() => {
-                            console.log('Text copied to clipboard via Clipboard API.');
-                            hidePopup();
-                        })
-                        .catch(err => {
-                            console.warn('Async clipboard API failed, trying fallback:', err);
-                            handleClipboardFallback(currentSelectedText);
-                        });
-                } else {
-                    console.warn('Async clipboard API not available, using fallback.');
-                    handleClipboardFallback(currentSelectedText);
-                }
+                handleClipboardFallback(currentSelectedText);
             }
         });
     }
@@ -322,6 +317,7 @@ function showAndPositionPopup(rect, selectionContextElement) {
 
 // --- Function to hide the popup with fade-out ---
 let hidePopupTimeout;
+const HIDE_DELAY = 3000; // 3 seconds delay before hiding popup
 function hidePopup() {
     popup.style.opacity = '0';
     clearTimeout(hidePopupTimeout);
@@ -345,6 +341,14 @@ document.addEventListener('mouseup', function (e) {
         const rect = range.getBoundingClientRect();
         if (rect.width > 0 || rect.height > 0) {
             showAndPositionPopup(rect, range.commonAncestorContainer);
+            // Set selection complete flag after a short delay to allow for mouse movement
+            setTimeout(() => {
+                isSelectionComplete = true;
+                // Start the hide timer
+                hidePopupTimeout = setTimeout(() => {
+                    hidePopup();
+                }, HIDE_DELAY);
+            }, 100);
         } else {
             hidePopup();
         }
@@ -353,12 +357,12 @@ document.addEventListener('mouseup', function (e) {
     }
 });
 
+// Reset selection complete flag when selection changes
 document.addEventListener('mousedown', function (e) {
+    isSelectionComplete = false;
+    clearTimeout(hidePopupTimeout); // Clear any existing timer
     if (popup.style.display === 'block' && !popup.contains(e.target)) {
-        const selection = window.getSelection();
-        if (selection && selection.isCollapsed) {
-            hidePopup();
-        }
+        hidePopup();
     }
 });
 
