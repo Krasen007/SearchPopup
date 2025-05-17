@@ -4,6 +4,86 @@
 // --- Global variable to store the currently selected text ---
 let currentSelectedText = '';
 let isUrlSelected = false;
+let convertedValue = null;
+
+// --- Unit conversion definitions ---
+const unitConversions = {
+    // Weight
+    'lb': { to: 'kg', factor: 0.45359237 },
+    'kg': { to: 'lb', factor: 2.20462262 },
+    'oz': { to: 'g', factor: 28.3495231 },
+    'g': { to: 'oz', factor: 0.0352739619 },
+    
+    // Temperature
+    '°F': { to: '°C', convert: (val) => (val - 32) * 5/9 },
+    '°C': { to: '°F', convert: (val) => (val * 9/5) + 32 },
+    
+    // Speed
+    'mph': { to: 'km/h', factor: 1.609344 },
+    'km/h': { to: 'mph', factor: 0.621371192 },
+    'mpg': { to: 'l/100km', convert: (val) => 235.214583 / val },
+    'l/100km': { to: 'mpg', convert: (val) => 235.214583 / val },
+    
+    // Volume
+    'gal': { to: 'l', factor: 3.78541178 },
+    'l': { to: 'gal', factor: 0.264172052 },
+    'qt': { to: 'l', factor: 0.946352946 },
+    'fl': { to: 'ml', factor: 29.5735295625 },
+    'ml': { to: 'fl', factor: 0.0338140227 },
+    
+    // Distance
+    'mi': { to: 'km', factor: 1.609344 },
+    'km': { to: 'mi', factor: 0.621371192 },
+    'yd': { to: 'm', factor: 0.9144 },
+    'm': { to: 'yd', factor: 1.0936133 },
+    'ft': { to: 'm', factor: 0.3048 },
+    'in': { to: 'cm', factor: 2.54 },
+    'cm': { to: 'in', factor: 0.393700787 },
+    'mm': { to: 'in', factor: 0.0393700787 },
+    
+    // Power
+    'kW': { to: 'hp', factor: 1.34102209 },
+    'hp': { to: 'kW', factor: 0.745699872 },
+    
+    // Torque
+    'lb ft': { to: 'Nm', factor: 1.35581795 },
+    'Nm': { to: 'lb ft', factor: 0.737562149 }
+};
+
+// --- Helper function to detect and convert units ---
+function detectAndConvertUnit(text) {
+    // Match pattern: number followed by unit with optional space
+    const pattern = /(-?\d*\.?\d+)\s*([a-zA-Z°\/]+(?:\s+[a-zA-Z]+)?)/;
+    const match = text.trim().match(pattern);
+    
+    if (!match) return null;
+    
+    const value = parseFloat(match[1]);
+    const unit = match[2].toLowerCase();
+    
+    // Find matching unit conversion
+    for (const [key, conversion] of Object.entries(unitConversions)) {
+        if (key.toLowerCase() === unit) {
+            let converted;
+            if (conversion.convert) {
+                converted = conversion.convert(value);
+            } else {
+                converted = value * conversion.factor;
+            }
+            
+            // Round to 4 decimal places for display
+            converted = Math.round(converted * 10000) / 10000;
+            
+            return {
+                original: `${value} ${key}`,
+                converted: `${converted} ${conversion.to}`,
+                value: converted
+            };
+        }
+    }
+    
+    return null;
+}
 
 // --- Add styles to document head (once) ---
 const styleElement = document.createElement('style');
@@ -110,6 +190,45 @@ styleElement.textContent = `
     #text-selection-popup-extension.dark-mode .extension-action-button:hover {
         background-color: #6E6E6E; 
     }
+
+    .conversion-result {
+        padding: 4px 8px;
+        margin: 4px 0;
+        background: #f5f5f5;
+        border-radius: 4px;
+        cursor: pointer;
+        transition: background-color 0.2s;
+    }
+
+    .conversion-result:hover {
+        background: #e5e5e5;
+    }
+
+    .conversion-result .copy-button {
+        display: none;
+        float: right;
+        padding: 2px 6px;
+        font-size: 12px;
+        background: #4CAF50;
+        color: white;
+        border: none;
+        border-radius: 3px;
+        cursor: pointer;
+    }
+
+    .conversion-result:hover .copy-button {
+        display: inline-block;
+    }
+
+    /* Dark mode styles for conversion */
+    #text-selection-popup-extension.dark-mode .conversion-result {
+        background: #444;
+        color: #fff;
+    }
+
+    #text-selection-popup-extension.dark-mode .conversion-result:hover {
+        background: #555;
+    }
 `;
 document.head.appendChild(styleElement);
 
@@ -119,6 +238,12 @@ popup.id = 'text-selection-popup-extension'; // ID is used by CSS
 
 // --- Create popup content (once) ---
 popup.innerHTML = `
+    <div id="conversionContainer" style="display: none;">
+        <div class="conversion-result">
+            <span class="converted-value"></span>
+            <button class="copy-button">Copy</button>
+        </div>
+    </div>
     <div style="display: flex; flex-direction: row; gap: 8px; justify-content: space-between;">
         <button id="extensionSearchButton" class="extension-action-button">Search</button>
         <button id="extensionCopyButton" class="extension-action-button">Copy</button>
@@ -262,33 +387,33 @@ function formatUrl(text) {
 function initPopupButtons() {
     const searchButton = document.getElementById('extensionSearchButton');
     const copyButton = document.getElementById('extensionCopyButton');
+    const conversionContainer = document.getElementById('conversionContainer');
+    const convertedValueSpan = conversionContainer.querySelector('.converted-value');
+    const copyConvertedButton = conversionContainer.querySelector('.copy-button');
 
     if (searchButton) {
         searchButton.addEventListener('click', () => {
             if (currentSelectedText) {
-if (isUrlSelected) {
-    const url = formatUrl(currentSelectedText);
-    // Additional validation before opening URL
-    try {
-        const urlObj = new URL(url);
-        // Optional: whitelist allowed protocols
-        if (urlObj.protocol === 'http:' || urlObj.protocol === 'https:') {
-            window.open(url, '_blank');
-        } else {
-            console.warn('Blocked non-HTTP/HTTPS URL:', url);
-            // Fallback to search
-            const searchUrl = `https://www.google.com/search?q=${encodeURIComponent(currentSelectedText)}`;
-            window.open(searchUrl, '_blank');
-        }
-    } catch (e) {
-        console.warn('Invalid URL detected, falling back to search:', e);
-        const searchUrl = `https://www.google.com/search?q=${encodeURIComponent(currentSelectedText)}`;
-        window.open(searchUrl, '_blank');
-    }
-} else {
-    const searchUrl = `https://www.google.com/search?q=${encodeURIComponent(currentSelectedText)}`;
-    window.open(searchUrl, '_blank');
-}
+                if (isUrlSelected) {
+                    const url = formatUrl(currentSelectedText);
+                    try {
+                        const urlObj = new URL(url);
+                        if (urlObj.protocol === 'http:' || urlObj.protocol === 'https:') {
+                            window.open(url, '_blank');
+                        } else {
+                            console.warn('Blocked non-HTTP/HTTPS URL:', url);
+                            const searchUrl = `https://www.google.com/search?q=${encodeURIComponent(currentSelectedText)}`;
+                            window.open(searchUrl, '_blank');
+                        }
+                    } catch (e) {
+                        console.warn('Invalid URL detected, falling back to search:', e);
+                        const searchUrl = `https://www.google.com/search?q=${encodeURIComponent(currentSelectedText)}`;
+                        window.open(searchUrl, '_blank');
+                    }
+                } else {
+                    const searchUrl = `https://www.google.com/search?q=${encodeURIComponent(currentSelectedText)}`;
+                    window.open(searchUrl, '_blank');
+                }
                 hidePopup();
             }
         });
@@ -301,12 +426,33 @@ if (isUrlSelected) {
             }
         });
     }
+
+    if (copyConvertedButton) {
+        copyConvertedButton.addEventListener('click', (e) => {
+            e.stopPropagation();
+            if (convertedValue) {
+                handleClipboardFallback(convertedValue.converted);
+            }
+        });
+    }
 }
 
 // --- Function to show and position the popup ---
 function showAndPositionPopup(rect, selectionContextElement) {
     popup.style.opacity = '0';
     popup.style.display = 'block';
+
+    // Check for unit conversion
+    const conversionContainer = document.getElementById('conversionContainer');
+    const convertedValueSpan = conversionContainer.querySelector('.converted-value');
+    convertedValue = detectAndConvertUnit(currentSelectedText);
+
+    if (convertedValue) {
+        conversionContainer.style.display = 'block';
+        convertedValueSpan.textContent = convertedValue.converted;
+    } else {
+        conversionContainer.style.display = 'none';
+    }
 
     // Update button text based on URL detection
     const searchButton = document.getElementById('extensionSearchButton');

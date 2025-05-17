@@ -3,10 +3,12 @@
 A extension inspired by Opera Browser's own popup menu that displays a convenient popup menu when you select text on a webpage, allowing you to quickly search or copy the selected text. In mine version the popup intelligently adapts its theme (light/dark) based on the underlying webpage's background.
 
 ## Features
+Auto-detecting websites in selected text - Done
+Unit conversion - Done
+
 TODO:
-make the extension pick the default search engine
-Currency conversion
-Unit conversion
+Make the extension pick the default search engine
+Currency conversion 
 Time zone conversion
 
 * **Contextual Popup:** Appears when text is selected on any webpage.
