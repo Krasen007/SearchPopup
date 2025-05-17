@@ -2,6 +2,7 @@
 
 // --- Global variable to store the currently selected text ---
 let currentSelectedText = '';
+let isUrlSelected = false;
 
 // --- Add styles to document head (once) ---
 const styleElement = document.createElement('style');
@@ -240,6 +241,22 @@ function applyThemeAndArrow(isPageDark, isPopupBelowSelection) {
     }
 }
 
+// --- Helper function to detect URLs in text ---
+function detectUrl(text) {
+    // More comprehensive URL pattern
+    const urlPattern = /^(https?:\/\/)?(([a-zA-Z0-9]([a-zA-Z0-9-]*[a-zA-Z0-9])?\.)+[a-zA-Z0-9]([a-zA-Z0-9-]*[a-zA-Z0-9])?)(\/[^\s]*)?$/;
+    
+    return urlPattern.test(text);
+}
+
+// --- Helper function to format URL ---
+function formatUrl(text) {
+    if (!text.startsWith('http://') && !text.startsWith('https://')) {
+        return 'https://' + text;
+    }
+    return text;
+}
+
 // --- Initialize button event listeners (called once on script load) ---
 function initPopupButtons() {
     const searchButton = document.getElementById('extensionSearchButton');
@@ -248,8 +265,29 @@ function initPopupButtons() {
     if (searchButton) {
         searchButton.addEventListener('click', () => {
             if (currentSelectedText) {
-                const searchUrl = `https://www.google.com/search?q=${encodeURIComponent(currentSelectedText)}`;
-                window.open(searchUrl, '_blank');
+if (isUrlSelected) {
+    const url = formatUrl(currentSelectedText);
+    // Additional validation before opening URL
+    try {
+        const urlObj = new URL(url);
+        // Optional: whitelist allowed protocols
+        if (urlObj.protocol === 'http:' || urlObj.protocol === 'https:') {
+            window.open(url, '_blank');
+        } else {
+            console.warn('Blocked non-HTTP/HTTPS URL:', url);
+            // Fallback to search
+            const searchUrl = `https://www.google.com/search?q=${encodeURIComponent(currentSelectedText)}`;
+            window.open(searchUrl, '_blank');
+        }
+    } catch (e) {
+        console.warn('Invalid URL detected, falling back to search:', e);
+        const searchUrl = `https://www.google.com/search?q=${encodeURIComponent(currentSelectedText)}`;
+        window.open(searchUrl, '_blank');
+    }
+} else {
+    const searchUrl = `https://www.google.com/search?q=${encodeURIComponent(currentSelectedText)}`;
+    window.open(searchUrl, '_blank');
+}
                 hidePopup();
             }
         });
@@ -268,6 +306,13 @@ function initPopupButtons() {
 function showAndPositionPopup(rect, selectionContextElement) {
     popup.style.opacity = '0';
     popup.style.display = 'block';
+
+    // Update button text based on URL detection
+    const searchButton = document.getElementById('extensionSearchButton');
+    isUrlSelected = detectUrl(currentSelectedText);
+    if (searchButton) {
+        searchButton.textContent = isUrlSelected ? 'Visit website' : 'Search';
+    }
 
     const popupHeight = popup.offsetHeight;
     const popupWidth = popup.offsetWidth;

@@ -5,7 +5,6 @@ A extension inspired by Opera Browser's own popup menu that displays a convenien
 ## Features
 TODO:
 make the extension pick the default search engine
-Auto-detecting websites in selected text
 Currency conversion
 Unit conversion
 Time zone conversion
