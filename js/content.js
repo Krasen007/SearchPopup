@@ -1,4 +1,5 @@
 // Content script for handling text selection and popup display
+// Copyright 2025 Krasen Ivanov
 
 // --- Global variable to store the currently selected text ---
 let currentSelectedText = '';
