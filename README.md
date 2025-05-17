@@ -1,9 +1,15 @@
 # Text Selection Popup Extension
-
 A extension inspired by Opera Browser's own popup menu that displays a convenient popup menu when you select text on a webpage, allowing you to quickly search or copy the selected text. In mine version the popup intelligently adapts its theme (light/dark) based on the underlying webpage's background.
 
 ## Features
-Auto-detecting websites in selected text - Done
+
+White/Dark mode depending on the background of the webpage 
+
+![image](https://github.com/user-attachments/assets/9cb473aa-29eb-46e5-a2f3-4aef524656a2)
+
+![image](https://github.com/user-attachments/assets/76d19114-89da-44a6-9f25-3254278487ad)
+
+Auto-detecting websites in selected text - Done 
 Unit conversion - Done
 
 TODO:
