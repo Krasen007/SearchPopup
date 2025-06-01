@@ -18,6 +18,23 @@ const unitConversions = {
     '°F': { to: '°C', convert: (val) => (val - 32) * 5/9 },
     '°C': { to: '°F', convert: (val) => (val * 9/5) + 32 },
     
+    // Cooking Measurements
+    'cup': { to: 'ml', factor: 236.588 },
+    'cups': { to: 'ml', factor: 236.588 },
+    'tbsp': { to: 'ml', factor: 14.7868 },
+    'tbsp.': { to: 'ml', factor: 14.7868 },
+    'tbsps': { to: 'ml', factor: 14.7868 },
+    'tsp': { to: 'ml', factor: 4.92892 },
+    'tsp.': { to: 'ml', factor: 4.92892 },
+    'tsps': { to: 'ml', factor: 4.92892 },
+    'fl oz': { to: 'ml', factor: 29.5735 },
+    'pint': { to: 'ml', factor: 473.176 },
+    'pints': { to: 'ml', factor: 473.176 },
+    'quart': { to: 'ml', factor: 946.353 },
+    'quarts': { to: 'ml', factor: 946.353 },
+    'gallon': { to: 'ml', factor: 3785.41 },
+    'gallons': { to: 'ml', factor: 3785.41 },
+    
     // Speed
     'mph': { to: 'km/h', factor: 1.609344 },
     'km/h': { to: 'mph', factor: 0.621371192 },
@@ -52,14 +69,31 @@ const unitConversions = {
 
 // --- Helper function to detect and convert units ---
 function detectAndConvertUnit(text) {
-    // Match pattern: number followed by unit with optional space
-    const pattern = /(-?\d*\.?\d+)\s*([a-zA-Z°\/]+(?:\s+[a-zA-Z]+)?)/;
+    // Match pattern: number (including fractions) followed by unit with optional space
+    const pattern = /(-?\d*\.?\d+(?:\/\d+)?)\s*([a-zA-Z°\/]+(?:\s+[a-zA-Z]+)?)/;
     const match = text.trim().match(pattern);
     
     if (!match) return null;
     
-    const value = parseFloat(match[1]);
+    let value = match[1];
     const unit = match[2].toLowerCase();
+    
+    // Handle fractions
+    if (value.includes('/')) {
+        const [numerator, denominator] = value.split('/');
+        value = parseFloat(numerator) / parseFloat(denominator);
+    } else {
+        value = parseFloat(value);
+    }
+    
+    // Special case for temperature without F suffix
+    if (unit === '°') {
+        return {
+            original: `${value}°`,
+            converted: `${((value - 32) * 5/9).toFixed(1)}°C`,
+            value: (value - 32) * 5/9
+        };
+    }
     
     // Find matching unit conversion
     for (const [key, conversion] of Object.entries(unitConversions)) {

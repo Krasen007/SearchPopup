@@ -5,9 +5,9 @@ A extension inspired by Opera Browser's own popup menu that displays a convenien
 
 White/Dark mode depending on the background of the webpage 
 
-![image](https://github.com/user-attachments/assets/9cb473aa-29eb-46e5-a2f3-4aef524656a2)
+![image](img/dark.png)
 
-![image](https://github.com/user-attachments/assets/76d19114-89da-44a6-9f25-3254278487ad)
+![image](img/light.png)
 
 Auto-detecting websites in selected text - Done 
 Unit conversion - Done
