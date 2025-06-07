@@ -6,6 +6,52 @@ let currentSelectedText = '';
 let isUrlSelected = false;
 let convertedValue = null;
 
+// --- Currency exchange rates cache ---
+let exchangeRates = {
+    lastUpdated: null,
+    rates: {
+        // Default rates will be populated from API
+        EUR: 1.95583, // Default EUR to BGN rate
+        USD: 1.8,     // Default USD to BGN rate
+        GBP: 2.3      // Default GBP to BGN rate
+    }
+};
+
+// Currency symbols mapping
+const currencySymbols = {
+    'EUR': '€',
+    'USD': '$',
+    'GBP': '£',
+    'JPY': '¥',
+    'CNY': '¥',
+    'INR': '₹',
+    'RUB': '₽',
+    'KRW': '₩',
+    'TRY': '₺',
+    'BRL': 'R$',
+    'ZAR': 'R',
+    'MXN': '$',
+    'SGD': 'S$',
+    'HKD': 'HK$',
+    'NZD': 'NZ$',
+    'SEK': 'kr',
+    'NOK': 'kr',
+    'DKK': 'kr',
+    'PLN': 'zł',
+    'CHF': 'Fr',
+    'CAD': 'C$',
+    'AUD': 'A$',
+    'ILS': '₪',
+    'RON': 'lei',
+    'HUF': 'Ft',
+    'CZK': 'Kč',
+    'PHP': '₱',
+    'THB': '฿',
+    'IDR': 'Rp',
+    'MYR': 'RM',
+    'BGN': 'лв'
+};
+
 // --- Unit conversion definitions ---
 const unitConversions = {
     // Weight
@@ -13,7 +59,15 @@ const unitConversions = {
     'kg': { to: 'lb', factor: 2.20462262 },
     'oz': { to: 'g', factor: 28.3495231 },
     'g': { to: 'oz', factor: 0.0352739619 },
-    
+
+    //Currency - will be populated dynamically
+    'EUR': { to: 'BGN', convert: (val) => val * exchangeRates.rates.EUR },
+    '€': { to: 'BGN', convert: (val) => val * exchangeRates.rates.EUR },
+    'USD': { to: 'BGN', convert: (val) => val * exchangeRates.rates.USD },
+    '$': { to: 'BGN', convert: (val) => val * exchangeRates.rates.USD },
+    'GBP': { to: 'BGN', convert: (val) => val * exchangeRates.rates.GBP },
+    '£': { to: 'BGN', convert: (val) => val * exchangeRates.rates.GBP },
+
     // Temperature
     '°F': { to: '°C', convert: (val) => (val - 32) * 5/9 },
     '°C': { to: '°F', convert: (val) => (val * 9/5) + 32 },
@@ -67,16 +121,80 @@ const unitConversions = {
     'Nm': { to: 'lb ft', factor: 0.737562149 }
 };
 
+// --- Helper function to fetch exchange rates ---
+async function fetchExchangeRates() {
+    // Check if we need to update rates (once per day)
+    const now = new Date();
+    if (exchangeRates.lastUpdated && 
+        now.getTime() - exchangeRates.lastUpdated.getTime() < 24 * 60 * 60 * 1000) {
+        return; // Use cached rates if less than 24 hours old
+    }
+
+    try {
+        const response = await fetch('https://api.exchangerate-api.com/v4/latest/EUR');
+        const data = await response.json();
+        
+        // Update rates (converting to BGN)
+        exchangeRates.rates = {};
+        for (const [currency, rate] of Object.entries(data.rates)) {
+            if (currency !== 'EUR') {
+                exchangeRates.rates[currency] = data.rates.BGN / rate;
+            } else {
+                exchangeRates.rates[currency] = data.rates.BGN;
+            }
+            
+            // Add currency conversion to unitConversions
+            if (currency !== 'BGN') {
+                unitConversions[currency] = {
+                    to: 'BGN',
+                    convert: (val) => val * exchangeRates.rates[currency]
+                };
+                
+                // Add symbol conversion if available
+                if (currencySymbols[currency]) {
+                    unitConversions[currencySymbols[currency]] = {
+                        to: 'BGN',
+                        convert: (val) => val * exchangeRates.rates[currency]
+                    };
+                }
+            }
+        }
+        
+        exchangeRates.lastUpdated = now;
+        
+        // Save to localStorage
+        localStorage.setItem('exchangeRates', JSON.stringify(exchangeRates));
+    } catch (error) {
+        console.warn('Failed to fetch exchange rates:', error);
+        // Load from localStorage if available
+        const cached = localStorage.getItem('exchangeRates');
+        if (cached) {
+            exchangeRates = JSON.parse(cached);
+        }
+    }
+}
+
 // --- Helper function to detect and convert units ---
 function detectAndConvertUnit(text) {
     // Match pattern: number (including fractions) followed by unit with optional space
-    const pattern = /(-?\d*\.?\d+(?:\/\d+)?)\s*([a-zA-Z°\/]+(?:\s+[a-zA-Z]+)?)/;
+    // Updated pattern to handle currency symbols before or after the number
+    const pattern = /(-?\d*\.?\d+(?:\/\d+)?)\s*([a-zA-Z°\/€$£]+(?:\s+[a-zA-Z]+)?)|([a-zA-Z°\/€$£]+(?:\s+[a-zA-Z]+)?)\s*(-?\d*\.?\d+(?:\/\d+)?)/;
     const match = text.trim().match(pattern);
     
     if (!match) return null;
     
-    let value = match[1];
-    const unit = match[2].toLowerCase();
+    let value, unit;
+    
+    // Check if currency symbol is before or after the number
+    if (match[1] && match[2]) {
+        value = match[1];
+        unit = match[2];
+    } else if (match[3] && match[4]) {
+        value = match[4];
+        unit = match[3];
+    } else {
+        return null;
+    }
     
     // Handle fractions
     if (value.includes('/')) {
@@ -97,7 +215,7 @@ function detectAndConvertUnit(text) {
     
     // Find matching unit conversion
     for (const [key, conversion] of Object.entries(unitConversions)) {
-        if (key.toLowerCase() === unit) {
+        if (key.toLowerCase() === unit.toLowerCase()) {
             let converted;
             if (conversion.convert) {
                 converted = conversion.convert(value);
@@ -105,8 +223,9 @@ function detectAndConvertUnit(text) {
                 converted = value * conversion.factor;
             }
             
-            // Round to 4 decimal places for display
-            converted = Math.round(converted * 10000) / 10000;
+            // Round to 2 decimal places for currency, 4 for other units
+            const decimals = key.match(/[€$£]/) ? 2 : 4;
+            converted = Math.round(converted * Math.pow(10, decimals)) / Math.pow(10, decimals);
             
             return {
                 original: `${value} ${key}`,
@@ -201,14 +320,15 @@ styleElement.textContent = `
         color: white;
         cursor: pointer;
         transition: background-color 0.2s;
-        font-family: Arial, sans-serif; /* Added: Explicit font family for buttons */
-        font-size: 12px;               /* Explicit font size for buttons */
-        font-weight: normal;           /* Added: Prevent font-weight inheritance */
-        font-style: normal;            /* Added: Prevent font-style inheritance */
-        line-height: 1.4;              /* Added: Consistent line height for button text */
-        text-transform: none;          /* Added: Prevent text-transform inheritance */
-        letter-spacing: normal;        /* Added: Prevent letter-spacing inheritance */
+        font-family: Arial, sans-serif;
+        font-size: 12px;
+        font-weight: normal;
+        font-style: normal;
+        line-height: 1.4;
+        text-transform: none;
+        letter-spacing: normal;
         text-align: center;
+        white-space: nowrap; /* Prevent text wrapping */        
     }
 
     .extension-action-button:hover {
@@ -606,3 +726,4 @@ window.addEventListener('resize', () => {
 
 // --- Initialize ---
 initPopupButtons();
+fetchExchangeRates(); // Fetch exchange rates on startup
