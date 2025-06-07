@@ -12,9 +12,10 @@ White/Dark mode depending on the background of the webpage
 Auto-detecting websites in selected text - Done 
 Unit conversion - Done
 
+Currency conversion - Done
+
 TODO:
 Make the extension pick the default search engine
-Currency conversion 
 Time zone conversion
 
 * **Contextual Popup:** Appears when text is selected on any webpage.

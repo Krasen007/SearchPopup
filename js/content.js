@@ -8,7 +8,8 @@ let convertedValue = null;
 
 // --- Currency exchange rates cache ---
 let exchangeRates = {
-    lastUpdated: null,
+    // Store as Unix epoch (ms) to survive JSON serialisation
+    lastUpdated: 0,
     rates: {
         // Default rates will be populated from API
         EUR: 1.95583, // Default EUR to BGN rate
@@ -132,6 +133,7 @@ async function fetchExchangeRates() {
 
     try {
         const response = await fetch('https://api.exchangerate-api.com/v4/latest/EUR');
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
         const data = await response.json();
         
         // Update rates (converting to BGN)
@@ -160,7 +162,7 @@ async function fetchExchangeRates() {
             }
         }
         
-        exchangeRates.lastUpdated = now;
+        exchangeRates.lastUpdated = now.getTime();   // store epoch ms
         
         // Save to localStorage
         localStorage.setItem('exchangeRates', JSON.stringify(exchangeRates));
@@ -178,20 +180,24 @@ async function fetchExchangeRates() {
 function detectAndConvertUnit(text) {
     // Match pattern: number (including fractions) followed by unit with optional space
     // Updated pattern to handle currency symbols before or after the number
-    const pattern = /(-?\d*\.?\d+(?:\/\d+)?)\s*([a-zA-Z°\/€$£]+(?:\s+[a-zA-Z]+)?)|([a-zA-Z°\/€$£]+(?:\s+[a-zA-Z]+)?)\s*(-?\d*\.?\d+(?:\/\d+)?)/;
-    const match = text.trim().match(pattern);
+    // Using two separate patterns with start/end anchors and case-insensitive flag
+    const valueUnitPattern = /^(-?\d*\.?\d+(?:\/\d+)?)\s*([a-zA-Z°\/€$£]+(?:\s+[a-zA-Z]+)?)$/i;
+    const unitValuePattern = /^([a-zA-Z°\/€$£]+(?:\s+[a-zA-Z]+)?)\s*(-?\d*\.?\d+(?:\/\d+)?)$/i;
     
-    if (!match) return null;
+    const valueUnitMatch = text.trim().match(valueUnitPattern);
+    const unitValueMatch = text.trim().match(unitValuePattern);
+    
+    if (!valueUnitMatch && !unitValueMatch) return null;
     
     let value, unit;
     
     // Check if currency symbol is before or after the number
-    if (match[1] && match[2]) {
-        value = match[1];
-        unit = match[2];
-    } else if (match[3] && match[4]) {
-        value = match[4];
-        unit = match[3];
+    if (valueUnitMatch) {
+        value = valueUnitMatch[1];
+        unit = valueUnitMatch[2];
+    } else if (unitValueMatch) {
+        value = unitValueMatch[2];
+        unit = unitValueMatch[1];
     } else {
         return null;
     }
