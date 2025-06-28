@@ -57,6 +57,7 @@ const currencySymbols = {
 const unitConversions = {
     // Weight
     'lb': { to: 'kg', factor: 0.45359237 },
+    'lbs': { to: 'kg', factor: 0.45359237 },
     'kg': { to: 'lb', factor: 2.20462262 },
     'oz': { to: 'g', factor: 28.3495231 },
     'g': { to: 'oz', factor: 0.0352739619 },
@@ -125,20 +126,33 @@ const unitConversions = {
 // --- Helper function to fetch exchange rates ---
 async function fetchExchangeRates() {
     // Check if we need to update rates (once per day)
-    const now = new Date();
+    const now = Date.now();
     if (exchangeRates.lastUpdated && 
-        now.getTime() - exchangeRates.lastUpdated.getTime() < 24 * 60 * 60 * 1000) {
+        now - exchangeRates.lastUpdated < 24 * 60 * 60 * 1000) {
         return; // Use cached rates if less than 24 hours old
     }
 
     try {
         const response = await fetch('https://api.exchangerate-api.com/v4/latest/EUR');
-        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        if (!response.ok) {
+            throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+        }
+        
         const data = await response.json();
+        
+        // Validate the response data structure
+        if (!data || !data.rates || typeof data.rates !== 'object') {
+            throw new Error('Invalid response format from exchange rate API');
+        }
         
         // Update rates (converting to BGN)
         exchangeRates.rates = {};
         for (const [currency, rate] of Object.entries(data.rates)) {
+            if (typeof rate !== 'number' || isNaN(rate)) {
+                console.warn(`Skipping invalid rate for ${currency}:`, rate);
+                continue;
+            }
+            
             if (currency !== 'EUR') {
                 exchangeRates.rates[currency] = data.rates.BGN / rate;
             } else {
@@ -162,16 +176,71 @@ async function fetchExchangeRates() {
             }
         }
         
-        exchangeRates.lastUpdated = now.getTime();   // store epoch ms
+        exchangeRates.lastUpdated = now;   // store epoch ms
         
         // Save to localStorage
-        localStorage.setItem('exchangeRates', JSON.stringify(exchangeRates));
+        try {
+            localStorage.setItem('exchangeRates', JSON.stringify(exchangeRates));
+        } catch (storageError) {
+            console.warn('Failed to save exchange rates to localStorage:', storageError);
+        }
     } catch (error) {
         console.warn('Failed to fetch exchange rates:', error);
         // Load from localStorage if available
-        const cached = localStorage.getItem('exchangeRates');
-        if (cached) {
-            exchangeRates = JSON.parse(cached);
+        try {
+            const cached = localStorage.getItem('exchangeRates');
+            if (cached) {
+                const parsed = JSON.parse(cached);
+                
+                // Validate cached data structure
+                if (parsed && typeof parsed === 'object' && 
+                    parsed.rates && typeof parsed.rates === 'object' &&
+                    parsed.lastUpdated && typeof parsed.lastUpdated === 'number') {
+                    
+                    // Validate that the cached data is not too old (more than 7 days)
+                    const now = Date.now();
+                    const cacheAge = now - parsed.lastUpdated;
+                    const maxCacheAge = 7 * 24 * 60 * 60 * 1000; // 7 days in milliseconds
+                    
+                    if (cacheAge < maxCacheAge) {
+                        exchangeRates = parsed;
+                        console.log('Loaded exchange rates from cache');
+                    } else {
+                        console.warn('Cached exchange rates are too old, using defaults');
+                        // Reset to default rates
+                        exchangeRates = {
+                            lastUpdated: 0, // Force refresh on next call
+                            rates: {
+                                EUR: 1.95583,
+                                USD: 1.8,
+                                GBP: 2.3
+                            }
+                        };
+                    }
+                } else {
+                    console.warn('Invalid cached exchange rates format, using defaults');
+                    // Reset to default rates
+                    exchangeRates = {
+                        lastUpdated: 0, // Force refresh on next call
+                        rates: {
+                            EUR: 1.95583,
+                            USD: 1.8,
+                            GBP: 2.3
+                        }
+                    };
+                }
+            }
+        } catch (parseError) {
+            console.warn('Failed to parse cached exchange rates:', parseError);
+            // Reset to default rates
+            exchangeRates = {
+                lastUpdated: 0, // Force refresh on next call
+                rates: {
+                    EUR: 1.95583,
+                    USD: 1.8,
+                    GBP: 2.3
+                }
+            };
         }
     }
 }
@@ -180,9 +249,10 @@ async function fetchExchangeRates() {
 function detectAndConvertUnit(text) {
     // Match pattern: number (including fractions) followed by unit with optional space
     // Updated pattern to handle currency symbols before or after the number
-    // Using two separate patterns with start/end anchors and case-insensitive flag
-    const valueUnitPattern = /^(-?\d*\.?\d+(?:\/\d+)?)\s*([a-zA-Z°\/€$£]+(?:\s+[a-zA-Z]+)?)$/i;
-    const unitValuePattern = /^([a-zA-Z°\/€$£]+(?:\s+[a-zA-Z]+)?)\s*(-?\d*\.?\d+(?:\/\d+)?)$/i;
+    // Using two separate patterns with start anchor and case-insensitive flag
+    // Allow trailing punctuation like periods, commas, etc.
+    const valueUnitPattern = /^(-?\d*\.?\d+(?:\/\d+)?)\s*([a-zA-Z°\/€$£]+(?:\s+[a-zA-Z]+)?)[.,;:!?]*$/i;
+    const unitValuePattern = /^([a-zA-Z°\/€$£]+(?:\s+[a-zA-Z]+)?)\s*(-?\d*\.?\d+(?:\/\d+)?)[.,;:!?]*$/i;
     
     const valueUnitMatch = text.trim().match(valueUnitPattern);
     const unitValueMatch = text.trim().match(unitValuePattern);
