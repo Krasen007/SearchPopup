@@ -1,10 +1,34 @@
 // Content script for handling text selection and popup display
 // Copyright 2025 Krasen Ivanov
 
+// --- Production mode flag ---
+const IS_PRODUCTION = true; // Set to false for debugging
+
+// --- Debug logging utility ---
+function debugLog(level, message, ...args) {
+    if (!IS_PRODUCTION) {
+        switch (level) {
+            case 'log':
+                console.log(message, ...args);
+                break;
+            case 'warn':
+                console.warn(message, ...args);
+                break;
+            case 'error':
+                console.error(message, ...args);
+                break;
+        }
+    }
+}
+
 // --- Global variable to store the currently selected text ---
 let currentSelectedText = '';
 let isUrlSelected = false;
 let convertedValue = null;
+
+// --- Input validation constants ---
+const MAX_SELECTION_LENGTH = 10000; // Maximum characters for text selection
+const MIN_SELECTION_LENGTH = 1;     // Minimum characters for text selection
 
 // --- Currency exchange rates cache ---
 let exchangeRates = {
@@ -17,6 +41,11 @@ let exchangeRates = {
         GBP: 2.3      // Default GBP to BGN rate
     }
 };
+
+// --- Rate limiting for API calls ---
+let apiCallAttempts = 0;
+const MAX_API_ATTEMPTS = 3;
+const BASE_RETRY_DELAY = 1000; // 1 second
 
 // Currency symbols mapping
 const currencySymbols = {
@@ -132,7 +161,14 @@ async function fetchExchangeRates() {
         return; // Use cached rates if less than 24 hours old
     }
 
+    // Rate limiting check
+    if (apiCallAttempts >= MAX_API_ATTEMPTS) {
+        debugLog('warn', 'Maximum API attempts reached, using cached data');
+        return;
+    }
+
     try {
+        apiCallAttempts++;
         const response = await fetch('https://api.exchangerate-api.com/v4/latest/EUR');
         if (!response.ok) {
             throw new Error(`HTTP ${response.status}: ${response.statusText}`);
@@ -145,11 +181,14 @@ async function fetchExchangeRates() {
             throw new Error('Invalid response format from exchange rate API');
         }
         
+        // Reset API attempts on success
+        apiCallAttempts = 0;
+        
         // Update rates (converting to BGN)
         exchangeRates.rates = {};
         for (const [currency, rate] of Object.entries(data.rates)) {
             if (typeof rate !== 'number' || isNaN(rate)) {
-                console.warn(`Skipping invalid rate for ${currency}:`, rate);
+                debugLog('warn', `Skipping invalid rate for ${currency}:`, rate);
                 continue;
             }
             
@@ -182,11 +221,20 @@ async function fetchExchangeRates() {
         try {
             localStorage.setItem('exchangeRates', JSON.stringify(exchangeRates));
         } catch (storageError) {
-            console.warn('Failed to save exchange rates to localStorage:', storageError);
+            debugLog('warn', 'Failed to save exchange rates to localStorage:', storageError);
         }
     } catch (error) {
-        console.warn('Failed to fetch exchange rates:', error);
-        // Load from localStorage if available
+        debugLog('warn', 'Failed to fetch exchange rates:', error);
+        
+        // Exponential backoff for retries
+        if (apiCallAttempts < MAX_API_ATTEMPTS) {
+            const retryDelay = BASE_RETRY_DELAY * Math.pow(2, apiCallAttempts - 1);
+            debugLog('warn', `Retrying in ${retryDelay}ms (attempt ${apiCallAttempts}/${MAX_API_ATTEMPTS})`);
+            setTimeout(() => fetchExchangeRates(), retryDelay);
+            return; // Exit early to prevent fallback execution during retry attempts
+        }
+        
+        // Load from localStorage if available (only when max retries reached)
         try {
             const cached = localStorage.getItem('exchangeRates');
             if (cached) {
@@ -204,9 +252,9 @@ async function fetchExchangeRates() {
                     
                     if (cacheAge < maxCacheAge) {
                         exchangeRates = parsed;
-                        console.log('Loaded exchange rates from cache');
+                        debugLog('log', 'Loaded exchange rates from cache');
                     } else {
-                        console.warn('Cached exchange rates are too old, using defaults');
+                        debugLog('warn', 'Cached exchange rates are too old, using defaults');
                         // Reset to default rates
                         exchangeRates = {
                             lastUpdated: 0, // Force refresh on next call
@@ -218,7 +266,7 @@ async function fetchExchangeRates() {
                         };
                     }
                 } else {
-                    console.warn('Invalid cached exchange rates format, using defaults');
+                    debugLog('warn', 'Invalid cached exchange rates format, using defaults');
                     // Reset to default rates
                     exchangeRates = {
                         lastUpdated: 0, // Force refresh on next call
@@ -231,7 +279,7 @@ async function fetchExchangeRates() {
                 }
             }
         } catch (parseError) {
-            console.warn('Failed to parse cached exchange rates:', parseError);
+            debugLog('warn', 'Failed to parse cached exchange rates:', parseError);
             // Reset to default rates
             exchangeRates = {
                 lastUpdated: 0, // Force refresh on next call
@@ -486,10 +534,10 @@ async function handleClipboardFallback(textToCopy) {
     try {
         // Try using the modern Clipboard API first
         await navigator.clipboard.writeText(textToCopy);
-        console.log('Text copied to clipboard via Clipboard API.');
+        debugLog('log', 'Text copied to clipboard via Clipboard API.');
         hidePopup();
     } catch (err) {
-        console.warn('Clipboard API failed, trying fallback:', err);
+        debugLog('warn', 'Clipboard API failed, trying fallback:', err);
         // Fallback to a more modern approach using a temporary input
         const textArea = document.createElement('textarea');
         textArea.value = textToCopy;
@@ -503,9 +551,9 @@ async function handleClipboardFallback(textToCopy) {
         try {
             // Try using the modern Clipboard API with the selected text
             await navigator.clipboard.writeText(textArea.value);
-            console.log('Text copied to clipboard via fallback method.');
+            debugLog('log', 'Text copied to clipboard via fallback method.');
         } catch (err) {
-            console.error('All clipboard methods failed:', err);
+            debugLog('error', 'All clipboard methods failed:', err);
         } finally {
             document.body.removeChild(textArea);
             hidePopup();
@@ -631,12 +679,12 @@ function initPopupButtons() {
                         if (urlObj.protocol === 'http:' || urlObj.protocol === 'https:') {
                             window.open(url, '_blank');
                         } else {
-                            console.warn('Blocked non-HTTP/HTTPS URL:', url);
+                            debugLog('warn', 'Blocked non-HTTP/HTTPS URL:', url);
                             const searchUrl = `https://www.google.com/search?q=${encodeURIComponent(currentSelectedText)}`;
                             window.open(searchUrl, '_blank');
                         }
                     } catch (e) {
-                        console.warn('Invalid URL detected, falling back to search:', e);
+                        debugLog('warn', 'Invalid URL detected, falling back to search:', e);
                         const searchUrl = `https://www.google.com/search?q=${encodeURIComponent(currentSelectedText)}`;
                         window.open(searchUrl, '_blank');
                     }
@@ -757,7 +805,11 @@ document.addEventListener('mouseup', function (e) {
     const selection = window.getSelection();
     const selectedTextTrimmed = selection.toString().trim();
 
-    if (selectedTextTrimmed) {
+    // Validate selection length
+    if (selectedTextTrimmed && 
+        selectedTextTrimmed.length >= MIN_SELECTION_LENGTH && 
+        selectedTextTrimmed.length <= MAX_SELECTION_LENGTH) {
+        
         currentSelectedText = selectedTextTrimmed;
         const range = selection.getRangeAt(0);
         const rect = range.getBoundingClientRect();
@@ -798,6 +850,21 @@ window.addEventListener('resize', () => {
     if (popup.style.opacity === '1') {
         hidePopup();
     }
+});
+
+// --- Global error handler ---
+window.addEventListener('error', function(event) {
+    debugLog('error', 'Global error caught:', event.error);
+    // Prevent error from bubbling up
+    event.preventDefault();
+    return false;
+});
+
+window.addEventListener('unhandledrejection', function(event) {
+    debugLog('error', 'Unhandled promise rejection:', event.reason);
+    // Prevent error from bubbling up
+    event.preventDefault();
+    return false;
 });
 
 // --- Initialize ---
