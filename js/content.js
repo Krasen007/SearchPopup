@@ -297,10 +297,10 @@ async function fetchExchangeRates() {
 function detectAndConvertUnit(text) {
     // Match pattern: number (including fractions) followed by unit with optional space
     // Updated pattern to handle currency symbols before or after the number
-    // Using two separate patterns with start anchor and case-insensitive flag
+    // Allow both comma and period as decimal separators
     // Allow trailing punctuation like periods, commas, etc.
-    const valueUnitPattern = /^(-?\d*\.?\d+(?:\/\d+)?)\s*([a-zA-Z°\/€$£]+(?:\s+[a-zA-Z]+)?)[.,;:!?]*$/i;
-    const unitValuePattern = /^([a-zA-Z°\/€$£]+(?:\s+[a-zA-Z]+)?)\s*(-?\d*\.?\d+(?:\/\d+)?)[.,;:!?]*$/i;
+    const valueUnitPattern = /^(-?\d{1,3}(?:[.,]\d{3})*(?:[.,]\d+)?|\d+\/\d+)\s*([a-zA-Z°\/€$£]+(?:\s+[a-zA-Z]+)?)[.,;:!?]*$/i;
+    const unitValuePattern = /^([a-zA-Z°\/€$£]+(?:\s+[a-zA-Z]+)?)\s*(-?\d{1,3}(?:[.,]\d{3})*(?:[.,]\d+)?|\d+\/\d+)[.,;:!?]*$/i;
     
     const valueUnitMatch = text.trim().match(valueUnitPattern);
     const unitValueMatch = text.trim().match(unitValuePattern);
@@ -323,8 +323,12 @@ function detectAndConvertUnit(text) {
     // Handle fractions
     if (value.includes('/')) {
         const [numerator, denominator] = value.split('/');
-        value = parseFloat(numerator) / parseFloat(denominator);
+        value = parseFloat(numerator.replace(',', '.')) / parseFloat(denominator.replace(',', '.'));
     } else {
+        // Normalize value: remove thousands separators, replace comma with period for decimal
+        value = value.replace(/\.(?=\d{3}(\D|$))/g, ''); // Remove thousands sep (dot)
+        value = value.replace(/,(?=\d{3}(\D|$))/g, '');   // Remove thousands sep (comma)
+        value = value.replace(',', '.'); // Replace decimal comma with period
         value = parseFloat(value);
     }
     
