@@ -1,8 +1,8 @@
 {
 	"manifest_version": 3,
 	"name": "Search Popup",
-	"version": "1.51.20250631",
-	"description": "Allows you to Copy text or Search for selected text in Google using a popup interface similar to Opera.",
+	"version": "1.52.0701",
+	"description": "Displays a smart popup when you select text on any webpage: search, copy, convert, copy to clipboard, open URLs.",
 	"icons": {
 		"16": "img/icon.png",
 		"32": "img/icon.png",

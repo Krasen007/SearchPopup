@@ -1,60 +1,55 @@
-# Text Selection Popup Extension
-A extension inspired by Opera Browser's own popup menu that displays a convenient popup menu when you select text on a webpage, allowing you to quickly search or copy the selected text. In mine version the popup intelligently adapts its theme (light/dark) based on the underlying webpage's background.
+# Search Popup Extension for Text Selection
+
+A modern browser extension that displays a smart popup menu when you select text on any webpage. Instantly search, copy, or convert selected text—including units and currencies—right from the popup. The extension adapts its theme to match the page (light/dark) and works on all websites.
 
 ## Features
-**Contextual Popup:** Appears when text is selected on any webpage.
-**Quick Actions:**
-    * **Search:** Opens a new Google search tab with the selected text.
-    * **Copy:** Copies the selected text to the clipboard.
-**Adaptive Theming:** Automatically switches between a light and dark theme to match the webpage's background, ensuring readability.
-![image](img/light.png)
 
-**Auto-detecting websites in selected text**
-![image](img/dark.png)
+- **Contextual Popup:** Appears when you select text on any webpage.
+- **Quick Actions:**
+  - **Search:** Instantly search Google for the selected text or visit a detected website.
+  - **Copy:** Copy the selected text to your clipboard with robust fallback handling.
+- **Unit & Currency Conversion:**
+  - Detects and converts common units (kg, lb, mph, km, etc.) and currencies (USD, EUR, GBP, etc.)
+  - Supports both period and comma as decimal separators (e.g., `569,00€` or `569.00€`)
+- **URL Detection:** Recognizes website addresses in your selection and offers to visit them directly.
+- **Adaptive Theming:** Popup automatically switches between light and dark mode based on the underlying page background for optimal readability.
+- **Dynamic Positioning:** Popup appears above or below the selection with an arrow, always within the viewport.
+- **Auto-hide on Scroll/Resize:** Disappears smoothly to avoid obstructing content.
+- **Lightweight & Efficient:** Minimal impact on page performance.
 
-
-**Unit conversion** Convert between the most common units like kg lb mph km etc.
-**Currency conversion** Convert between the most common currencies like USD EUR GBP etc.
-
-**TODO:**
-Make the extension pick the default search engine and/or add settings page with manual selection
-Add option to pick Favourite currency or detect it.
-Time zone conversion
-
-
-
-**More features**
-    * **Dynamic Positioning:** The popup positions itself intelligently above or below the selected text, with an arrow indicating the selection.
-    * **Scroll & Resize Handling:** The popup disappears smoothly on page scroll or window resize to prevent obstruction.
-    * **Lightweight & Efficient:** Designed to be unobtrusive and performant.
+![Light mode popup](img/light.png)
+![Dark mode popup](img/dark.png)
 
 ## Installation
 
-To install this extension in Google Chrome:
+1. **Download the Extension Files:**
+   - Clone or download and extract the repo.
+2. **Open Chrome Extensions Page:**
+   - Go to `chrome://extensions` in your browser.
+3. **Enable Developer Mode:**
+   - Toggle "Developer mode" on (top right).
+4. **Load Unpacked Extension:**
+   - Click "Load unpacked" and select the folder containing `manifest.json`.
+5. **Done!**
+   - The extension is now active and ready to use.
 
-1.  **Download the Extension Files:**
-    * Clone the repo or download it and extract the zip file.
-
-2.  **Open Chrome Extensions Page:**
-    * Open Google Chrome.
-    * Type `chrome://extensions` in the address bar and press Enter.
-
-3.  **Enable Developer Mode:**
-    * In the top right corner of the Extensions page, toggle the "Developer mode" switch to the **on** position.
-
-4.  **Load Unpacked Extension:**
-    * Click the "Load unpacked" button that appears on the left side.
-    * Navigate to the folder where you saved the extension files (the folder containing `manifest.json` and `content.js`).
-    * Select the folder and click "Select Folder".
-
-5.  **Extension Installed:**
-    * The "Text Selection Popup" extension should now appear in your list of installed extensions and be active.
-
-Similar steps can be used for other Chromium based browsers.
+Works on all Chromium-based browsers (Chrome, Vivaldi, Edge, Brave, etc.).
 
 ---
 
-!A portion of this app was created using various AI tools!
+## Advanced Features
+- **Clipboard Fallback:** Uses modern Clipboard API with fallback for maximum compatibility.
+- **Exchange Rate Caching:** Currency rates are cached and updated daily for fast, offline-friendly conversion.
+- **Locale-aware Number Parsing:** Handles both `1,234.56` and `1.234,56` formats.
 
-## Extension Tested on the following browsers:
-Vivaldi 7.4
+## Roadmap / TODO
+- Option to pick default search engine or add a settings page
+- Option to select favorite or local currency
+- Time zone conversion
+
+---
+
+*Portions of this app were created using various AI tools!*
+
+## Tested Browsers
+- Vivaldi 7.4
