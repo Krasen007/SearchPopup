@@ -297,10 +297,10 @@ async function fetchExchangeRates() {
 function detectAndConvertUnit(text) {
     // Match pattern: number (including fractions) followed by unit with optional space
     // Updated pattern to handle currency symbols before or after the number
-    // Allow both comma and period as decimal separators
+    // Allow both comma, period, and space as decimal/thousands separators
     // Allow trailing punctuation like periods, commas, etc.
-    const valueUnitPattern = /^(-?\d{1,3}(?:[.,]\d{3})*(?:[.,]\d+)?|\d+\/\d+)\s*([a-zA-Z°\/€$£]+(?:\s+[a-zA-Z]+)?)[.,;:!?]*$/i;
-    const unitValuePattern = /^([a-zA-Z°\/€$£]+(?:\s+[a-zA-Z]+)?)\s*(-?\d{1,3}(?:[.,]\d{3})*(?:[.,]\d+)?|\d+\/\d+)[.,;:!?]*$/i;
+    const valueUnitPattern = /^(-?\d{1,3}(?:[.,\s]\d{3})*(?:[.,]\d+)?|\d+\/\d+)\s*([a-zA-Z°\/€$£]+(?:\s+[a-zA-Z]+)?)[.,;:!?]*$/i;
+    const unitValuePattern = /^([a-zA-Z°\/€$£]+(?:\s+[a-zA-Z]+)?)\s*(-?\d{1,3}(?:[.,\s]\d{3})*(?:[.,]\d+)?|\d+\/\d+)[.,;:!?]*$/i;
     
     const valueUnitMatch = text.trim().match(valueUnitPattern);
     const unitValueMatch = text.trim().match(unitValuePattern);
@@ -323,11 +323,10 @@ function detectAndConvertUnit(text) {
     // Handle fractions
     if (value.includes('/')) {
         const [numerator, denominator] = value.split('/');
-        value = parseFloat(numerator.replace(',', '.')) / parseFloat(denominator.replace(',', '.'));
+        value = parseFloat(numerator.replace(',', '.').replace(/\s/g, '')) / parseFloat(denominator.replace(',', '.').replace(/\s/g, ''));
     } else {
-        // Normalize value: remove thousands separators, replace comma with period for decimal
-        value = value.replace(/\.(?=\d{3}(\D|$))/g, ''); // Remove thousands sep (dot)
-        value = value.replace(/,(?=\d{3}(\D|$))/g, '');   // Remove thousands sep (comma)
+        // Normalize value: remove thousands separators (dot, comma, space), replace decimal comma with period
+        value = value.replace(/[.\,\s](?=\d{3}(\D|$))/g, ''); // Remove thousands sep (dot, comma, space)
         value = value.replace(',', '.'); // Replace decimal comma with period
         value = parseFloat(value);
     }
