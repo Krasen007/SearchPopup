@@ -17,6 +17,56 @@ A modern browser extension that displays a smart popup menu when you select text
 - **Auto-hide on Scroll/Resize:** Disappears smoothly to avoid obstructing content.
 - **Lightweight & Efficient:** Minimal impact on page performance.
 
+## Supported Conversions
+
+The extension supports a wide range of unit and currency conversions. Simply select the text (e.g., `10 lbs` or `0.5 BTC`) to see the result.
+
+### General Units
+
+| Category      | Example From                                      | To          |
+|---------------|---------------------------------------------------|-------------|
+| **Weight**    | `10 lb`, `5 kg`, `8 oz`, `500 g`                    | `kg`, `lb`, `g`, `oz` |
+| **Temperature**| `68 °F`, `20 °C`                                  | `°C`, `°F`    |
+| **Speed**     | `60 mph`, `100 km/h`, `30 mpg`, `8 l/100km`         | `km/h`, `mph`, `l/100km`, `mpg` |
+| **Volume**    | `5 gal`, `20 l`, `2 qt`, `12 fl`, `250 ml`          | `l`, `gal`, `l`, `ml`, `fl` |
+| **Distance**  | `10 mi`, `15 km`, `50 yd`, `100 m`, `10 ft`, `12 in` | `km`, `mi`, `m`, `yd`, `m`, `cm` |
+| **Power**     | `150 kW`, `200 hp`                                | `hp`, `kW`    |
+| **Torque**    | `150 lb ft`, `200 Nm`                             | `Nm`, `lb ft` |
+
+### Cooking Measurements
+
+| Example From                                                              | To   |
+|---------------------------------------------------------------------------|------|
+| `1.5 cup`, `2 tbsp`, `0.5 tsp`, `8 fl oz`, `1 pint`, `1 quart`, `1 gallon` | `ml` |
+
+### Fiat Currencies
+
+The extension converts all major fiat currencies (e.g., `10 USD`, `$25`, `50 EUR`, `€100`, `20 GBP`, `£30`) to `BGN` based on the latest exchange rates.
+
+### Cryptocurrencies
+
+All cryptocurrency conversions are fetched from the CoinGecko API and converted to `USD`. Just select the amount and symbol (e.g., `0.5 BTC`).
+
+| Example      | Name            | Example      | Name          |
+|--------------|-----------------|--------------|---------------|
+| `1 BTC`      | Bitcoin         | `1.5 ETH`      | Ethereum      |
+| `50 XRP`     | Ripple          | `10 LTC`     | Litecoin      |
+| `2 BCH`      | Bitcoin Cash    | `1000 ADA`   | Cardano       |
+| `20 DOT`     | Polkadot        | `50 LINK`    | Chainlink     |
+| `1000 XLM`   | Stellar         | `10000 DOGE` | Dogecoin      |
+| `100 USDT`   | Tether          | `5 BNB`      | Binance Coin  |
+| `10 SOL`     | Solana          | `5000 TRX`   | Tron          |
+| `200 EOS`    | EOS             | `300 XTZ`    | Tezos         |
+| `50 ATOM`    | Cosmos          | `10000 VET`  | VeChain       |
+| `10 ETC`     | Ethereum Classic| `50 FIL`     | Filecoin      |
+| `5 AAVE`     | Aave            | `20 UNI`     | Uniswap       |
+| `100 SUSHI`  | Sushiswap       | `0.5 YFI`    | Yearn.finance |
+| `30 COMP`    | Compound        | `1 MKR`      | Maker         |
+| `50 SNX`     | Synthetix       | `100 UMA`    | UMA           |
+| `5 ZEC`      | Zcash           | `3 DASH`     | Dash          |
+| `10 XMR`     | Monero          | `1 BSV`      | Bitcoin SV    |
+| `20 AVAX`    | Avalanche       | `1000 MATIC` | Polygon (Matic)|
+
 ![Light mode popup](img/light.png)
 ![Dark mode popup](img/dark.png)
 

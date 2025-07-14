@@ -42,6 +42,94 @@ let exchangeRates = {
     }
 };
 
+// --- Cryptocurrency data ---
+const cryptoCurrencies = {
+    'BTC': 'bitcoin',
+    'ETH': 'ethereum',
+    'XRP': 'ripple',
+    'LTC': 'litecoin',
+    'BCH': 'bitcoin-cash',
+    'ADA': 'cardano',
+    'DOT': 'polkadot',
+    'LINK': 'chainlink',
+    'XLM': 'stellar',
+    'DOGE': 'dogecoin',
+    'USDT': 'tether',
+    'BNB': 'binancecoin',
+    'SOL': 'solana',
+    'TRX': 'tron',
+    'EOS': 'eos',
+    'XTZ': 'tezos',
+    'ATOM': 'cosmos',
+    'VET': 'vechain',
+    'ETC': 'ethereum-classic',
+    'FIL': 'filecoin',
+    'AAVE': 'aave',
+    'UNI': 'uniswap',
+    'SUSHI': 'sushiswap',
+    'YFI': 'yearn-finance',
+    'COMP': 'compound',
+    'MKR': 'maker',
+    'SNX': 'synthetix-network-token',
+    'UMA': 'uma',
+    'ZEC': 'zcash',
+    'DASH': 'dash',
+    'XMR': 'monero',
+    'BSV': 'bitcoin-sv',
+    'AVAX': 'avalanche-2',
+    'MATIC': 'matic-network'
+};
+
+let cryptoRates = {
+    lastUpdated: 0,
+    prices: {} // e.g., { bitcoin: { usd: 50000 } }
+};
+
+async function fetchCryptoRates() {
+    const now = Date.now();
+    if (cryptoRates.lastUpdated && now - cryptoRates.lastUpdated < 5 * 60 * 1000) { // 5-minute cache
+        return;
+    }
+
+    const coinIds = Object.values(cryptoCurrencies).join(',');
+    try {
+        const response = await fetch(`https://api.coingecko.com/api/v3/simple/price?ids=${coinIds}&vs_currencies=usd`);
+        if (!response.ok) {
+            throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+        }
+        const data = await response.json();
+        if (!data) {
+            throw new Error('Invalid response format from CoinGecko API');
+        }
+
+        cryptoRates.prices = data;
+        cryptoRates.lastUpdated = now;
+
+        // Add to unitConversions
+        for (const [symbol, id] of Object.entries(cryptoCurrencies)) {
+            if (cryptoRates.prices[id] && cryptoRates.prices[id].usd) {
+                unitConversions[symbol] = {
+                    to: 'USD',
+                    convert: (val) => val * cryptoRates.prices[id].usd
+                };
+            }
+        }
+
+        localStorage.setItem('cryptoRates', JSON.stringify(cryptoRates));
+    } catch (error) {
+        debugLog('warn', 'Failed to fetch crypto rates:', error);
+        const cached = localStorage.getItem('cryptoRates');
+        if (cached) {
+            const parsed = JSON.parse(cached);
+            if (parsed && parsed.prices) {
+                cryptoRates = parsed;
+                debugLog('log', 'Loaded crypto rates from cache');
+            }
+        }
+    }
+}
+
+
 // --- Rate limiting for API calls ---
 let apiCallAttempts = 0;
 const MAX_API_ATTEMPTS = 3;
@@ -294,7 +382,22 @@ async function fetchExchangeRates() {
 }
 
 // --- Helper function to detect and convert units ---
-function detectAndConvertUnit(text) {
+async function detectAndConvertUnit(text) {
+    // First, check for crypto
+    const upperCaseText = text.toUpperCase();
+    if (cryptoCurrencies[upperCaseText]) {
+        await fetchCryptoRates();
+        const id = cryptoCurrencies[upperCaseText];
+        if (cryptoRates.prices[id] && cryptoRates.prices[id].usd) {
+            const rate = cryptoRates.prices[id].usd;
+            return {
+                original: `1 ${upperCaseText}`,
+                converted: `${rate.toFixed(2)} USD`,
+                value: rate
+            };
+        }
+    }
+
     // Match pattern: number (including fractions) followed by unit with optional space
     // Updated pattern to handle currency symbols before or after the number
     // Allow both comma, period, and space as decimal/thousands separators
@@ -351,7 +454,7 @@ function detectAndConvertUnit(text) {
             }
             
             // Round to 2 decimal places for currency, 4 for other units
-            const decimals = key.match(/[€$£]/) ? 2 : 4;
+            const decimals = key.match(/[€$£]/) || cryptoCurrencies[key.toUpperCase()] ? 2 : 4;
             converted = Math.round(converted * Math.pow(10, decimals)) / Math.pow(10, decimals);
             
             return {
@@ -719,14 +822,14 @@ function initPopupButtons() {
 }
 
 // --- Function to show and position the popup ---
-function showAndPositionPopup(rect, selectionContextElement) {
+async function showAndPositionPopup(rect, selectionContextElement) {
     popup.style.opacity = '0';
     popup.style.display = 'block';
 
     // Check for unit conversion
     const conversionContainer = document.getElementById('conversionContainer');
     const convertedValueSpan = conversionContainer.querySelector('.converted-value');
-    convertedValue = detectAndConvertUnit(currentSelectedText);
+    convertedValue = await detectAndConvertUnit(currentSelectedText);
 
     if (convertedValue) {
         conversionContainer.style.display = 'block';
@@ -820,7 +923,7 @@ document.addEventListener('mouseup', function (e) {
             showAndPositionPopup(rect, range.commonAncestorContainer);
             // Set selection complete flag after a short delay to allow for mouse movement
             setTimeout(() => {
-                isSelectionComplete = true;
+                let isSelectionComplete = false;
                 // Start the hide timer
                 hidePopupTimeout = setTimeout(() => {
                     hidePopup();
@@ -873,3 +976,4 @@ window.addEventListener('unhandledrejection', function(event) {
 // --- Initialize ---
 initPopupButtons();
 fetchExchangeRates(); // Fetch exchange rates on startup
+fetchCryptoRates(); // Fetch crypto rates on startup
