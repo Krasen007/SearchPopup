@@ -51,11 +51,11 @@ All cryptocurrency conversions are fetched from the CoinGecko API and converted 
 |--------------|-----------------|--------------|---------------|
 | `1 BTC`      | Bitcoin         | `1.5 ETH`      | Ethereum      |
 | `50 XRP`     | Ripple          | `10 LTC`     | Litecoin      |
-| `2 BCH`      | Bitcoin Cash    | `1000 ADA`   | Cardano       |
-| `20 DOT`     | Polkadot        | `50 LINK`    | Chainlink     |
+| `2.1 BCH`      | Bitcoin Cash    | `1000 ADA`   | Cardano       |
+| `30.05 DOT`     | Polkadot        | `50 LINK`    | Chainlink     |
 | `1000 XLM`   | Stellar         | `10000 DOGE` | Dogecoin      |
 | `100 USDT`   | Tether          | `5 BNB`      | Binance Coin  |
-| `10 SOL`     | Solana          | `5000 TRX`   | Tron          |
+| `10.006 SOL`     | Solana          | `5000 TRX`   | Tron          |
 | `200 EOS`    | EOS             | `300 XTZ`    | Tezos         |
 | `50 ATOM`    | Cosmos          | `10000 VET`  | VeChain       |
 | `10 ETC`     | Ethereum Classic| `50 FIL`     | Filecoin      |

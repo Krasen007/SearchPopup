@@ -26,6 +26,23 @@ let currentSelectedText = '';
 let isUrlSelected = false;
 let convertedValue = null;
 
+// --- Preferred currency (default to BGN) ---
+let preferredCurrency = 'BGN';
+
+// Fetch preferred currency from chrome.storage.sync
+if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.sync) {
+    chrome.storage.sync.get(['preferredCurrency'], (result) => {
+        if (result.preferredCurrency) {
+            preferredCurrency = result.preferredCurrency;
+        }
+        // After loading preferredCurrency, fetch exchange rates
+        fetchExchangeRates();
+    });
+} else {
+    // Fallback for non-extension environments
+    fetchExchangeRates();
+}
+
 // --- Input validation constants ---
 const MAX_SELECTION_LENGTH = 10000; // Maximum characters for text selection
 const MIN_SELECTION_LENGTH = 1;     // Minimum characters for text selection
@@ -272,39 +289,36 @@ async function fetchExchangeRates() {
         // Reset API attempts on success
         apiCallAttempts = 0;
         
-        // Update rates (converting to BGN)
+        // Update rates (converting to preferredCurrency)
         exchangeRates.rates = {};
+        const target = preferredCurrency || 'BGN';
         for (const [currency, rate] of Object.entries(data.rates)) {
             if (typeof rate !== 'number' || isNaN(rate)) {
                 debugLog('warn', `Skipping invalid rate for ${currency}:`, rate);
                 continue;
             }
-            
-            if (currency !== 'EUR') {
-                exchangeRates.rates[currency] = data.rates.BGN / rate;
+            // Calculate conversion rate to preferred currency
+            if (currency !== target) {
+                exchangeRates.rates[currency] = data.rates[target] / rate;
             } else {
-                exchangeRates.rates[currency] = data.rates.BGN;
+                exchangeRates.rates[currency] = data.rates[target];
             }
-            
             // Add currency conversion to unitConversions
-            if (currency !== 'BGN') {
+            if (currency !== target) {
                 unitConversions[currency] = {
-                    to: 'BGN',
+                    to: target,
                     convert: (val) => val * exchangeRates.rates[currency]
                 };
-                
                 // Add symbol conversion if available
                 if (currencySymbols[currency]) {
                     unitConversions[currencySymbols[currency]] = {
-                        to: 'BGN',
+                        to: target,
                         convert: (val) => val * exchangeRates.rates[currency]
                     };
                 }
             }
         }
-        
         exchangeRates.lastUpdated = now;   // store epoch ms
-        
         // Save to localStorage
         try {
             localStorage.setItem('exchangeRates', JSON.stringify(exchangeRates));
@@ -313,7 +327,6 @@ async function fetchExchangeRates() {
         }
     } catch (error) {
         debugLog('warn', 'Failed to fetch exchange rates:', error);
-        
         // Exponential backoff for retries
         if (apiCallAttempts < MAX_API_ATTEMPTS) {
             const retryDelay = BASE_RETRY_DELAY * Math.pow(2, apiCallAttempts - 1);
@@ -321,23 +334,19 @@ async function fetchExchangeRates() {
             setTimeout(() => fetchExchangeRates(), retryDelay);
             return; // Exit early to prevent fallback execution during retry attempts
         }
-        
         // Load from localStorage if available (only when max retries reached)
         try {
             const cached = localStorage.getItem('exchangeRates');
             if (cached) {
                 const parsed = JSON.parse(cached);
-                
                 // Validate cached data structure
                 if (parsed && typeof parsed === 'object' && 
                     parsed.rates && typeof parsed.rates === 'object' &&
                     parsed.lastUpdated && typeof parsed.lastUpdated === 'number') {
-                    
                     // Validate that the cached data is not too old (more than 7 days)
                     const now = Date.now();
                     const cacheAge = now - parsed.lastUpdated;
                     const maxCacheAge = 7 * 24 * 60 * 60 * 1000; // 7 days in milliseconds
-                    
                     if (cacheAge < maxCacheAge) {
                         exchangeRates = parsed;
                         debugLog('log', 'Loaded exchange rates from cache');
@@ -402,8 +411,10 @@ async function detectAndConvertUnit(text) {
     // Updated pattern to handle currency symbols before or after the number
     // Allow both comma, period, and space as decimal/thousands separators
     // Allow trailing punctuation like periods, commas, etc.
-    const valueUnitPattern = /^(-?\d{1,3}(?:[.,\s]\d{3})*(?:[.,]\d+)?|\d+\/\d+)\s*([a-zA-Z°\/€$£]+(?:\s+[a-zA-Z]+)?)[.,;:!?]*$/i;
-    const unitValuePattern = /^([a-zA-Z°\/€$£]+(?:\s+[a-zA-Z]+)?)\s*(-?\d{1,3}(?:[.,\s]\d{3})*(?:[.,]\d+)?|\d+\/\d+)[.,;:!?]*$/i;
+    // Expanded currency symbols to include ₺, ₽, ₹, ₩, ₪, ₱, ฿, ₣, ₦, ₲, ₵, ₡, ₫, ₭, ₮, ₯, ₠, ₢, ₳, ₴, ₸, ₺, ₼, ₽, ₾, ₿, and others
+    const currencySymbolPattern = '[a-zA-Z°/€$£¥₺₽₹₩₪₱฿₣₦₲₵₡₫₭₮₯₠₢₳₴₸₼₾₿]';
+    const valueUnitPattern = new RegExp(`^(-?\\d{1,3}(?:[.,\\s]\\d{3})*(?:[.,]\\d+)?|\\d+/\\d+)\\s*(${currencySymbolPattern}+(?:\\s+[a-zA-Z]+)?)?[.,;:!?]*$`, 'i');
+    const unitValuePattern = new RegExp(`^(${currencySymbolPattern}+(?:\\s+[a-zA-Z]+)?)\\s*(-?\\d{1,3}(?:[.,\\s]\\d{3})*(?:[.,]\\d+)?|\\d+/\\d+)[.,;:!?]*$`, 'i');
     
     const valueUnitMatch = text.trim().match(valueUnitPattern);
     const unitValueMatch = text.trim().match(unitValuePattern);
