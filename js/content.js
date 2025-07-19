@@ -390,6 +390,91 @@ async function fetchExchangeRates() {
     }
 }
 
+// --- Improved Time Zone Conversion ---
+function convertTimeZone(text, userTimeZone = Intl.DateTimeFormat().resolvedOptions().timeZone) {
+    // Enhanced time zone mappings with more comprehensive coverage
+    const tzAbbrs = {
+        'PST': 'America/Los_Angeles', 'PDT': 'America/Los_Angeles',
+        'MST': 'America/Denver',      'MDT': 'America/Denver',
+        'CST': 'America/Chicago',     'CDT': 'America/Chicago',
+        'EST': 'America/New_York',    'EDT': 'America/New_York',
+        'AKST': 'America/Anchorage',  'AKDT': 'America/Anchorage',
+        'HST': 'Pacific/Honolulu',
+        'GMT': 'Etc/GMT', 'UTC': 'Etc/UTC',
+        'CET': 'Europe/Berlin', 'CEST': 'Europe/Berlin',
+        'EET': 'Europe/Helsinki', 'EEST': 'Europe/Helsinki',
+        'BST': 'Europe/London', 'IST': 'Asia/Kolkata',
+        'JST': 'Asia/Tokyo', 'KST': 'Asia/Seoul',
+        'AEST': 'Australia/Sydney', 'AEDT': 'Australia/Sydney',
+        'ACST': 'Australia/Adelaide', 'ACDT': 'Australia/Adelaide',
+        'AWST': 'Australia/Perth',
+    };
+    // 12-hour: 5 PM PST, 11:30 am CET; 24-hour: 14:00 EST
+    const timeZonePattern = /^(\d{1,2})(?::(\d{2}))?\s*(AM|PM|am|pm)?\s*([A-Z]{2,5})$/i;
+    const matchTZ = text.trim().match(timeZonePattern);
+    if (!matchTZ) return null;
+    let hour = parseInt(matchTZ[1], 10);
+    let minute = matchTZ[2] ? parseInt(matchTZ[2], 10) : 0;
+    let ampm = matchTZ[3] ? matchTZ[3].toUpperCase() : null;
+    let tz = matchTZ[4].toUpperCase();
+    if (isNaN(hour) || hour < 0 || hour > 23 || minute < 0 || minute > 59) return null;
+    if (ampm) {
+        if (ampm === 'PM' && hour < 12) hour += 12;
+        if (ampm === 'AM' && hour === 12) hour = 0;
+    }
+    if (!tzAbbrs[tz]) return null;
+    try {
+        // Use today's date for conversion
+        const now = new Date();
+        // Build a date string in the source time zone
+        const dateStr = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')}T${String(hour).padStart(2,'0')}:${String(minute).padStart(2,'0')}:00`;
+        // Get the source time zone IANA name
+        const srcTimeZone = tzAbbrs[tz];
+        // Convert to UTC from the source time zone
+        const srcDate = new Date(new Date(dateStr + getTimeZoneOffsetString(srcTimeZone, dateStr)).toISOString());
+        // Format in user's local time zone
+        const localFormatter = new Intl.DateTimeFormat([], {
+            hour: '2-digit', minute: '2-digit', hour12: false, timeZone: userTimeZone
+        });
+        const localTime = localFormatter.format(srcDate);
+        return {
+            original: text,
+            converted: `${localTime} (your time)`,
+            value: localTime
+        };
+    } catch (e) {
+        return null;
+    }
+}
+// Helper to get the offset string for a given IANA time zone and date
+function getTimeZoneOffsetString(timeZone, dateStr) {
+    try {
+        const dtf = new Intl.DateTimeFormat('en-US', {
+            timeZone,
+            hour12: false,
+            year: 'numeric', month: '2-digit', day: '2-digit',
+            hour: '2-digit', minute: '2-digit', second: '2-digit'
+        });
+        const parts = dtf.formatToParts(new Date(dateStr));
+        const y = parts.find(p => p.type === 'year').value;
+        const m = parts.find(p => p.type === 'month').value;
+        const d = parts.find(p => p.type === 'day').value;
+        const h = parts.find(p => p.type === 'hour').value;
+        const min = parts.find(p => p.type === 'minute').value;
+        const s = parts.find(p => p.type === 'second').value;
+        const utc = Date.UTC(y, m-1, d, h, min, s);
+        const local = new Date(`${dateStr}`).getTime();
+        const offset = (local - utc) / 60000;
+        const sign = offset <= 0 ? '+' : '-';
+        const abs = Math.abs(offset);
+        const hh = String(Math.floor(abs/60)).padStart(2,'0');
+        const mm = String(abs%60).padStart(2,'0');
+        return `${sign}${hh}:${mm}`;
+    } catch {
+        return '+00:00';
+    }
+}
+
 // --- Helper function to detect and convert units ---
 async function detectAndConvertUnit(text) {
     // First, check for crypto
@@ -408,47 +493,8 @@ async function detectAndConvertUnit(text) {
     }
 
     // --- Time Zone Conversion ---
-    // Recognize patterns like '5 PM PST', '14:00 EST', '11:30 am CET', etc.
-    // Supported time zones: PST, PDT, MST, MDT, CST, CDT, EST, EDT, GMT, UTC, CET, EET, etc.
-    const tzAbbrs = {
-        'PST': -8, 'PDT': -7,
-        'MST': -7, 'MDT': -6,
-        'CST': -6, 'CDT': -5,
-        'EST': -5, 'EDT': -4,
-        'GMT': 0,  'UTC': 0,
-        'CET': 1,  'CEST': 2,
-        'EET': 2,  'EEST': 3
-    };
-    // 12-hour: 5 PM PST, 11:30 am CET; 24-hour: 14:00 EST
-    const timeZonePattern = /^(\d{1,2})(?::(\d{2}))?\s*(AM|PM|am|pm)?\s*([A-Z]{2,4})$/i;
-    const matchTZ = text.trim().match(timeZonePattern);
-    if (matchTZ) {
-        let hour = parseInt(matchTZ[1], 10);
-        let minute = matchTZ[2] ? parseInt(matchTZ[2], 10) : 0;
-        let ampm = matchTZ[3] ? matchTZ[3].toUpperCase() : null;
-        let tz = matchTZ[4].toUpperCase();
-        if (ampm) {
-            if (ampm === 'PM' && hour < 12) hour += 12;
-            if (ampm === 'AM' && hour === 12) hour = 0;
-        }
-        if (tzAbbrs[tz] !== undefined) {
-            // Get the current date in the user's local time zone
-            const now = new Date();
-            // Create a date in the source time zone (UTC offset)
-            const srcUTC = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate(), hour - tzAbbrs[tz], minute);
-            const localDate = new Date(srcUTC + (now.getTimezoneOffset() * 60000));
-            // Format local time
-            const localHour = localDate.getHours();
-            const localMinute = localDate.getMinutes();
-            const pad = n => n.toString().padStart(2, '0');
-            const localTimeStr = `${pad(localHour)}:${pad(localMinute)} (your time)`;
-            return {
-                original: text,
-                converted: localTimeStr,
-                value: localTimeStr
-            };
-        }
-    }
+    const tzResult = convertTimeZone(text);
+    if (tzResult) return tzResult;
 
     // Match pattern: number (including fractions) followed by unit with optional space
     // Updated pattern to handle currency symbols before or after the number
