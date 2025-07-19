@@ -117,9 +117,11 @@ async function fetchCryptoRates() {
     }
 
     const coinIds = Object.values(cryptoCurrencies).join(',');
-    const vsCurrency = preferredCryptoCurrency ? preferredCryptoCurrency.toLowerCase() : 'usd';
+    let vsCurrency = preferredCryptoCurrency ? preferredCryptoCurrency.toLowerCase() : 'usd';
+    let fetchVs = vsCurrency;
+    if (vsCurrency === 'bgn') fetchVs = 'eur'; // Fetch EUR if BGN is selected
     try {
-        const response = await fetch(`https://api.coingecko.com/api/v3/simple/price?ids=${coinIds}&vs_currencies=${vsCurrency}`);
+        const response = await fetch(`https://api.coingecko.com/api/v3/simple/price?ids=${coinIds}&vs_currencies=${fetchVs}`);
         if (!response.ok) {
             throw new Error(`HTTP ${response.status}: ${response.statusText}`);
         }
@@ -133,10 +135,19 @@ async function fetchCryptoRates() {
 
         // Add to unitConversions
         for (const [symbol, id] of Object.entries(cryptoCurrencies)) {
-            if (cryptoRates.prices[id] && cryptoRates.prices[id][vsCurrency]) {
+            if (cryptoRates.prices[id] && cryptoRates.prices[id][fetchVs]) {
+                let convertFn;
+                let toLabel = preferredCryptoCurrency;
+                if (vsCurrency === 'bgn' && exchangeRates.rates && exchangeRates.rates['EUR']) {
+                    // Convert EUR price to BGN
+                    convertFn = (val) => val * cryptoRates.prices[id]['eur'] * exchangeRates.rates['EUR'];
+                    toLabel = 'BGN';
+                } else {
+                    convertFn = (val) => val * cryptoRates.prices[id][fetchVs];
+                }
                 unitConversions[symbol] = {
-                    to: preferredCryptoCurrency,
-                    convert: (val) => val * cryptoRates.prices[id][vsCurrency]
+                    to: toLabel,
+                    convert: convertFn
                 };
             }
         }
@@ -491,13 +502,18 @@ async function detectAndConvertUnit(text) {
     if (cryptoCurrencies[upperCaseText]) {
         await fetchCryptoRates();
         const id = cryptoCurrencies[upperCaseText];
-        const vsCurrency = preferredCryptoCurrency ? preferredCryptoCurrency.toLowerCase() : 'usd';
-        if (cryptoRates.prices[id] && cryptoRates.prices[id][vsCurrency]) {
-            const rate = cryptoRates.prices[id][vsCurrency];
+        let vsCurrency = preferredCryptoCurrency ? preferredCryptoCurrency.toLowerCase() : 'usd';
+        let price = null;
+        if (vsCurrency === 'bgn' && cryptoRates.prices[id] && cryptoRates.prices[id]['eur'] && exchangeRates.rates && exchangeRates.rates['EUR']) {
+            price = cryptoRates.prices[id]['eur'] * exchangeRates.rates['EUR'];
+        } else if (cryptoRates.prices[id] && cryptoRates.prices[id][vsCurrency]) {
+            price = cryptoRates.prices[id][vsCurrency];
+        }
+        if (price !== null) {
             return {
                 original: `1 ${upperCaseText}`,
-                converted: `${rate.toFixed(2)} ${preferredCryptoCurrency}`,
-                value: rate
+                converted: `${price.toFixed(2)} ${preferredCryptoCurrency.toUpperCase()}`,
+                value: price
             };
         }
     }
@@ -889,6 +905,16 @@ function getSearchUrl(query) {
             return `https://duckduckgo.com/?q=${encodeURIComponent(query)}`;
         case 'bing':
             return `https://www.bing.com/search?q=${encodeURIComponent(query)}`;
+        case 'yahoo':
+            return `https://search.yahoo.com/search?p=${encodeURIComponent(query)}`;
+        case 'startpage':
+            return `https://www.startpage.com/do/dsearch?query=${encodeURIComponent(query)}`;
+        case 'brave':
+            return `https://search.brave.com/search?q=${encodeURIComponent(query)}`;
+        case 'qwant':
+            return `https://www.qwant.com/?q=${encodeURIComponent(query)}`;
+        case 'ecosia':
+            return `https://www.ecosia.org/search?q=${encodeURIComponent(query)}`;
         case 'google':
         default:
             return `https://www.google.com/search?q=${encodeURIComponent(query)}`;

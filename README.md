@@ -77,25 +77,15 @@ The extension supports a wide range of unit and currency conversions. Simply sel
 
 All cryptocurrency conversions are fetched from the CoinGecko API and converted to `USD`. Just select the amount and symbol (e.g., `0.5 BTC`).
 
-| Example      | Name            | Example      | Name          |
+| Example | Name | Example | Name |
 |--------------|-----------------|--------------|---------------|
-| `1 BTC`      | Bitcoin         | `1.5 ETH`      | Ethereum      |
-| `50 XRP`     | Ripple          | `10 LTC`     | Litecoin      |
-| `2.1 BCH`      | Bitcoin Cash    | `1000 ADA`   | Cardano       |
-| `30.05 DOT`     | Polkadot        | `50 LINK`    | Chainlink     |
-| `1000 XLM`   | Stellar         | `10000 DOGE` | Dogecoin      |
-| `100 USDT`   | Tether          | `5 BNB`      | Binance Coin  |
-| `10.006 SOL`     | Solana          | `5000 TRX`   | Tron          |
-| `200 EOS`    | EOS             | `300 XTZ`    | Tezos         |
-| `50 ATOM`    | Cosmos          | `10000 VET`  | VeChain       |
-| `10 ETC`     | Ethereum Classic| `50 FIL`     | Filecoin      |
-| `5 AAVE`     | Aave            | `20 UNI`     | Uniswap       |
-| `100 SUSHI`  | Sushiswap       | `0.5 YFI`    | Yearn.finance |
-| `30 COMP`    | Compound        | `1 MKR`      | Maker         |
-| `50 SNX`     | Synthetix       | `100 UMA`    | UMA           |
-| `5 ZEC`      | Zcash           | `3 DASH`     | Dash          |
-| `10 XMR`     | Monero          | `1 BSV`      | Bitcoin SV    |
-| `20 AVAX`    | Avalanche       | `1000 MATIC` | Polygon (Matic)|
+| `1 BTC` | Bitcoin | `1.5 ETH` | Ethereum |
+| `50 XRP` | Ripple | `10 LTC` | Litecoin |
+| `2.1 BCH` | Bitcoin Cash | `30.05 DOT` | Polkadot |
+| `50 LINK` | Chainlink | `1000 XLM` | Stellar |
+| `5 BNB` | Binance Coin | `200 EOS` | EOS |
+| `0.5 YFI` | Yearn.finance | `13 XAG` | `1,44 XAU` |
+| `20 BITS` | `250 SATS` | | |
 
 
 ## Installation
