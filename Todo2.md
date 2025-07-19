@@ -71,13 +71,13 @@ Second, in `js/content.js`, check for this setting. If it's enabled, modify the 
 
 This section focuses on expanding the core capabilities of the extension.
 
-### Step 2.1: Add New Conversion Types
+<!-- ### Step 2.1: Add New Conversion Types
 
 **Goal:** Add support for converting time zones.
 
 **Prompt for Gemini:**
 "Update `js/content.js` to include new detection and conversion logic for the following types:
-1.  **Time Zones:** Recognize patterns like '5 PM PST' or '14:00 EST' and convert them to the user's local time.
+1.  **Time Zones:** Recognize patterns like '5 PM PST' or '14:00 EST' and convert them to the user's local time. -->
 
 
 ### Step 2.2: Implement Multi-Currency View

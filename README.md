@@ -15,6 +15,7 @@ A modern browser extension that displays a smart popup menu when you select text
   - Detects and converts common units (kg, lb, mph, km, etc.) and currencies (USD, EUR, GBP, etc.)
   - Supports both period and comma as decimal separators (e.g., `569,00€` or `569.00€`)
 - **URL Detection:** Recognizes website addresses in your selection and offers to visit them directly.
+- **Time zone conversion:** Converts Time zones to your time.
 - **Adaptive Theming:** Popup automatically switches between light and dark mode based on the underlying page background for optimal readability.
 - **Dynamic Positioning:** Popup appears above or below the selection with an arrow, always within the viewport.
 - **Auto-hide on Scroll/Resize:** Disappears smoothly to avoid obstructing content.
@@ -42,9 +43,32 @@ The extension supports a wide range of unit and currency conversions. Simply sel
 |---------------------------------------------------------------------------|------|
 | `1.5 cup`, `2 tbsp`, `0.5 tsp`, `8 fl oz`, `1 pint`, `1 quart`, `1 gallon` | `ml` |
 
-### Fiat Currencies
+### Time Zone Conversion Examples
 
-The extension converts all major fiat currencies (e.g., `10 USD`, `$25`, `50 EUR`, `€100`, `20 GBP`, `£30`) to `BGN` based on the latest exchange rates.
+| Example         | Description                        | Output Example           |
+|----------------|------------------------------------|-------------------------|
+| `5 PM PST`     | 12-hour US Pacific Time            | `03:00 (your time)`     |
+| `14:00 EST`    | 24-hour US Eastern Time            | `21:00 (your time)`     |
+| `11:30 am CET` | 12-hour Central European Time      | `12:30 (your time)`     |
+| `23:15 GMT`    | 24-hour Greenwich Mean Time        | `01:15 (your time)`     |
+| `8:00 UTC`     | 24-hour Coordinated Universal Time | `11:00 (your time)`     |
+
+### Fiat Currency Examples
+
+| Example           | Description                        |
+|-------------------|------------------------------------|
+| `1,600,000 TRY`    | Turkish Lira with thousands comma   |
+| `569,00€`         | Euro with comma decimal             |
+| `569.00€`         | Euro with dot decimal               |
+| `$1,234.56`       | US Dollar with comma thousands      |
+| `1.234,56 USD`    | US Dollar with dot thousands, comma decimal |
+| `£2,000`          | British Pound with thousands comma  |
+| `100 BGN`         | Bulgarian Lev                      |
+| `¥10,000`         | Japanese Yen                       |
+| `₹5,00,000`       | Indian Rupee (lakh format)          |
+| `10 USD`          | US Dollar plain                    |
+| `20 EUR`          | Euro plain                         |
+| `50 GBP`          | British Pound plain                |
 
 ### Cryptocurrencies
 
@@ -70,35 +94,6 @@ All cryptocurrency conversions are fetched from the CoinGecko API and converted 
 | `10 XMR`     | Monero          | `1 BSV`      | Bitcoin SV    |
 | `20 AVAX`    | Avalanche       | `1000 MATIC` | Polygon (Matic)|
 
-### Time Zone Conversion Examples
-
-| Example         | Description                        | Output Example           |
-|----------------|------------------------------------|-------------------------|
-| `5 PM PST`     | 12-hour US Pacific Time            | `03:00 (your time)`     |
-| `14:00 EST`    | 24-hour US Eastern Time            | `21:00 (your time)`     |
-| `11:30 am CET` | 12-hour Central European Time      | `12:30 (your time)`     |
-| `23:15 GMT`    | 24-hour Greenwich Mean Time        | `01:15 (your time)`     |
-| `8:00 UTC`     | 24-hour Coordinated Universal Time | `11:00 (your time)`     |
-
----
-
-### Currency Examples
-
-| Example           | Description                        |
-|-------------------|------------------------------------|
-| `1,600,000 TRY`    | Turkish Lira with thousands comma   |
-| `569,00€`         | Euro with comma decimal             |
-| `569.00€`         | Euro with dot decimal               |
-| `$1,234.56`       | US Dollar with comma thousands      |
-| `1.234,56 USD`    | US Dollar with dot thousands, comma decimal |
-| `£2,000`          | British Pound with thousands comma  |
-| `100 BGN`         | Bulgarian Lev                      |
-| `¥10,000`         | Japanese Yen                       |
-| `₹5,00,000`       | Indian Rupee (lakh format)          |
-| `10 USD`          | US Dollar plain                    |
-| `20 EUR`          | Euro plain                         |
-| `50 GBP`          | British Pound plain                |
-
 
 ## Installation
 
@@ -123,9 +118,9 @@ Works on all Chromium-based browsers (Chrome, Vivaldi, Edge, Brave, etc.).
 - **Locale-aware Number Parsing:** Handles both `1,234.56` and `1.234,56` formats.
 
 ## Roadmap / TODO
-- Option to pick default search engine or add a settings page
-- Option to select favorite or local currency
-- Time zone conversion
+- Option to pick default search engine or add a settings page / basic version is implemented but there are errors.
+- Option to select favorite or local currency / basic version is implemented but needs testing.
+- Time zone conversion / basic version is implemented but needs testing.
 
 ---
 
