@@ -47,7 +47,7 @@ Second, modify `js/content.js` to fetch this preferred currency from `chrome.sto
 **Goal:** Allow users to choose their default search engine in the settings.
 
 **Prompt for Gemini:**
-"In `settings.html`, add a set of radio buttons to allow users to select a search engine (Google, DuckDuckGo, Bing). In `js/settings.js`, save this choice to `chrome.storage.sync`. In `js/content.js`, retrieve the saved choice and use it to construct the search URL when the user clicks the search button. Default to Google if no setting is saved."
+"In `settings.html`, add a dropdown menu (`<select>`)  to allow users to select a search engine (Google, DuckDuckGo, Bing). In `js/settings.js`, save this choice to `chrome.storage.sync`. In `js/content.js`, retrieve the saved choice and use it to construct the search URL when the user clicks the search button. Default to Google if no setting is saved."
 
 ### Step 1.6: Add Modifier Key for Activation
 

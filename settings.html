@@ -94,9 +94,25 @@
             <option value="AUD">AUD</option>
             <option value="BGN">BGN</option>
         </select>
+        <label for="crypto-currency-select" style="margin-top:10px;">Preferred Crypto Target Currency:</label>
+        <select id="crypto-currency-select">
+            <option value="USD">USD</option>
+            <option value="EUR">EUR</option>
+            <option value="GBP">GBP</option>
+            <option value="BGN">BGN</option>
+        </select>
+        <label for="search-engine-select" style="margin-top:18px;">Default Search Engine:</label>
+        <select id="search-engine-select" style="margin-bottom: 18px; margin-top: 4px;">
+            <option value="google">Google</option>
+            <option value="duckduckgo">DuckDuckGo</option>
+            <option value="bing">Bing</option>
+        </select>
         <button id="save-settings">Save</button>
-        <div class="reload-message">
-            You need to reload the page to see the new rate in the new currency.
+        <div class="reload-message" style="display:none;">
+            You need to reload the page to apply the changes.
+        </div>
+        <div id="app-version" style="margin-top: 24px; color: #888; font-size: 0.98rem; align-self: flex-end;">
+            Version: <span id="version-value">...</span>
         </div>
     </div>
     <script src="js/settings.js"></script>
