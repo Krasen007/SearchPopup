@@ -2,6 +2,9 @@
 
 A modern browser extension that displays a smart popup menu when you select text on any webpage. Instantly search, copy, or convert selected text—including units and currencies—right from the popup. The extension adapts its theme to match the page (light/dark) and works on all websites.
 
+![Light mode popup](img/light.png)
+![Dark mode popup](img/dark.png)
+
 ## Features
 
 - **Contextual Popup:** Appears when you select text on any webpage.
@@ -67,8 +70,35 @@ All cryptocurrency conversions are fetched from the CoinGecko API and converted 
 | `10 XMR`     | Monero          | `1 BSV`      | Bitcoin SV    |
 | `20 AVAX`    | Avalanche       | `1000 MATIC` | Polygon (Matic)|
 
-![Light mode popup](img/light.png)
-![Dark mode popup](img/dark.png)
+### Time Zone Conversion Examples
+
+| Example         | Description                        | Output Example           |
+|----------------|------------------------------------|-------------------------|
+| `5 PM PST`     | 12-hour US Pacific Time            | `03:00 (your time)`     |
+| `14:00 EST`    | 24-hour US Eastern Time            | `21:00 (your time)`     |
+| `11:30 am CET` | 12-hour Central European Time      | `12:30 (your time)`     |
+| `23:15 GMT`    | 24-hour Greenwich Mean Time        | `01:15 (your time)`     |
+| `8:00 UTC`     | 24-hour Coordinated Universal Time | `11:00 (your time)`     |
+
+---
+
+### Currency Examples
+
+| Example           | Description                        |
+|-------------------|------------------------------------|
+| `1,600,000 TRY`    | Turkish Lira with thousands comma   |
+| `569,00€`         | Euro with comma decimal             |
+| `569.00€`         | Euro with dot decimal               |
+| `$1,234.56`       | US Dollar with comma thousands      |
+| `1.234,56 USD`    | US Dollar with dot thousands, comma decimal |
+| `£2,000`          | British Pound with thousands comma  |
+| `100 BGN`         | Bulgarian Lev                      |
+| `¥10,000`         | Japanese Yen                       |
+| `₹5,00,000`       | Indian Rupee (lakh format)          |
+| `10 USD`          | US Dollar plain                    |
+| `20 EUR`          | Euro plain                         |
+| `50 GBP`          | British Pound plain                |
+
 
 ## Installation
 
@@ -101,5 +131,7 @@ Works on all Chromium-based browsers (Chrome, Vivaldi, Edge, Brave, etc.).
 
 *Portions of this app were created using various AI tools!*
 
-## Tested Browsers
-- Vivaldi 7.4
+## Developed and tested on
+- Vivaldi 7.5
+
+Other Chromium browsers should work as well.

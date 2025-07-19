@@ -42,12 +42,12 @@ Then, update `manifest.json` to include an `options_page` entry pointing to `set
 
 Second, modify `js/content.js` to fetch this preferred currency from `chrome.storage.sync`. Use it as the target for all fiat currency conversions instead of the hardcoded 'BGN'. Default to 'BGN' if no preference is set." -->
 
-### Step 1.5: Add Search Engine Selection
+<!-- ### Step 1.5: Add Search Engine Selection
 
 **Goal:** Allow users to choose their default search engine in the settings.
 
 **Prompt for Gemini:**
-"In `settings.html`, add a dropdown menu (`<select>`)  to allow users to select a search engine (Google, DuckDuckGo, Bing). In `js/settings.js`, save this choice to `chrome.storage.sync`. In `js/content.js`, retrieve the saved choice and use it to construct the search URL when the user clicks the search button. Default to Google if no setting is saved."
+"In `settings.html`, add a dropdown menu (`<select>`)  to allow users to select a search engine (Google, DuckDuckGo, Bing). In `js/settings.js`, save this choice to `chrome.storage.sync`. In `js/content.js`, retrieve the saved choice and use it to construct the search URL when the user clicks the search button. Default to Google if no setting is saved." -->
 
 ### Step 1.6: Add Modifier Key for Activation
 
@@ -73,13 +73,12 @@ This section focuses on expanding the core capabilities of the extension.
 
 ### Step 2.1: Add New Conversion Types
 
-**Goal:** Add support for converting time zones, data units, and Base64 encoding/decoding.
+**Goal:** Add support for converting time zones.
 
 **Prompt for Gemini:**
-"Update `js/content.js` (or `conversions.js` if refactored) to include new detection and conversion logic for the following types:
+"Update `js/content.js` to include new detection and conversion logic for the following types:
 1.  **Time Zones:** Recognize patterns like '5 PM PST' or '14:00 EST' and convert them to the user's local time.
-2.  **Data Units:** Convert between bytes, KB, MB, GB, etc.
-3.  **Base64:** Detect if a selected string is Base64 and offer to decode it. If it's plain text, offer to encode it to Base64."
+
 
 ### Step 2.2: Implement Multi-Currency View
 

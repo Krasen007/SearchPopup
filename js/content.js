@@ -407,6 +407,49 @@ async function detectAndConvertUnit(text) {
         }
     }
 
+    // --- Time Zone Conversion ---
+    // Recognize patterns like '5 PM PST', '14:00 EST', '11:30 am CET', etc.
+    // Supported time zones: PST, PDT, MST, MDT, CST, CDT, EST, EDT, GMT, UTC, CET, EET, etc.
+    const tzAbbrs = {
+        'PST': -8, 'PDT': -7,
+        'MST': -7, 'MDT': -6,
+        'CST': -6, 'CDT': -5,
+        'EST': -5, 'EDT': -4,
+        'GMT': 0,  'UTC': 0,
+        'CET': 1,  'CEST': 2,
+        'EET': 2,  'EEST': 3
+    };
+    // 12-hour: 5 PM PST, 11:30 am CET; 24-hour: 14:00 EST
+    const timeZonePattern = /^(\d{1,2})(?::(\d{2}))?\s*(AM|PM|am|pm)?\s*([A-Z]{2,4})$/i;
+    const matchTZ = text.trim().match(timeZonePattern);
+    if (matchTZ) {
+        let hour = parseInt(matchTZ[1], 10);
+        let minute = matchTZ[2] ? parseInt(matchTZ[2], 10) : 0;
+        let ampm = matchTZ[3] ? matchTZ[3].toUpperCase() : null;
+        let tz = matchTZ[4].toUpperCase();
+        if (ampm) {
+            if (ampm === 'PM' && hour < 12) hour += 12;
+            if (ampm === 'AM' && hour === 12) hour = 0;
+        }
+        if (tzAbbrs[tz] !== undefined) {
+            // Get the current date in the user's local time zone
+            const now = new Date();
+            // Create a date in the source time zone (UTC offset)
+            const srcUTC = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate(), hour - tzAbbrs[tz], minute);
+            const localDate = new Date(srcUTC + (now.getTimezoneOffset() * 60000));
+            // Format local time
+            const localHour = localDate.getHours();
+            const localMinute = localDate.getMinutes();
+            const pad = n => n.toString().padStart(2, '0');
+            const localTimeStr = `${pad(localHour)}:${pad(localMinute)} (your time)`;
+            return {
+                original: text,
+                converted: localTimeStr,
+                value: localTimeStr
+            };
+        }
+    }
+
     // Match pattern: number (including fractions) followed by unit with optional space
     // Updated pattern to handle currency symbols before or after the number
     // Allow both comma, period, and space as decimal/thousands separators
