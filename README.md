@@ -18,6 +18,7 @@ A modern browser extension that displays a smart popup menu when you select text
 - **URL Detection:** Recognizes website addresses in your selection and offers to visit them directly.
 - **Time zone conversion:** Converts Time zones to your time.
 - **Adaptive Theming:** Popup automatically switches between light and dark mode based on the underlying page background for optimal readability.
+
 ![Dark mode popup](img/dark.png)
 - **Dynamic Positioning:** Popup appears above or below the selection with an arrow, always within the viewport.
 - **Auto-hide on Scroll/Resize:** Disappears smoothly to avoid obstructing content.

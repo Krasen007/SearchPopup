@@ -28,19 +28,27 @@ let convertedValue = null;
 
 // --- Preferred currency (default to BGN) ---
 let preferredCurrency = 'BGN';
+let preferredCryptoCurrency = 'USD';
+let preferredSearchEngine = 'google';
 
-// Fetch preferred currency from chrome.storage.sync
+// Fetch all preferences from chrome.storage.sync
 if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.sync) {
-    chrome.storage.sync.get(['preferredCurrency'], (result) => {
+    chrome.storage.sync.get(['preferredCurrency', 'preferredCryptoCurrency', 'preferredSearchEngine'], (result) => {
         if (result.preferredCurrency) {
             preferredCurrency = result.preferredCurrency;
         }
-        // After loading preferredCurrency, fetch exchange rates
+        if (result.preferredCryptoCurrency) {
+            preferredCryptoCurrency = result.preferredCryptoCurrency;
+        }
+        if (result.preferredSearchEngine) {
+            preferredSearchEngine = result.preferredSearchEngine;
+        }
         fetchExchangeRates();
+        fetchCryptoRates();
     });
 } else {
-    // Fallback for non-extension environments
     fetchExchangeRates();
+    fetchCryptoRates();
 }
 
 // --- Input validation constants ---
@@ -109,8 +117,9 @@ async function fetchCryptoRates() {
     }
 
     const coinIds = Object.values(cryptoCurrencies).join(',');
+    const vsCurrency = preferredCryptoCurrency ? preferredCryptoCurrency.toLowerCase() : 'usd';
     try {
-        const response = await fetch(`https://api.coingecko.com/api/v3/simple/price?ids=${coinIds}&vs_currencies=usd`);
+        const response = await fetch(`https://api.coingecko.com/api/v3/simple/price?ids=${coinIds}&vs_currencies=${vsCurrency}`);
         if (!response.ok) {
             throw new Error(`HTTP ${response.status}: ${response.statusText}`);
         }
@@ -124,10 +133,10 @@ async function fetchCryptoRates() {
 
         // Add to unitConversions
         for (const [symbol, id] of Object.entries(cryptoCurrencies)) {
-            if (cryptoRates.prices[id] && cryptoRates.prices[id].usd) {
+            if (cryptoRates.prices[id] && cryptoRates.prices[id][vsCurrency]) {
                 unitConversions[symbol] = {
-                    to: 'USD',
-                    convert: (val) => val * cryptoRates.prices[id].usd
+                    to: preferredCryptoCurrency,
+                    convert: (val) => val * cryptoRates.prices[id][vsCurrency]
                 };
             }
         }
@@ -482,11 +491,12 @@ async function detectAndConvertUnit(text) {
     if (cryptoCurrencies[upperCaseText]) {
         await fetchCryptoRates();
         const id = cryptoCurrencies[upperCaseText];
-        if (cryptoRates.prices[id] && cryptoRates.prices[id].usd) {
-            const rate = cryptoRates.prices[id].usd;
+        const vsCurrency = preferredCryptoCurrency ? preferredCryptoCurrency.toLowerCase() : 'usd';
+        if (cryptoRates.prices[id] && cryptoRates.prices[id][vsCurrency]) {
+            const rate = cryptoRates.prices[id][vsCurrency];
             return {
                 original: `1 ${upperCaseText}`,
-                converted: `${rate.toFixed(2)} USD`,
+                converted: `${rate.toFixed(2)} ${preferredCryptoCurrency}`,
                 value: rate
             };
         }
@@ -544,19 +554,25 @@ async function detectAndConvertUnit(text) {
     }
     
     // Find matching unit conversion
+    // Normalize unit: trim, lowercase, remove spaces and handle common variants
+    let normUnit = (unit || '').toLowerCase().replace(/\s+/g, '');
+    if (normUnit === 'l/100km' || normUnit === 'l/100km' || normUnit === 'l/100km' || normUnit === 'l/100km') {
+        normUnit = 'l/100km';
+    } else if (normUnit === 'mpg') {
+        normUnit = 'mpg';
+    }
     for (const [key, conversion] of Object.entries(unitConversions)) {
-        if (key.toLowerCase() === unit.toLowerCase()) {
+        let normKey = key.toLowerCase().replace(/\s+/g, '');
+        if (normKey === normUnit) {
             let converted;
             if (conversion.convert) {
                 converted = conversion.convert(value);
             } else {
                 converted = value * conversion.factor;
             }
-            
             // Round to 2 decimal places for currency, 4 for other units
             const decimals = key.match(/[€$£]/) || cryptoCurrencies[key.toUpperCase()] ? 2 : 4;
             converted = Math.round(converted * Math.pow(10, decimals)) / Math.pow(10, decimals);
-            
             return {
                 original: `${value} ${key}`,
                 converted: `${converted} ${conversion.to}`,
@@ -867,6 +883,18 @@ function formatUrl(text) {
     return text;
 }
 
+function getSearchUrl(query) {
+    switch (preferredSearchEngine) {
+        case 'duckduckgo':
+            return `https://duckduckgo.com/?q=${encodeURIComponent(query)}`;
+        case 'bing':
+            return `https://www.bing.com/search?q=${encodeURIComponent(query)}`;
+        case 'google':
+        default:
+            return `https://www.google.com/search?q=${encodeURIComponent(query)}`;
+    }
+}
+
 // --- Initialize button event listeners (called once on script load) ---
 function initPopupButtons() {
     const searchButton = document.getElementById('extensionSearchButton');
@@ -886,16 +914,16 @@ function initPopupButtons() {
                             window.open(url, '_blank');
                         } else {
                             debugLog('warn', 'Blocked non-HTTP/HTTPS URL:', url);
-                            const searchUrl = `https://www.google.com/search?q=${encodeURIComponent(currentSelectedText)}`;
+                            const searchUrl = getSearchUrl(currentSelectedText);
                             window.open(searchUrl, '_blank');
                         }
                     } catch (e) {
                         debugLog('warn', 'Invalid URL detected, falling back to search:', e);
-                        const searchUrl = `https://www.google.com/search?q=${encodeURIComponent(currentSelectedText)}`;
+                        const searchUrl = getSearchUrl(currentSelectedText);
                         window.open(searchUrl, '_blank');
                     }
                 } else {
-                    const searchUrl = `https://www.google.com/search?q=${encodeURIComponent(currentSelectedText)}`;
+                    const searchUrl = getSearchUrl(currentSelectedText);
                     window.open(searchUrl, '_blank');
                 }
                 hidePopup();
