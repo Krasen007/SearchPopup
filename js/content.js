@@ -20,7 +20,7 @@ function debugLog(level, message, ...args) {
         }
     }
 }
-
+ 
 // --- Global variable to store the currently selected text ---
 let currentSelectedText = '';
 let isUrlSelected = false;
@@ -301,7 +301,7 @@ async function fetchExchangeRates() {
             if (currency !== target) {
                 exchangeRates.rates[currency] = data.rates[target] / rate;
             } else {
-                exchangeRates.rates[currency] = data.rates[target];
+                exchangeRates.rates[currency] = 1; // Correct: base currency rate is always 1
             }
             // Add currency conversion to unitConversions
             if (currency !== target) {
@@ -411,7 +411,7 @@ async function detectAndConvertUnit(text) {
     // Updated pattern to handle currency symbols before or after the number
     // Allow both comma, period, and space as decimal/thousands separators
     // Allow trailing punctuation like periods, commas, etc.
-    // Expanded currency symbols to include ₺, ₽, ₹, ₩, ₪, ₱, ฿, ₣, ₦, ₲, ₵, ₡, ₫, ₭, ₮, ₯, ₠, ₢, ₳, ₴, ₸, ₺, ₼, ₽, ₾, ₿, and others
+    // Expanded currency symbols to include ₺, ₽, ₹, ₩, ₪, ₱, ฿, ₣, ₦, ₲, ₵, ₡, ₫, ₭, ₮, ₯, ₠, ₢, ₳, ₴, ₸, ₼, ₾, ₿, and others
     const currencySymbolPattern = '[a-zA-Z°/€$£¥₺₽₹₩₪₱฿₣₦₲₵₡₫₭₮₯₠₢₳₴₸₼₾₿]';
     const valueUnitPattern = new RegExp(`^(-?\\d{1,3}(?:[.,\\s]\\d{3})*(?:[.,]\\d+)?|\\d+/\\d+)\\s*(${currencySymbolPattern}+(?:\\s+[a-zA-Z]+)?)?[.,;:!?]*$`, 'i');
     const unitValuePattern = new RegExp(`^(${currencySymbolPattern}+(?:\\s+[a-zA-Z]+)?)\\s*(-?\\d{1,3}(?:[.,\\s]\\d{3})*(?:[.,]\\d+)?|\\d+/\\d+)[.,;:!?]*$`, 'i');
