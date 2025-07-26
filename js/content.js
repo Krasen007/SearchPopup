@@ -1,30 +1,12 @@
 // Content script for handling text selection and popup display
 // Copyright 2025 Krasen Ivanov
 
-// --- Production mode flag ---
-const IS_PRODUCTION = true; // Set to false for debugging
-
-// --- Debug logging utility ---
-function debugLog(level, message, ...args) {
-    if (!IS_PRODUCTION) {
-        switch (level) {
-            case 'log':
-                console.log(message, ...args);
-                break;
-            case 'warn':
-                console.warn(message, ...args);
-                break;
-            case 'error':
-                console.error(message, ...args);
-                break;
-        }
-    }
-}
- 
 // --- Global variable to store the currently selected text ---
 let currentSelectedText = '';
 let isUrlSelected = false;
 let convertedValue = null;
+let exchangeRatesError = null;
+let cryptoRatesError = null;
 
 // --- Preferred currency (default to BGN) ---
 let preferredCurrency = 'BGN';
@@ -52,8 +34,8 @@ if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.sync) {
 }
 
 // --- Input validation constants ---
-const MAX_SELECTION_LENGTH = 10000; // Maximum characters for text selection
-const MIN_SELECTION_LENGTH = 1;     // Minimum characters for text selection
+const MAX_SELECTION_LENGTH = 7000; // Maximum characters for text selection
+const MIN_SELECTION_LENGTH = 2;     // Minimum characters for text selection
 
 // --- Currency exchange rates cache ---
 let exchangeRates = {
@@ -132,6 +114,7 @@ async function fetchCryptoRates() {
 
         cryptoRates.prices = data;
         cryptoRates.lastUpdated = now;
+        cryptoRatesError = null; // Clear error on success
 
         // Add to unitConversions
         for (const [symbol, id] of Object.entries(cryptoCurrencies)) {
@@ -154,13 +137,12 @@ async function fetchCryptoRates() {
 
         localStorage.setItem('cryptoRates', JSON.stringify(cryptoRates));
     } catch (error) {
-        debugLog('warn', 'Failed to fetch crypto rates:', error);
+        cryptoRatesError = 'Could not fetch crypto rates.';
         const cached = localStorage.getItem('cryptoRates');
         if (cached) {
             const parsed = JSON.parse(cached);
             if (parsed && parsed.prices) {
                 cryptoRates = parsed;
-                debugLog('log', 'Loaded crypto rates from cache');
             }
         }
     }
@@ -288,7 +270,7 @@ async function fetchExchangeRates() {
 
     // Rate limiting check
     if (apiCallAttempts >= MAX_API_ATTEMPTS) {
-        debugLog('warn', 'Maximum API attempts reached, using cached data');
+        exchangeRatesError = 'Could not fetch latest rates. Please try again later.';
         return;
     }
 
@@ -308,13 +290,13 @@ async function fetchExchangeRates() {
         
         // Reset API attempts on success
         apiCallAttempts = 0;
+        exchangeRatesError = null; // Clear error on success
         
         // Update rates (converting to preferredCurrency)
         exchangeRates.rates = {};
         const target = preferredCurrency || 'BGN';
         for (const [currency, rate] of Object.entries(data.rates)) {
             if (typeof rate !== 'number' || isNaN(rate)) {
-                debugLog('warn', `Skipping invalid rate for ${currency}:`, rate);
                 continue;
             }
             // Calculate conversion rate to preferred currency
@@ -343,17 +325,15 @@ async function fetchExchangeRates() {
         try {
             localStorage.setItem('exchangeRates', JSON.stringify(exchangeRates));
         } catch (storageError) {
-            debugLog('warn', 'Failed to save exchange rates to localStorage:', storageError);
         }
     } catch (error) {
-        debugLog('warn', 'Failed to fetch exchange rates:', error);
         // Exponential backoff for retries
         if (apiCallAttempts < MAX_API_ATTEMPTS) {
             const retryDelay = BASE_RETRY_DELAY * Math.pow(2, apiCallAttempts - 1);
-            debugLog('warn', `Retrying in ${retryDelay}ms (attempt ${apiCallAttempts}/${MAX_API_ATTEMPTS})`);
             setTimeout(() => fetchExchangeRates(), retryDelay);
             return; // Exit early to prevent fallback execution during retry attempts
         }
+        exchangeRatesError = 'Could not fetch latest rates. Please try again later.';
         // Load from localStorage if available (only when max retries reached)
         try {
             const cached = localStorage.getItem('exchangeRates');
@@ -369,9 +349,7 @@ async function fetchExchangeRates() {
                     const maxCacheAge = 7 * 24 * 60 * 60 * 1000; // 7 days in milliseconds
                     if (cacheAge < maxCacheAge) {
                         exchangeRates = parsed;
-                        debugLog('log', 'Loaded exchange rates from cache');
                     } else {
-                        debugLog('warn', 'Cached exchange rates are too old, using defaults');
                         // Reset to default rates
                         exchangeRates = {
                             lastUpdated: 0, // Force refresh on next call
@@ -383,7 +361,6 @@ async function fetchExchangeRates() {
                         };
                     }
                 } else {
-                    debugLog('warn', 'Invalid cached exchange rates format, using defaults');
                     // Reset to default rates
                     exchangeRates = {
                         lastUpdated: 0, // Force refresh on next call
@@ -396,7 +373,6 @@ async function fetchExchangeRates() {
                 }
             }
         } catch (parseError) {
-            debugLog('warn', 'Failed to parse cached exchange rates:', parseError);
             // Reset to default rates
             exchangeRates = {
                 lastUpdated: 0, // Force refresh on next call
@@ -754,6 +730,7 @@ popup.id = 'text-selection-popup-extension'; // ID is used by CSS
 
 // --- Create popup content (once) ---
 popup.innerHTML = `
+    <div id="errorContainer" style="display: none; color: red; padding: 4px; text-align: center;"></div>
     <div id="conversionContainer" style="display: none;">
         <div class="conversion-result">
             <span class="converted-value"></span>
@@ -772,10 +749,8 @@ async function handleClipboardFallback(textToCopy) {
     try {
         // Try using the modern Clipboard API first
         await navigator.clipboard.writeText(textToCopy);
-        debugLog('log', 'Text copied to clipboard via Clipboard API.');
         hidePopup();
     } catch (err) {
-        debugLog('warn', 'Clipboard API failed, trying fallback:', err);
         // Fallback to a more modern approach using a temporary input
         const textArea = document.createElement('textarea');
         textArea.value = textToCopy;
@@ -789,9 +764,7 @@ async function handleClipboardFallback(textToCopy) {
         try {
             // Try using the modern Clipboard API with the selected text
             await navigator.clipboard.writeText(textArea.value);
-            debugLog('log', 'Text copied to clipboard via fallback method.');
         } catch (err) {
-            debugLog('error', 'All clipboard methods failed:', err);
         } finally {
             document.body.removeChild(textArea);
             hidePopup();
@@ -939,12 +912,10 @@ function initPopupButtons() {
                         if (urlObj.protocol === 'http:' || urlObj.protocol === 'https:') {
                             window.open(url, '_blank');
                         } else {
-                            debugLog('warn', 'Blocked non-HTTP/HTTPS URL:', url);
                             const searchUrl = getSearchUrl(currentSelectedText);
                             window.open(searchUrl, '_blank');
                         }
                     } catch (e) {
-                        debugLog('warn', 'Invalid URL detected, falling back to search:', e);
                         const searchUrl = getSearchUrl(currentSelectedText);
                         window.open(searchUrl, '_blank');
                     }
@@ -980,16 +951,26 @@ async function showAndPositionPopup(rect, selectionContextElement) {
     popup.style.opacity = '0';
     popup.style.display = 'block';
 
-    // Check for unit conversion
+    const errorContainer = document.getElementById('errorContainer');
     const conversionContainer = document.getElementById('conversionContainer');
     const convertedValueSpan = conversionContainer.querySelector('.converted-value');
-    convertedValue = await detectAndConvertUnit(currentSelectedText);
 
-    if (convertedValue) {
-        conversionContainer.style.display = 'block';
-        convertedValueSpan.textContent = convertedValue.converted;
-    } else {
+    // Handle API errors
+    if (exchangeRatesError || cryptoRatesError) {
+        errorContainer.textContent = exchangeRatesError || cryptoRatesError;
+        errorContainer.style.display = 'block';
         conversionContainer.style.display = 'none';
+    } else {
+        errorContainer.style.display = 'none';
+        // Check for unit conversion
+        convertedValue = await detectAndConvertUnit(currentSelectedText);
+
+        if (convertedValue) {
+            conversionContainer.style.display = 'block';
+            convertedValueSpan.textContent = convertedValue.converted;
+        } else {
+            conversionContainer.style.display = 'none';
+        }
     }
 
     // Update button text based on URL detection
@@ -1114,14 +1095,12 @@ window.addEventListener('resize', () => {
 
 // --- Global error handler ---
 window.addEventListener('error', function(event) {
-    debugLog('error', 'Global error caught:', event.error);
     // Prevent error from bubbling up
     event.preventDefault();
     return false;
 });
 
 window.addEventListener('unhandledrejection', function(event) {
-    debugLog('error', 'Unhandled promise rejection:', event.reason);
     // Prevent error from bubbling up
     event.preventDefault();
     return false;
