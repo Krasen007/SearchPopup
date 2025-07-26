@@ -1,3 +1,7 @@
+const currencies = [
+    "USD", "AED", "ARS", "AUD", "BDT", "BHD", "BMD", "BRL", "CAD", "CHF", "CLP", "CNY", "CZK", "DKK", "EUR", "GBP", "GEL", "HKD", "HUF", "IDR", "ILS", "INR", "JPY", "KRW", "KWD", "LKR", "MMK", "MXN", "MYR", "NGN", "NOK", "NZD", "PHP", "PKR", "PLN", "RUB", "SAR", "SEK", "SGD", "THB", "TRY", "TWD", "UAH", "VEF", "VND", "ZAR", "BGN"
+];
+
 // settings.js - for future settings logic
 
 document.addEventListener('DOMContentLoaded', () => {
@@ -7,6 +11,20 @@ document.addEventListener('DOMContentLoaded', () => {
     const saveButton = document.getElementById('save-settings');
     const reloadMessage = document.querySelector('.reload-message');
     const versionValue = document.getElementById('version-value');
+
+    // Function to populate a dropdown with a list of currencies
+    function populateCurrencyDropdown(selectElement, currencyList) {
+        currencyList.forEach(currency => {
+            const option = document.createElement('option');
+            option.value = currency;
+            option.textContent = currency;
+            selectElement.appendChild(option);
+        });
+    }
+
+    // Populate the currency and crypto-currency dropdowns
+    populateCurrencyDropdown(currencySelect, currencies);
+    populateCurrencyDropdown(cryptoCurrencySelect, currencies);
 
     // Set version from manifest
     if (versionValue && typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.getManifest) {
@@ -44,7 +62,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }, () => {
             saveButton.textContent = 'Saved!';
             if (reloadMessage) reloadMessage.style.display = 'block';
-            setTimeout(() => { saveButton.textContent = 'Save'; }, 1000);
+            setTimeout(() => { saveButton.textContent = 'Save'; }, 3000);
         });
     });
 }); 

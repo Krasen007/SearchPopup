@@ -1,3 +1,7 @@
+# Ignore all files in the todos directory
+todos/done/*
+todos/work/*
+
 #################
 ## Eclipse
 #################
