@@ -25,6 +25,7 @@ if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.sync) {
         if (result.preferredSearchEngine) {
             preferredSearchEngine = result.preferredSearchEngine;
         }
+        // Fetch rates once on startup for caching
         fetchExchangeRates();
         fetchCryptoRates();
     });
@@ -955,22 +956,24 @@ async function showAndPositionPopup(rect, selectionContextElement) {
     const conversionContainer = document.getElementById('conversionContainer');
     const convertedValueSpan = conversionContainer.querySelector('.converted-value');
 
-    // Handle API errors
-    if (exchangeRatesError || cryptoRatesError) {
-        errorContainer.textContent = exchangeRatesError || cryptoRatesError;
-        errorContainer.style.display = 'block';
-        conversionContainer.style.display = 'none';
-    } else {
+    // Check for unit conversion
+    convertedValue = await detectAndConvertUnit(currentSelectedText);
+    if (convertedValue) {
         errorContainer.style.display = 'none';
-        // Check for unit conversion
-        convertedValue = await detectAndConvertUnit(currentSelectedText);
-
-        if (convertedValue) {
-            conversionContainer.style.display = 'block';
-            convertedValueSpan.textContent = convertedValue.converted;
+        conversionContainer.style.display = 'block';
+        convertedValueSpan.textContent = convertedValue.converted;
+    } else {
+        // Only show error if selection looks like a currency/crypto value
+        const upperCaseText = currentSelectedText.toUpperCase();
+        const isCrypto = cryptoCurrencies[upperCaseText];
+        const currencyRegex = /[€$£¥₺₽₹₩₪₱฿₣₦₲₵₡₫₭₮₯₠₢₳₴₸₼₾₿]|[A-Z]{3}/;
+        if ((isCrypto && cryptoRatesError) || (currencyRegex.test(currentSelectedText) && exchangeRatesError)) {
+            errorContainer.textContent = exchangeRatesError || cryptoRatesError;
+            errorContainer.style.display = 'block';
         } else {
-            conversionContainer.style.display = 'none';
+            errorContainer.style.display = 'none';
         }
+        conversionContainer.style.display = 'none';
     }
 
     // Update button text based on URL detection
