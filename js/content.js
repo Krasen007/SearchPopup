@@ -667,7 +667,7 @@ styleElement.textContent = `
     }
 
     .extension-action-button:hover, .extension-action-button:focus {
-        background-color: #888888;
+        background-color: #9e9e9eff;
         box-shadow: 0 2px 8px rgba(0,0,0,0.10);
         outline: none;
     }
@@ -678,7 +678,7 @@ styleElement.textContent = `
     }
 
     #text-selection-popup-extension.dark-mode .extension-action-button:hover, #text-selection-popup-extension.dark-mode .extension-action-button:focus {
-        background-color: #6E6E6E;
+        background-color: #5a5959ff;
         box-shadow: 0 2px 8px rgba(0,0,0,0.18);
         outline: none;
     }
@@ -693,7 +693,7 @@ styleElement.textContent = `
     }
 
     .conversion-result:hover {
-        background: #e5e5e5;
+        background: #f0f0f0;
     }
 
     .conversion-result .copy-button {
@@ -713,12 +713,12 @@ styleElement.textContent = `
     }
 
     #text-selection-popup-extension.dark-mode .conversion-result {
-        background: #444;
+        background: #5a5a5a;
         color: #fff;
     }
 
     #text-selection-popup-extension.dark-mode .conversion-result:hover {
-        background: #555;
+        background: #6a6a6a;
     }
 `;
 document.head.appendChild(styleElement);
