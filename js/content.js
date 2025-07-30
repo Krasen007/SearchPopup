@@ -588,77 +588,72 @@ styleElement.textContent = `
         padding: 4px;
         display: none;
         opacity: 0;
-        width: 160px; /* Explicit width */
-        font-family: Arial, sans-serif; /* Explicit font family */
-        font-size: 14px;               /* Explicit font size for popup container text */
-        font-weight: normal;           /* Added: Prevent font-weight inheritance */
-        font-style: normal;            /* Added: Prevent font-style inheritance */
-        line-height: 1.4;              /* Added: Consistent line height */
-        text-transform: none;          /* Added: Prevent text-transform inheritance */
-        letter-spacing: normal;        /* Added: Prevent letter-spacing inheritance */
+        width: 160px;
+        font-family: Arial, sans-serif;
+        font-size: 14px;
+        font-weight: normal;
+        font-style: normal;
+        line-height: 1.4;
+        text-transform: none;
+        letter-spacing: normal;
         box-shadow: 0 4px 12px rgba(0,0,0,0.15);
         z-index: 2147483647;
         transition: opacity 0.2s ease-in-out, background-color 0.2s ease-in-out, border-color 0.2s ease-in-out;
-        box-sizing: border-box; /* Ensures padding/border don't expand width */
+        box-sizing: border-box;
     }
 
     /* Arrow Base Styling */
-    #text-selection-popup-extension::before, /* Top arrow */
-    #text-selection-popup-extension::after { /* Bottom arrow */
+    #text-selection-popup-extension::before,
+    #text-selection-popup-extension::after {
         content: '';
         position: absolute;
         width: 0;
         height: 0;
         border-left: 8px solid transparent;
         border-right: 8px solid transparent;
-        display: none; 
+        display: none;
         transition: border-top-color 0.2s ease-in-out, border-bottom-color 0.2s ease-in-out;
     }
 
-    /* Bottom Arrow (when popup is ABOVE selection, arrow points down from popup) */
     #text-selection-popup-extension.arrow-bottom::after {
         display: block;
-        bottom: -8px; 
+        bottom: -8px;
         left: 50%;
         transform: translateX(-50%);
-        border-top: 8px solid white; 
+        border-top: 8px solid white;
     }
 
-    /* Top Arrow (when popup is BELOW selection, arrow points up from popup) */
     #text-selection-popup-extension.arrow-top::before {
         display: block;
-        top: -8px; 
+        top: -8px;
         left: 50%;
         transform: translateX(-50%);
-        border-bottom: 8px solid white; 
+        border-bottom: 8px solid white;
     }
 
-    /* Dark Mode Base */
     #text-selection-popup-extension.dark-mode {
         background: #333333;
         border-color: #555555;
-        color: #FFFFFF; 
+        color: #FFFFFF;
     }
 
-    /* Dark Mode Arrow Adjustments */
     #text-selection-popup-extension.dark-mode.arrow-bottom::after {
-        border-top-color: #333333; 
+        border-top-color: #333333;
     }
 
     #text-selection-popup-extension.dark-mode.arrow-top::before {
-        border-bottom-color: #333333; 
+        border-bottom-color: #333333;
     }
 
-    /* Button Base Styles */
     .extension-action-button {
         flex: 1;
         padding: 3px 10px;
         border: none;
         border-radius: 5px;
-        background-color: #AAAAAA; 
+        background-color: #AAAAAA;
         color: white;
         cursor: pointer;
-        transition: background-color 0.2s;
+        transition: background-color 0.18s, box-shadow 0.18s;
         font-family: Arial, sans-serif;
         font-size: 12px;
         font-weight: normal;
@@ -667,21 +662,25 @@ styleElement.textContent = `
         text-transform: none;
         letter-spacing: normal;
         text-align: center;
-        white-space: nowrap; /* Prevent text wrapping */        
+        white-space: nowrap;
+        box-shadow: none;
     }
 
-    .extension-action-button:hover {
-        background-color: #AAAAAA; 
+    .extension-action-button:hover, .extension-action-button:focus {
+        background-color: #888888;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.10);
+        outline: none;
     }
 
-    /* Dark Mode Button Styles */
     #text-selection-popup-extension.dark-mode .extension-action-button {
-        background-color: #555555; 
+        background-color: #555555;
         color: #FFFFFF;
     }
 
-    #text-selection-popup-extension.dark-mode .extension-action-button:hover {
-        background-color: #6E6E6E; 
+    #text-selection-popup-extension.dark-mode .extension-action-button:hover, #text-selection-popup-extension.dark-mode .extension-action-button:focus {
+        background-color: #6E6E6E;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.18);
+        outline: none;
     }
 
     .conversion-result {
@@ -713,7 +712,6 @@ styleElement.textContent = `
         display: inline-block;
     }
 
-    /* Dark mode styles for conversion */
     #text-selection-popup-extension.dark-mode .conversion-result {
         background: #444;
         color: #fff;
