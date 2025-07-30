@@ -1044,17 +1044,27 @@ document.addEventListener('mouseup', function (e) {
     if (popup.contains(e.target)) {
         return;
     }
-    const selection = window.getSelection();
-    const selectedTextTrimmed = selection.toString().trim();
+    let selection, selectedTextTrimmed, range, rect;
+    try {
+        selection = window.getSelection();
+        selectedTextTrimmed = selection.toString().trim();
+    } catch (err) {
+        // Likely a cross-origin iframe, do nothing
+        return;
+    }
 
     // Validate selection length
     if (selectedTextTrimmed && 
         selectedTextTrimmed.length >= MIN_SELECTION_LENGTH && 
         selectedTextTrimmed.length <= MAX_SELECTION_LENGTH) {
-        
         currentSelectedText = selectedTextTrimmed;
-        const range = selection.getRangeAt(0);
-        const rect = range.getBoundingClientRect();
+        try {
+            range = selection.getRangeAt(0);
+            rect = range.getBoundingClientRect();
+        } catch (err) {
+            // Likely a cross-origin iframe, do nothing
+            return;
+        }
         if (rect.width > 0 || rect.height > 0) {
             showAndPositionPopup(rect, range.commonAncestorContainer);
             // Set selection complete flag after a short delay to allow for mouse movement

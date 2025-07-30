@@ -1,7 +1,7 @@
 {
 	"manifest_version": 3,
 	"name": "Search Popup",
-	"version": "1.59.2",
+	"version": "1.59.3",
 	"description": "Displays a smart popup when you select text on any webpage: search, copy, convert, copy to clipboard, open URLs.",
 	"icons": {
 		"16": "img/icon.png",
@@ -21,9 +21,10 @@
 	"content_security_policy": {
 		"extension_pages": "script-src 'self'; object-src 'self'"
 	},
-	"content_scripts": [{
-		"matches": ["<all_urls>"],
-		"js": ["js/content.js"]
-	}],
+   "content_scripts": [{
+	   "matches": ["<all_urls>"],
+	   "js": ["js/content.js"],
+	   "all_frames": true
+   }],
 	"options_page": "settings.html"
 }
