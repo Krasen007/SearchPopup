@@ -68,6 +68,7 @@ This document outlines the security measures implemented in the SearchPopup brow
 
 ## Potential Security Considerations
 
+
 ### 1. External API Dependency
 - **Risk**: Dependency on external exchange rate API
 - **Mitigation**: Comprehensive caching, fallback to defaults, rate limiting
@@ -79,6 +80,10 @@ This document outlines the security measures implemented in the SearchPopup brow
 ### 3. Cross-Site Scripting (XSS)
 - **Risk**: Potential XSS through user input
 - **Mitigation**: No user input to DOM, proper encoding, CSP headers
+
+### 4. Cross-Origin Iframe Limitation
+- **Risk**: Extension cannot access or interact with content inside cross-origin or sandboxed iframes (e.g., some email clients, banking sites)
+- **Mitigation**: This is a browser-enforced security feature. The extension fails gracefully and does not attempt to bypass these restrictions. Users may be informed of this limitation in documentation or UI if needed.
 
 ## Security Testing Recommendations
 
@@ -148,6 +153,6 @@ The SearchPopup extension implements comprehensive security measures following i
 
 ---
 
-**Last Updated**: June 2025  
-**Version**: 1.49.20250628  
-**Security Level**: Production Ready 
+**Last Updated**: July 2025  
+**Version**: 1.59.3  
+**Security Level**: Production Ready
