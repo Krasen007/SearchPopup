@@ -76,14 +76,19 @@
             border-radius: 6px;
             padding: 10px 14px;
             font-size: 0.98rem;
-            width: 100%;
+            min-width: 0;
+            max-width: 320px;
+            width: auto;
             box-sizing: border-box;
+            bottom: 10px;
+            z-index: 2;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.07);
         }
     </style>
 </head>
 <body>
     <h1>Search Popup Settings</h1>
-    <div id="settings-container">
+    <div id="settings-container" style="position:relative;">
         <label for="currency-select">Preferred Target Currency:</label>
         <select id="currency-select">
         </select>
@@ -103,12 +108,15 @@
         </select>
         <button id="save-settings">Save</button>
         <div class="reload-message" style="display:none;">
-            You need to reload the page to apply the changes.
+            You need to reload the open tabs to apply the changes.
         </div>
         <div id="app-version" style="margin-top: 24px; color: #888; font-size: 0.98rem; align-self: flex-end;">
             Version: <span id="version-value">...</span>
         </div>
+        <a id="feedback-link" href="https://github.com/Krasen007/SearchPopup/issues" target="_blank" style="margin-top: 24px; color: #0078d7; text-decoration: none;">
+            Provide Feedback
+        </a>
     </div>
     <script src="js/settings.js"></script>
 </body>
-</html> 
+</html>

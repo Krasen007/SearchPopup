@@ -116,11 +116,6 @@ Works on all Chromium-based browsers (Chrome, Vivaldi, Edge, Brave, etc.).
 - **Exchange Rate Caching:** Currency rates are cached and updated daily for fast, offline-friendly conversion.
 - **Locale-aware Number Parsing:** Handles both `1,234.56` and `1.234,56` formats.
 
-## Roadmap / TODO
-- Option to pick default search engine or add a settings page / basic version is implemented but there are errors.
-- Option to select favorite or local currency / basic version is implemented but needs testing.
-- Time zone conversion / basic version is implemented but needs testing.
-
 ---
 
 *Portions of this app were created using various AI tools!*
