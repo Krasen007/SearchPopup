@@ -391,10 +391,10 @@ async function fetchExchangeRates() {
 function convertTimeZone(text, userTimeZone = Intl.DateTimeFormat().resolvedOptions().timeZone) {
     // Enhanced time zone mappings with more comprehensive coverage
     const tzAbbrs = {
-        'PST': 'America/Los_Angeles', 'PDT': 'America/Los_Angeles',
-        'MST': 'America/Denver',      'MDT': 'America/Denver',
-        'CST': 'America/Chicago',     'CDT': 'America/Chicago',
-        'EST': 'America/New_York',    'EDT': 'America/New_York',
+        'PST': 'America/Los_Angeles', 'PDT': 'America/Los_Angeles', 'PT': 'America/Los_Angeles',
+        'MST': 'America/Denver',      'MDT': 'America/Denver',      'MT': 'America/Denver',
+        'CST': 'America/Chicago',     'CDT': 'America/Chicago',     'CT': 'America/Chicago',
+        'EST': 'America/New_York',    'EDT': 'America/New_York',    'ET': 'America/New_York',
         'AKST': 'America/Anchorage',  'AKDT': 'America/Anchorage',
         'HST': 'Pacific/Honolulu',
         'GMT': 'Etc/GMT', 'UTC': 'Etc/UTC',
@@ -406,7 +406,7 @@ function convertTimeZone(text, userTimeZone = Intl.DateTimeFormat().resolvedOpti
         'ACST': 'Australia/Adelaide', 'ACDT': 'Australia/Adelaide',
         'AWST': 'Australia/Perth',
     };
-    // 12-hour: 5 PM PST, 11:30 am CET; 24-hour: 14:00 EST
+    // 12-hour: 5 PM PST, 11:30 am CET, 10:00pm PT; 24-hour: 14:00 EST
     const timeZonePattern = /^(\d{1,2})(?::(\d{2}))?\s*(AM|PM|am|pm)?\s*([A-Z]{2,5})$/i;
     const matchTZ = text.trim().match(timeZonePattern);
     if (!matchTZ) return null;
@@ -695,9 +695,14 @@ styleElement.textContent = `
         background: #f0f0f0;
     }
 
+    .conversion-result {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+    }
+
     .conversion-result .copy-button {
         display: none;
-        float: right;
         padding: 2px 6px;
         font-size: 12px;
         background: #4CAF50;
@@ -705,6 +710,8 @@ styleElement.textContent = `
         border: none;
         border-radius: 3px;
         cursor: pointer;
+        margin-left: 8px;
+        flex-shrink: 0;
     }
 
     .conversion-result:hover .copy-button {

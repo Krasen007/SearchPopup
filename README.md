@@ -55,6 +55,7 @@ The extension supports a wide range of unit and currency conversions. Simply sel
 | `11:30 am CET` | 12-hour Central European Time      | `12:30 (your time)`     |
 | `23:15 GMT`    | 24-hour Greenwich Mean Time        | `01:15 (your time)`     |
 | `8:00 UTC`     | 24-hour Coordinated Universal Time | `11:00 (your time)`     |
+| `10:00pm PT`     | 12-hour America/Los_Angeles | `08:00 (your time)`     |
 
 ### Fiat Currency Examples
 
