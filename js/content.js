@@ -598,7 +598,7 @@ styleElement.textContent = `
         letter-spacing: normal;
         box-shadow: 0 4px 12px rgba(0,0,0,0.15);
         z-index: 2147483647;
-        transition: opacity 0.2s ease-in-out, background-color 0.2s ease-in-out, border-color 0.2s ease-in-out;
+        transition: opacity 0.2s ease-in-out;
         box-sizing: border-box;
     }
 
@@ -612,7 +612,6 @@ styleElement.textContent = `
         border-left: 8px solid transparent;
         border-right: 8px solid transparent;
         display: none;
-        transition: border-top-color 0.2s ease-in-out, border-bottom-color 0.2s ease-in-out;
     }
 
     #text-selection-popup-extension.arrow-bottom::after {
@@ -690,7 +689,6 @@ styleElement.textContent = `
         color: #000;
         border-radius: 4px;
         cursor: pointer;
-        transition: background-color 0.2s;
     }
 
     .conversion-result:hover {
@@ -1021,7 +1019,15 @@ async function showAndPositionPopup(rect, selectionContextElement) {
     // Determine background and apply theme/arrow
     const pageBackgroundColor = getEffectiveBackgroundColor(selectionContextElement);
     const isPageDark = isColorDark(pageBackgroundColor);
+    
+    // Force immediate theme application without transitions
+    popup.style.transition = 'none';
     applyThemeAndArrow(isPageDark, isPopupBelow);
+    
+    // Re-enable transitions after theme is applied
+    requestAnimationFrame(() => {
+        popup.style.transition = 'opacity 0.2s ease-in-out';
+    });
 
     requestAnimationFrame(() => {
         popup.style.opacity = '1'; // Fade in
