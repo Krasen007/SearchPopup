@@ -687,6 +687,7 @@ styleElement.textContent = `
         padding: 4px 8px;
         margin: 4px 0;
         background: #f5f5f5;
+        color: #000;
         border-radius: 4px;
         cursor: pointer;
         transition: background-color 0.2s;

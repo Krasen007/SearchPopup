@@ -1,7 +1,7 @@
 {
 	"manifest_version": 3,
 	"name": "Search Popup",
-	"version": "1.59.5",
+	"version": "1.60.0",
 	"description": "Displays a smart popup when you select text on any webpage: search, copy, convert, copy to clipboard, open URLs.",
 	"icons": {
 		"16": "img/icon.png",
