@@ -733,20 +733,58 @@ document.head.appendChild(styleElement);
 const popup = document.createElement('div');
 popup.id = 'text-selection-popup-extension'; // ID is used by CSS
 
-// --- Create popup content (once) ---
-popup.innerHTML = `
-    <div id="errorContainer" style="display: none; color: red; padding: 4px; text-align: center;"></div>
-    <div id="conversionContainer" style="display: none;">
-        <div class="conversion-result">
-            <span class="converted-value"></span>
-            <button class="copy-button">Copy</button>
-        </div>
-    </div>
-    <div style="display: flex; flex-direction: row; gap: 8px; justify-content: space-between;">
-        <button id="extensionSearchButton" class="extension-action-button">Search</button>
-        <button id="extensionCopyButton" class="extension-action-button">Copy</button>
-    </div>
-`;
+// --- Create popup content (once) using safe DOM manipulation ---
+// Error container
+const errorContainer = document.createElement('div');
+errorContainer.id = 'errorContainer';
+errorContainer.style.display = 'none';
+errorContainer.style.color = 'red';
+errorContainer.style.padding = '4px';
+errorContainer.style.textAlign = 'center';
+popup.appendChild(errorContainer);
+
+// Conversion container
+const conversionContainer = document.createElement('div');
+conversionContainer.id = 'conversionContainer';
+conversionContainer.style.display = 'none';
+
+const conversionResult = document.createElement('div');
+conversionResult.className = 'conversion-result';
+
+const convertedValueSpan = document.createElement('span');
+convertedValueSpan.className = 'converted-value';
+conversionResult.appendChild(convertedValueSpan);
+
+const copyButton = document.createElement('button');
+copyButton.className = 'copy-button';
+copyButton.textContent = 'Copy';
+conversionResult.appendChild(copyButton);
+
+conversionContainer.appendChild(conversionResult);
+popup.appendChild(conversionContainer);
+
+// Button container
+const buttonContainer = document.createElement('div');
+buttonContainer.style.display = 'flex';
+buttonContainer.style.flexDirection = 'row';
+buttonContainer.style.gap = '8px';
+buttonContainer.style.justifyContent = 'space-between';
+
+// Search button
+const searchButton = document.createElement('button');
+searchButton.id = 'extensionSearchButton';
+searchButton.className = 'extension-action-button';
+searchButton.textContent = 'Search';
+buttonContainer.appendChild(searchButton);
+
+// Copy button
+const copyButton2 = document.createElement('button');
+copyButton2.id = 'extensionCopyButton';
+copyButton2.className = 'extension-action-button';
+copyButton2.textContent = 'Copy';
+buttonContainer.appendChild(copyButton2);
+
+popup.appendChild(buttonContainer);
 document.body.appendChild(popup);
 
 // --- Helper function to handle clipboard fallback for copying text ---

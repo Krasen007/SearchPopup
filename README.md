@@ -70,6 +70,7 @@ The extension supports a wide range of unit and currency conversions. Simply sel
 | `100 BGN`         | Bulgarian Lev                      |
 | `¥10,000`         | Japanese Yen                       |
 | `₹5,00,000`       | Indian Rupee (lakh format)          |
+| `€5.00,000`       | Euro with comma and dot         |
 | `10 USD`          | US Dollar plain                    |
 | `20 EUR`          | Euro plain                         |
 | `50 GBP`          | British Pound plain                |
