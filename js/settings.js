@@ -55,7 +55,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const selectedCurrency = currencySelect.value;
         const selectedCryptoCurrency = cryptoCurrencySelect ? cryptoCurrencySelect.value : 'USD';
         const selectedSearchEngine = searchEngineSelect ? searchEngineSelect.value : 'google';
-        chrome.storage.sync.set({ 
+        chrome.storage.sync.set({
             preferredCurrency: selectedCurrency,
             preferredCryptoCurrency: selectedCryptoCurrency,
             preferredSearchEngine: selectedSearchEngine

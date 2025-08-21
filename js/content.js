@@ -208,9 +208,9 @@ const unitConversions = {
     '£': { to: 'BGN', convert: (val) => val * exchangeRates.rates.GBP },
 
     // Temperature
-    '°F': { to: '°C', convert: (val) => (val - 32) * 5/9 },
-    '°C': { to: '°F', convert: (val) => (val * 9/5) + 32 },
-    
+    '°F': { to: '°C', convert: (val) => (val - 32) * 5 / 9 },
+    '°C': { to: '°F', convert: (val) => (val * 9 / 5) + 32 },
+
     // Cooking Measurements
     'cup': { to: 'ml', factor: 236.588 },
     'cups': { to: 'ml', factor: 236.588 },
@@ -227,34 +227,38 @@ const unitConversions = {
     'quarts': { to: 'ml', factor: 946.353 },
     'gallon': { to: 'ml', factor: 3785.41 },
     'gallons': { to: 'ml', factor: 3785.41 },
-    
+
     // Speed
     'mph': { to: 'km/h', factor: 1.609344 },
     'km/h': { to: 'mph', factor: 0.621371192 },
     'mpg': { to: 'l/100km', convert: (val) => 235.214583 / val },
     'l/100km': { to: 'mpg', convert: (val) => 235.214583 / val },
-    
+
     // Volume
     'gal': { to: 'l', factor: 3.78541178 },
     'l': { to: 'gal', factor: 0.264172052 },
     'qt': { to: 'l', factor: 0.946352946 },
     'fl': { to: 'ml', factor: 29.5735295625 },
     'ml': { to: 'fl', factor: 0.0338140227 },
-    
+
     // Distance
     'mi': { to: 'km', factor: 1.609344 },
     'km': { to: 'mi', factor: 0.621371192 },
     'yd': { to: 'm', factor: 0.9144 },
     'm': { to: 'yd', factor: 1.0936133 },
     'ft': { to: 'm', factor: 0.3048 },
+    'foot': { to: 'm', factor: 0.3048 },
+    'feet': { to: 'm', factor: 0.3048 },
     'in': { to: 'cm', factor: 2.54 },
+    'inch': { to: 'cm', factor: 2.54 },
+    'inches': { to: 'cm', factor: 2.54 },
     'cm': { to: 'in', factor: 0.393700787 },
     'mm': { to: 'in', factor: 0.0393700787 },
-    
+
     // Power
     'kW': { to: 'hp', factor: 1.34102209 },
     'hp': { to: 'kW', factor: 0.745699872 },
-    
+
     // Torque
     'lb ft': { to: 'Nm', factor: 1.35581795 },
     'Nm': { to: 'lb ft', factor: 0.737562149 }
@@ -264,7 +268,7 @@ const unitConversions = {
 async function fetchExchangeRates() {
     // Check if we need to update rates (once per day)
     const now = Date.now();
-    if (exchangeRates.lastUpdated && 
+    if (exchangeRates.lastUpdated &&
         now - exchangeRates.lastUpdated < 24 * 60 * 60 * 1000) {
         return; // Use cached rates if less than 24 hours old
     }
@@ -281,18 +285,18 @@ async function fetchExchangeRates() {
         if (!response.ok) {
             throw new Error(`HTTP ${response.status}: ${response.statusText}`);
         }
-        
+
         const data = await response.json();
-        
+
         // Validate the response data structure
         if (!data || !data.rates || typeof data.rates !== 'object') {
             throw new Error('Invalid response format from exchange rate API');
         }
-        
+
         // Reset API attempts on success
         apiCallAttempts = 0;
         exchangeRatesError = null; // Clear error on success
-        
+
         // Update rates (converting to preferredCurrency)
         exchangeRates.rates = {};
         const target = preferredCurrency || 'BGN';
@@ -341,7 +345,7 @@ async function fetchExchangeRates() {
             if (cached) {
                 const parsed = JSON.parse(cached);
                 // Validate cached data structure
-                if (parsed && typeof parsed === 'object' && 
+                if (parsed && typeof parsed === 'object' &&
                     parsed.rates && typeof parsed.rates === 'object' &&
                     parsed.lastUpdated && typeof parsed.lastUpdated === 'number') {
                     // Validate that the cached data is not too old (more than 7 days)
@@ -392,10 +396,10 @@ function convertTimeZone(text, userTimeZone = Intl.DateTimeFormat().resolvedOpti
     // Enhanced time zone mappings with more comprehensive coverage
     const tzAbbrs = {
         'PST': 'America/Los_Angeles', 'PDT': 'America/Los_Angeles', 'PT': 'America/Los_Angeles',
-        'MST': 'America/Denver',      'MDT': 'America/Denver',      'MT': 'America/Denver',
-        'CST': 'America/Chicago',     'CDT': 'America/Chicago',     'CT': 'America/Chicago',
-        'EST': 'America/New_York',    'EDT': 'America/New_York',    'ET': 'America/New_York',
-        'AKST': 'America/Anchorage',  'AKDT': 'America/Anchorage',
+        'MST': 'America/Denver', 'MDT': 'America/Denver', 'MT': 'America/Denver',
+        'CST': 'America/Chicago', 'CDT': 'America/Chicago', 'CT': 'America/Chicago',
+        'EST': 'America/New_York', 'EDT': 'America/New_York', 'ET': 'America/New_York',
+        'AKST': 'America/Anchorage', 'AKDT': 'America/Anchorage',
         'HST': 'Pacific/Honolulu',
         'GMT': 'Etc/GMT', 'UTC': 'Etc/UTC',
         'CET': 'Europe/Berlin', 'CEST': 'Europe/Berlin',
@@ -424,7 +428,7 @@ function convertTimeZone(text, userTimeZone = Intl.DateTimeFormat().resolvedOpti
         // Use today's date for conversion
         const now = new Date();
         // Build a date string in the source time zone
-        const dateStr = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')}T${String(hour).padStart(2,'0')}:${String(minute).padStart(2,'0')}:00`;
+        const dateStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}T${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}:00`;
         // Get the source time zone IANA name
         const srcTimeZone = tzAbbrs[tz];
         // Convert to UTC from the source time zone
@@ -459,13 +463,13 @@ function getTimeZoneOffsetString(timeZone, dateStr) {
         const h = parts.find(p => p.type === 'hour').value;
         const min = parts.find(p => p.type === 'minute').value;
         const s = parts.find(p => p.type === 'second').value;
-        const utc = Date.UTC(y, m-1, d, h, min, s);
+        const utc = Date.UTC(y, m - 1, d, h, min, s);
         const local = new Date(`${dateStr}`).getTime();
         const offset = (local - utc) / 60000;
         const sign = offset <= 0 ? '+' : '-';
         const abs = Math.abs(offset);
-        const hh = String(Math.floor(abs/60)).padStart(2,'0');
-        const mm = String(abs%60).padStart(2,'0');
+        const hh = String(Math.floor(abs / 60)).padStart(2, '0');
+        const mm = String(abs % 60).padStart(2, '0');
         return `${sign}${hh}:${mm}`;
     } catch {
         return '+00:00';
@@ -505,16 +509,17 @@ async function detectAndConvertUnit(text) {
     // Allow trailing punctuation like periods, commas, etc.
     // Expanded currency symbols to include ₺, ₽, ₹, ₩, ₪, ₱, ฿, ₣, ₦, ₲, ₵, ₡, ₫, ₭, ₮, ₯, ₠, ₢, ₳, ₴, ₸, ₼, ₾, ₿, and others
     const currencySymbolPattern = '[a-zA-Z°/€$£¥₺₽₹₩₪₱฿₣₦₲₵₡₫₭₮₯₠₢₳₴₸₼₾₿]';
-    const valueUnitPattern = new RegExp(`^(-?\\d{1,3}(?:[.,\\s]\\d{3})*(?:[.,]\\d+)?|\\d+/\\d+)\\s*(${currencySymbolPattern}+(?:\\s+[a-zA-Z]+)?)?[.,;:!?]*$`, 'i');
-    const unitValuePattern = new RegExp(`^(${currencySymbolPattern}+(?:\\s+[a-zA-Z]+)?)\\s*(-?\\d{1,3}(?:[.,\\s]\\d{3})*(?:[.,]\\d+)?|\\d+/\\d+)[.,;:!?]*$`, 'i');
-    
+    // Updated pattern to better handle multi-word units like "inch", "foot", etc.
+    const valueUnitPattern = new RegExp(`^(-?\\d{1,3}(?:[.,\\s]\\d{3})*(?:[.,]\\d+)?|\\d+/\\d+)\\s*(${currencySymbolPattern}+|[a-zA-Z]+(?:\\s+[a-zA-Z]+)*)[.,;:!?]*$`, 'i');
+    const unitValuePattern = new RegExp(`^(${currencySymbolPattern}+|[a-zA-Z]+(?:\\s+[a-zA-Z]+)*)\\s*(-?\\d{1,3}(?:[.,\\s]\\d{3})*(?:[.,]\\d+)?|\\d+/\\d+)[.,;:!?]*$`, 'i');
+
     const valueUnitMatch = text.trim().match(valueUnitPattern);
     const unitValueMatch = text.trim().match(unitValuePattern);
-    
+
     if (!valueUnitMatch && !unitValueMatch) return null;
-    
+
     let value, unit;
-    
+
     // Check if currency symbol is before or after the number
     if (valueUnitMatch) {
         value = valueUnitMatch[1];
@@ -525,7 +530,7 @@ async function detectAndConvertUnit(text) {
     } else {
         return null;
     }
-    
+
     // Handle fractions
     if (value.includes('/')) {
         const [numerator, denominator] = value.split('/');
@@ -536,25 +541,25 @@ async function detectAndConvertUnit(text) {
         value = value.replace(',', '.'); // Replace decimal comma with period
         value = parseFloat(value);
     }
-    
+
     // Special case for temperature without F suffix
     if (unit === '°') {
         return {
             original: `${value}°`,
-            converted: `${((value - 32) * 5/9).toFixed(1)}°C`,
-            value: (value - 32) * 5/9
+            converted: `${((value - 32) * 5 / 9).toFixed(1)}°C`,
+            value: (value - 32) * 5 / 9
         };
     }
-    
+
     // Find matching unit conversion
     // Normalize unit: trim, lowercase, remove spaces and handle common variants
     let normUnit = (unit || '').toLowerCase().replace(/\s+/g, '');
-    if (normUnit === 'l/100km' || normUnit === 'l/100km' || normUnit === 'l/100km' || normUnit === 'l/100km') {
+
+    if (normUnit === 'l/100km') {
         normUnit = 'l/100km';
     } else if (normUnit === 'mpg') {
         normUnit = 'mpg';
-    }
-    for (const [key, conversion] of Object.entries(unitConversions)) {
+    } for (const [key, conversion] of Object.entries(unitConversions)) {
         let normKey = key.toLowerCase().replace(/\s+/g, '');
         if (normKey === normUnit) {
             let converted;
@@ -573,7 +578,7 @@ async function detectAndConvertUnit(text) {
             };
         }
     }
-    
+
     return null;
 }
 
@@ -903,7 +908,7 @@ function applyThemeAndArrow(isPageDark, isPopupBelowSelection) {
 function detectUrl(text) {
     // More comprehensive URL pattern
     const urlPattern = /^(https?:\/\/)?(([a-zA-Z0-9]([a-zA-Z0-9-]*[a-zA-Z0-9])?\.)+[a-zA-Z0-9]([a-zA-Z0-9-]*[a-zA-Z0-9])?)(\/[^\s]*)?$/;
-    
+
     return urlPattern.test(text);
 }
 
@@ -1064,11 +1069,11 @@ async function showAndPositionPopup(rect, selectionContextElement) {
     // Determine background and apply theme/arrow
     const pageBackgroundColor = getEffectiveBackgroundColor(selectionContextElement);
     const isPageDark = isColorDark(pageBackgroundColor);
-    
+
     // Force immediate theme application without transitions
     popup.style.transition = 'none';
     applyThemeAndArrow(isPageDark, isPopupBelow);
-    
+
     // Re-enable transitions after theme is applied
     requestAnimationFrame(() => {
         popup.style.transition = 'opacity 0.2s ease-in-out';
@@ -1106,8 +1111,8 @@ document.addEventListener('mouseup', function (e) {
     }
 
     // Validate selection length
-    if (selectedTextTrimmed && 
-        selectedTextTrimmed.length >= MIN_SELECTION_LENGTH && 
+    if (selectedTextTrimmed &&
+        selectedTextTrimmed.length >= MIN_SELECTION_LENGTH &&
         selectedTextTrimmed.length <= MAX_SELECTION_LENGTH) {
         currentSelectedText = selectedTextTrimmed;
         try {
@@ -1157,13 +1162,13 @@ window.addEventListener('resize', () => {
 });
 
 // --- Global error handler ---
-window.addEventListener('error', function(event) {
+window.addEventListener('error', function (event) {
     // Prevent error from bubbling up
     event.preventDefault();
     return false;
 });
 
-window.addEventListener('unhandledrejection', function(event) {
+window.addEventListener('unhandledrejection', function (event) {
     // Prevent error from bubbling up
     event.preventDefault();
     return false;
