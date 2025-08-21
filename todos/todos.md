@@ -1,3 +1,2 @@
-create onboarding page
 create a appealing listing for chrome web store and firefox addin store
 https://extensionworkshop.com/documentation/develop/create-an-appealing-listing/?utm_source=addons.mozilla.org&utm_medium=referral&utm_content=submission

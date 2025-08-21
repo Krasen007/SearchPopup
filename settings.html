@@ -6,42 +6,94 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Search Popup Settings</title>
     <style>
-        body {
-            background: #f7f7f9;
-            font-family: 'Segoe UI', Arial, sans-serif;
+        * {
             margin: 0;
             padding: 0;
-            min-height: 100vh;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: flex-start;
+            box-sizing: border-box;
         }
 
-        h1 {
-            margin-top: 40px;
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            line-height: 1.6;
             color: #333;
-            font-size: 2rem;
-            font-weight: 600;
-            letter-spacing: 1px;
+            min-height: 100vh;
+            padding: 20px;
         }
 
-        #settings-container {
-            background: #fff;
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            background: white;
             border-radius: 12px;
-            box-shadow: 0 4px 16px rgba(0, 0, 0, 0.08);
-            padding: 32px 28px 24px 28px;
-            margin-top: 32px;
-            min-width: 320px;
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1);
+            overflow: hidden;
+        }
+
+        .header {
+            background: linear-gradient(135deg, #2f855a 0%, #38a169 100%);
+            color: white;
+            padding: 25px;
+            text-align: center;
+        }
+
+        .header h1 {
+            font-size: 2.5rem;
+            margin-bottom: 10px;
+            font-weight: 700;
+        }
+
+        .logo {
+            width: 80px;
+            height: 80px;
+            margin: 0 auto 20px;
+            background: white;
+            border-radius: 16px;
             display: flex;
-            flex-direction: column;
-            align-items: flex-start;
+            align-items: center;
+            justify-content: center;
+            font-size: 2rem;
+            font-weight: bold;
+            color: #2f855a;
+        }
+
+        .app-icon {
+            width: 56px;
+            height: 56px;
+            object-fit: contain;
+            display: block;
+            border-radius: 10px;
+        }
+
+        .content {
+            padding: 40px;
+        }
+
+        .section {
+            margin-bottom: 40px;
+        }
+
+        .section h2 {
+            color: #2f855a;
+            font-size: 1.5rem;
+            margin-bottom: 15px;
+            display: flex;
+            align-items: center;
+        }
+
+        .section h2::before {
+            content: '';
+            width: 4px;
+            height: 24px;
+            background: #2f855a;
+            margin-right: 12px;
+            border-radius: 2px;
         }
 
         label {
             font-size: 1rem;
             color: #444;
             margin-bottom: 8px;
+            display: block;
         }
 
         select {
@@ -53,28 +105,58 @@
             margin-top: 4px;
             background: #fafbfc;
             transition: border-color 0.2s;
+            width: 100%;
+            min-height: 40px;
         }
 
         select:focus {
-            border-color: #0078d7;
+            border-color: #2f855a;
             outline: none;
         }
 
-        button#save-settings {
-            background: #0078d7;
-            color: #fff;
-            border: none;
+        .btn {
+            display: inline-block;
+            background: #2f855a;
+            color: white;
+            padding: 12px 24px;
+            text-decoration: none;
             border-radius: 6px;
-            padding: 8px 20px;
-            font-size: 1rem;
             font-weight: 500;
+            transition: all 0.3s ease;
+            border: none;
             cursor: pointer;
-            transition: background 0.2s;
-            margin-top: 8px;
+            font-size: 1rem;
         }
 
-        button#save-settings:hover {
-            background: #005fa3;
+        .btn:hover {
+            background: #276b49;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(46, 139, 87, 0.18);
+        }
+
+        .footer {
+            background: #f8f9fa;
+            padding: 30px 40px;
+            text-align: center;
+            border-top: 1px solid #eee;
+        }
+
+        .footer-links {
+            display: flex;
+            justify-content: center;
+            gap: 20px;
+            flex-wrap: wrap;
+            margin-top: 15px;
+        }
+
+        .footer-links a {
+            color: #2f855a;
+            text-decoration: none;
+            font-weight: 500;
+        }
+
+        .footer-links a:hover {
+            text-decoration: underline;
         }
 
         .reload-message {
@@ -93,42 +175,141 @@
             z-index: 2;
             box-shadow: 0 2px 8px rgba(0, 0, 0, 0.07);
         }
+
+        #app-version {
+            margin-top: 24px;
+            color: #888;
+            font-size: 0.98rem;
+            text-align: center;
+        }
+
+        /* Steps styling to match the rest of the settings UI */
+        .section>.step {
+            margin-top: 8px;
+        }
+
+        /* Individual step cards */
+        .section .step .step {
+            background: #fafbfc;
+            border: 1px solid #e6fffa;
+            border-radius: 10px;
+            padding: 14px 16px;
+            margin-bottom: 12px;
+            display: flex;
+            gap: 12px;
+            align-items: flex-start;
+            box-shadow: 0 8px 18px rgba(46, 139, 87, 0.06);
+        }
+
+        .step-content h4 {
+            color: #2b2540;
+            font-size: 1.05rem;
+            margin-bottom: 6px;
+            font-weight: 600;
+            color: #333;
+        }
+
+        .step-content p {
+            color: #555;
+            font-size: 0.97rem;
+            line-height: 1.45;
+            margin: 0;
+        }
+
+        /* small icon area (optional) */
+        .section .step .step::before {
+            content: '●';
+            font-size: 18px;
+            margin-right: 6px;
+            line-height: 1;
+        }
+
+        @media (max-width: 768px) {
+            .header {
+                padding: 30px 20px;
+            }
+
+            .header h1 {
+                font-size: 2rem;
+            }
+
+            .content {
+                padding: 30px 20px;
+            }
+        }
     </style>
 </head>
 
 <body>
-    <h1>Search Popup Settings</h1>
-    <div id="settings-container" style="position:relative;">
-        <label for="currency-select">Preferred Target Currency:</label>
-        <select id="currency-select">
-        </select>
-        <label for="crypto-currency-select" style="margin-top:10px;">Preferred Crypto Target Currency:</label>
-        <select id="crypto-currency-select">
-        </select>
-        <label for="search-engine-select" style="margin-top:18px;">Default Search Engine:</label>
-        <select id="search-engine-select" style="margin-bottom: 18px; margin-top: 4px;">
-            <option value="google">Google</option>
-            <option value="duckduckgo">DuckDuckGo</option>
-            <option value="bing">Bing</option>
-            <option value="yahoo">Yahoo</option>
-            <option value="startpage">Startpage</option>
-            <option value="brave">Brave</option>
-            <option value="qwant">Qwant</option>
-            <option value="ecosia">Ecosia</option>
-        </select>
-        <button id="save-settings">Save</button>
-        <div class="reload-message" style="display:none;">
-            You need to reload the open tabs to apply the changes.
+    <div class="container">
+        <div class="header">
+            <div class="logo"><img src="img/icon.png" alt="Search Popup" class="app-icon"/></div>
+            <h1>Search Popup Settings</h1>
         </div>
-        <div id="app-version" style="margin-top: 24px; color: #888; font-size: 0.98rem; align-self: flex-end;">
-            Version: <span id="version-value">...</span>
+
+        <div class="content">
+            <div class="section">
+                <h2>Configure Your Preferences</h2>
+                <label for="currency-select">Preferred Target Currency:</label>
+                <select id="currency-select">
+                </select>
+                <label for="crypto-currency-select">Preferred Crypto Target Currency:</label>
+                <select id="crypto-currency-select">
+                </select>
+                <label for="search-engine-select">Default Search Engine:</label>
+                <select id="search-engine-select">
+                    <option value="google">Google</option>
+                    <option value="duckduckgo">DuckDuckGo</option>
+                    <option value="bing">Bing</option>
+                    <option value="yahoo">Yahoo</option>
+                    <option value="startpage">Startpage</option>
+                    <option value="brave">Brave</option>
+                    <option value="qwant">Qwant</option>
+                    <option value="ecosia">Ecosia</option>
+                </select>
+                <button id="save-settings" class="btn">Save Settings</button>
+                <div class="reload-message" style="display:none;">
+                    You need to reload the open tabs to apply the changes.
+                </div>
+                <br>
+                <div class="step">
+                    <h2>How to Use</h2>
+                    <div class="step">
+                        <div class="step-content">
+                            <h4>Select Any Text</h4>
+                            <p>Highlight any text on any webpage - whether it's a word, phrase, URL, or number.</p>
+                        </div>
+                    </div>
+
+                    <div class="step">
+                        <div class="step-content">
+                            <h4>Smart Popup Appears</h4>
+                            <p>A popup will automatically appear near your selection with relevant actions.</p>
+                        </div>
+                    </div>
+
+                    <div class="step">
+                        <div class="step-content">
+                            <h4>Choose Your Action</h4>
+                            <p>Click "Search" to search online, "Copy" to copy to clipboard, or see automatic
+                                conversions
+                                for units, currencies, and more.</p>
+                        </div>
+                    </div>
+                </div>
+                
+            </div>
         </div>
-        <a id="feedback-link" href="https://github.com/Krasen007/SearchPopup/issues" target="_blank"
-            style="margin-top: 24px; color: #0078d7; text-decoration: none;">
-            Provide Feedback
-        </a>
-    </div>
-    <script src="js/settings.js"></script>
+        <div class="footer">
+            <div id="app-version">
+                    Version: <span id="version-value">...</span>
+                </div>
+            <div class="footer-links">
+                <a href="https://github.com/Krasen007/SearchPopup/issues" target="_blank">Report Issues</a>
+                <a href="https://github.com/Krasen007/SearchPopup" target="_blank">GitHub</a>
+            </div>
+        </div>
+        <script src="js/settings.js"></script>
 </body>
 
 </html>
