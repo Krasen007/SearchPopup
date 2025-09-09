@@ -82,25 +82,25 @@ All cryptocurrency conversions are fetched in real-time from the CoinGecko API a
 
 **Supported Cryptocurrencies (30+ total):**
 
-| Symbol | Name | Example | Symbol | Name | Example |
-|--------|------|---------|--------|------|---------|
-| `BTC` | Bitcoin | `1 BTC` | `ETH` | Ethereum | `0.16 ETH` |
-| `XRP` | Ripple | `0.5 XRP` | `LTC` | Litecoin | `2.5 LTC` |
-| `BCH` | Bitcoin Cash | `0.8 BCH` | `ADA` | Cardano | `150 ADA` |
-| `DOT` | Polkadot | `25 DOT` | `LINK` | Chainlink | `10 LINK` |
-| `XLM` | Stellar | `500 XLM` | `DOGE` | Dogecoin | `1000 DOGE` |
-| `USDT` | Tether | `100 USDT` | `BNB` | Binance Coin | `0.5 BNB` |
-| `SOL` | Solana | `3 SOL` | `TRX` | Tron | `200 TRX` |
-| `EOS` | EOS | `50 EOS` | `XTZ` | Tezos | `75 XTZ` |
-| `ATOM` | Cosmos | `20 ATOM` | `VET` | VeChain | `5000 VET` |
-| `ETC` | Ethereum Classic | `5 ETC` | `FIL` | Filecoin | `100 FIL` |
-| `AAVE` | Aave | `2 AAVE` | `UNI` | Uniswap | `15 UNI` |
-| `SUSHI` | SushiSwap | `50 SUSHI` | `YFI` | Yearn.finance | `0.1 YFI` |
-| `COMP` | Compound | `5 COMP` | `MKR` | Maker | `0.5 MKR` |
-| `SNX` | Synthetix | `25 SNX` | `UMA` | UMA | `100 UMA` |
-| `ZEC` | Zcash | `3 ZEC` | `DASH` | Dash | `8 DASH` |
-| `XMR` | Monero | `1 XMR` | `BSV` | Bitcoin SV | `10 BSV` |
-| `AVAX` | Avalanche | `5 AVAX` | `MATIC` | Polygon | `1000 MATIC` |
+| Name | Example | Name | Example |
+|------|---------|------|---------|
+| Bitcoin | `1 BTC` | Ethereum | `0.16 ETH` |
+| Ripple | `0.5 XRP` | Litecoin | `2.5 LTC` |
+| Bitcoin Cash | `0.8 BCH` | Cardano | `150 ADA` |
+| Polkadot | `25 DOT` | Chainlink | `10 LINK` |
+| Stellar | `500 XLM` | Dogecoin | `1000 DOGE` |
+| Tether | `100 USDT` | Binance Coin | `0.5 BNB` |
+| Solana | `3 SOL` | Tron | `200 TRX` |
+| EOS | `50 EOS` | Tezos | `75 XTZ` |
+| Cosmos | `20 ATOM` | VeChain | `5000 VET` |
+| Ethereum Classic | `5 ETC` | Filecoin | `100 FIL` |
+| Aave | `2 AAVE` | Uniswap | `15 UNI` |
+| SushiSwap | `50 SUSHI` | Yearn.finance | `0.1 YFI` |
+| Compound | `5 COMP` | Maker | `0.5 MKR` |
+| Synthetix | `25 SNX` | UMA | `100 UMA` |
+| Zcash | `3 ZEC` | Dash | `8 DASH` |
+| Monero | `1 XMR` | Bitcoin SV | `10 BSV` |
+| Avalanche | `5 AVAX` | Polygon | `1000 MATIC` |
 
 **Usage Examples:**
 - Select `1 BTC` → Shows current Bitcoin value in your preferred currency

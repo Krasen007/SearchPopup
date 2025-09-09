@@ -93,11 +93,22 @@ let cryptoRates = {
     prices: {} // e.g., { bitcoin: { usd: 50000 } }
 };
 
+// Flag to prevent multiple simultaneous API calls
+let isFetchingCryptoRates = false;
+
 async function fetchCryptoRates() {
     const now = Date.now();
     if (cryptoRates.lastUpdated && now - cryptoRates.lastUpdated < 5 * 60 * 1000) { // 5-minute cache
         return;
     }
+    
+    // Prevent multiple simultaneous calls
+    if (isFetchingCryptoRates) {
+        console.log('Crypto rates fetch already in progress, skipping...');
+        return;
+    }
+    
+    isFetchingCryptoRates = true;
 
     const coinIds = Object.values(cryptoCurrencies).join(',');
     let vsCurrency = preferredCryptoCurrency ? preferredCryptoCurrency.toLowerCase() : 'usd';
@@ -172,6 +183,8 @@ async function fetchCryptoRates() {
                 cryptoRates = parsed;
             }
         }
+    } finally {
+        isFetchingCryptoRates = false;
     }
 }
 
@@ -180,6 +193,9 @@ async function fetchCryptoRates() {
 let apiCallAttempts = 0;
 const MAX_API_ATTEMPTS = 3;
 const BASE_RETRY_DELAY = 1000; // 1 second
+
+// Flag to prevent multiple simultaneous exchange rate API calls
+let isFetchingExchangeRates = false;
 
 // Currency symbols mapping
 const currencySymbols = {
@@ -361,11 +377,19 @@ async function fetchExchangeRates() {
         return; // Use cached rates if less than 24 hours old
     }
 
+    // Prevent multiple simultaneous calls
+    if (isFetchingExchangeRates) {
+        console.log('Exchange rates fetch already in progress, skipping...');
+        return;
+    }
+
     // Rate limiting check
     if (apiCallAttempts >= MAX_API_ATTEMPTS) {
         exchangeRatesError = 'Could not fetch latest rates. Please try again later.';
         return;
     }
+    
+    isFetchingExchangeRates = true;
 
     try {
         apiCallAttempts++;
@@ -479,6 +503,8 @@ async function fetchExchangeRates() {
                 }
             };
         }
+    } finally {
+        isFetchingExchangeRates = false;
     }
 }
 
@@ -569,22 +595,70 @@ function getTimeZoneOffsetString(timeZone, dateStr) {
 
 // --- Helper function to detect and convert units ---
 async function detectAndConvertUnit(text) {
-    // First, check for crypto amounts (e.g., "1 BTC", "5 ETH", "0.5 bitcoin")
     const trimmedText = text.trim();
-    console.log('Checking crypto for:', trimmedText, 'Available:', Object.keys(cryptoCurrencies));
     
-    // Check for crypto amounts with numbers
-    const cryptoAmountPattern = /^(\d+(?:\.\d+)?)\s*([A-Z]{2,5})$/i;
-    const cryptoMatch = trimmedText.match(cryptoAmountPattern);
+    // First, check if the text contains any crypto or fiat currency content before doing expensive checks
+    const upperCaseText = trimmedText.toUpperCase();
+    const cryptoSymbols = Object.keys(cryptoCurrencies);
+    const fiatSymbols = Object.keys(currencySymbols);
+    const hasCryptoContent = cryptoSymbols.some(symbol => 
+        upperCaseText.includes(symbol) || 
+        upperCaseText.includes(cryptoCurrencies[symbol].toUpperCase())
+    );
+    const hasFiatContent = fiatSymbols.some(symbol => 
+        upperCaseText.includes(symbol) || 
+        upperCaseText.includes(currencySymbols[symbol])
+    );
+    const hasCurrencyContent = hasCryptoContent || hasFiatContent;
     
-    if (cryptoMatch) {
-        const amount = parseFloat(cryptoMatch[1]);
-        const cryptoSymbol = cryptoMatch[2].toUpperCase();
+    // Only proceed with crypto detection if the text contains crypto-related content
+    if (hasCryptoContent) {
+        console.log('Checking crypto for:', trimmedText, 'Available:', cryptoSymbols);
         
-        if (cryptoCurrencies[cryptoSymbol]) {
-            console.log('Crypto amount detected:', amount, cryptoSymbol, 'ID:', cryptoCurrencies[cryptoSymbol]);
-            await fetchCryptoRates();
-            const id = cryptoCurrencies[cryptoSymbol];
+        // Check for crypto amounts with numbers
+        const cryptoAmountPattern = /^(\d+(?:\.\d+)?)\s*([A-Z]{2,5})$/i;
+        const cryptoMatch = trimmedText.match(cryptoAmountPattern);
+        
+        if (cryptoMatch) {
+            const amount = parseFloat(cryptoMatch[1]);
+            const cryptoSymbol = cryptoMatch[2].toUpperCase();
+            
+            if (cryptoCurrencies[cryptoSymbol]) {
+                console.log('Crypto amount detected:', amount, cryptoSymbol, 'ID:', cryptoCurrencies[cryptoSymbol]);
+                // Only fetch if we don't have recent data
+                if (!cryptoRates.lastUpdated || Date.now() - cryptoRates.lastUpdated > 5 * 60 * 1000) {
+                    await fetchCryptoRates();
+                }
+                const id = cryptoCurrencies[cryptoSymbol];
+                let vsCurrency = preferredCryptoCurrency ? preferredCryptoCurrency.toLowerCase() : 'usd';
+                console.log('Crypto rates available:', cryptoRates.prices);
+                console.log('Looking for:', id, 'in', vsCurrency);
+                let price = null;
+                if (vsCurrency === 'bgn' && cryptoRates.prices[id] && cryptoRates.prices[id]['eur'] && exchangeRates.rates && exchangeRates.rates['EUR']) {
+                    price = cryptoRates.prices[id]['eur'] * exchangeRates.rates['EUR'];
+                } else if (cryptoRates.prices[id] && cryptoRates.prices[id][vsCurrency]) {
+                    price = cryptoRates.prices[id][vsCurrency];
+                }
+                console.log('Crypto price found:', price);
+                if (price !== null) {
+                    const totalValue = amount * price;
+                    return {
+                        original: `${amount} ${cryptoSymbol}`,
+                        converted: `${totalValue.toFixed(2)} ${preferredCryptoCurrency.toUpperCase()}`,
+                        value: totalValue
+                    };
+                }
+            }
+        }
+        
+        // Also check for single crypto symbols (e.g., "BTC", "bitcoin")
+        if (cryptoCurrencies[upperCaseText]) {
+            console.log('Crypto symbol detected:', upperCaseText, 'ID:', cryptoCurrencies[upperCaseText]);
+            // Only fetch if we don't have recent data
+            if (!cryptoRates.lastUpdated || Date.now() - cryptoRates.lastUpdated > 5 * 60 * 1000) {
+                await fetchCryptoRates();
+            }
+            const id = cryptoCurrencies[upperCaseText];
             let vsCurrency = preferredCryptoCurrency ? preferredCryptoCurrency.toLowerCase() : 'usd';
             console.log('Crypto rates available:', cryptoRates.prices);
             console.log('Looking for:', id, 'in', vsCurrency);
@@ -596,38 +670,12 @@ async function detectAndConvertUnit(text) {
             }
             console.log('Crypto price found:', price);
             if (price !== null) {
-                const totalValue = amount * price;
                 return {
-                    original: `${amount} ${cryptoSymbol}`,
-                    converted: `${totalValue.toFixed(2)} ${preferredCryptoCurrency.toUpperCase()}`,
-                    value: totalValue
+                    original: `1 ${upperCaseText}`,
+                    converted: `${price.toFixed(2)} ${preferredCryptoCurrency.toUpperCase()}`,
+                    value: price
                 };
             }
-        }
-    }
-    
-    // Also check for single crypto symbols (e.g., "BTC", "bitcoin")
-    const upperCaseText = trimmedText.toUpperCase();
-    if (cryptoCurrencies[upperCaseText]) {
-        console.log('Crypto symbol detected:', upperCaseText, 'ID:', cryptoCurrencies[upperCaseText]);
-        await fetchCryptoRates();
-        const id = cryptoCurrencies[upperCaseText];
-        let vsCurrency = preferredCryptoCurrency ? preferredCryptoCurrency.toLowerCase() : 'usd';
-        console.log('Crypto rates available:', cryptoRates.prices);
-        console.log('Looking for:', id, 'in', vsCurrency);
-        let price = null;
-        if (vsCurrency === 'bgn' && cryptoRates.prices[id] && cryptoRates.prices[id]['eur'] && exchangeRates.rates && exchangeRates.rates['EUR']) {
-            price = cryptoRates.prices[id]['eur'] * exchangeRates.rates['EUR'];
-        } else if (cryptoRates.prices[id] && cryptoRates.prices[id][vsCurrency]) {
-            price = cryptoRates.prices[id][vsCurrency];
-        }
-        console.log('Crypto price found:', price);
-        if (price !== null) {
-            return {
-                original: `1 ${upperCaseText}`,
-                converted: `${price.toFixed(2)} ${preferredCryptoCurrency.toUpperCase()}`,
-                value: price
-            };
         }
     }
 
@@ -1323,5 +1371,4 @@ window.addEventListener('unhandledrejection', function (event) {
 
 // --- Initialize ---
 initPopupButtons();
-fetchExchangeRates(); // Fetch exchange rates on startup
-fetchCryptoRates(); // Fetch crypto rates on startup
+// Note: fetchExchangeRates() and fetchCryptoRates() are called above in the preference loading section
