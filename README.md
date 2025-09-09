@@ -12,6 +12,7 @@ A modern browser extension that displays a smart popup menu when you select text
  
 - **Unit & Currency Conversion:**
   - Detects and converts common units (kg, lb, mph, km, etc.) and currencies (USD, EUR, GBP, etc.)
+  - **Real-time Cryptocurrency Conversion:** Supports 30+ cryptocurrencies with live prices from CoinGecko API
   - Supports both period and comma as decimal separators (e.g., 569,00€ or 569.00€)
 
    ![Dark mode popup](img/unit1.png)
@@ -77,17 +78,35 @@ The extension supports a wide range of unit and currency conversions. Simply sel
 
 ### Cryptocurrencies
 
-All cryptocurrency conversions are fetched from the CoinGecko API and converted to `USD`. Just select the amount and symbol (e.g., `0.5 BTC`).
+All cryptocurrency conversions are fetched in real-time from the CoinGecko API and converted to your preferred currency (USD by default). Just select the amount and symbol (e.g., `1 BTC`, `5 ETH`).
 
-| Example | Name | Example | Name |
-|--------------|-----------------|--------------|---------------|
-| `1 BTC` | Bitcoin | `1.5 ETH` | Ethereum |
-| `50 XRP` | Ripple | `10 LTC` | Litecoin |
-| `2.1 BCH` | Bitcoin Cash | `30.05 DOT` | Polkadot |
-| `50 LINK` | Chainlink | `1000 XLM` | Stellar |
-| `5 BNB` | Binance Coin | `200 EOS` | EOS |
-| `0.5 YFI` | Yearn.finance | `13 XAG` | `1,44 XAU` |
-| `20 BITS` | `250 SATS` | | |
+**Supported Cryptocurrencies (30+ total):**
+
+| Symbol | Name | Example | Symbol | Name | Example |
+|--------|------|---------|--------|------|---------|
+| `BTC` | Bitcoin | `1 BTC` | `ETH` | Ethereum | `0.16 ETH` |
+| `XRP` | Ripple | `0.5 XRP` | `LTC` | Litecoin | `2.5 LTC` |
+| `BCH` | Bitcoin Cash | `0.8 BCH` | `ADA` | Cardano | `150 ADA` |
+| `DOT` | Polkadot | `25 DOT` | `LINK` | Chainlink | `10 LINK` |
+| `XLM` | Stellar | `500 XLM` | `DOGE` | Dogecoin | `1000 DOGE` |
+| `USDT` | Tether | `100 USDT` | `BNB` | Binance Coin | `0.5 BNB` |
+| `SOL` | Solana | `3 SOL` | `TRX` | Tron | `200 TRX` |
+| `EOS` | EOS | `50 EOS` | `XTZ` | Tezos | `75 XTZ` |
+| `ATOM` | Cosmos | `20 ATOM` | `VET` | VeChain | `5000 VET` |
+| `ETC` | Ethereum Classic | `5 ETC` | `FIL` | Filecoin | `100 FIL` |
+| `AAVE` | Aave | `2 AAVE` | `UNI` | Uniswap | `15 UNI` |
+| `SUSHI` | SushiSwap | `50 SUSHI` | `YFI` | Yearn.finance | `0.1 YFI` |
+| `COMP` | Compound | `5 COMP` | `MKR` | Maker | `0.5 MKR` |
+| `SNX` | Synthetix | `25 SNX` | `UMA` | UMA | `100 UMA` |
+| `ZEC` | Zcash | `3 ZEC` | `DASH` | Dash | `8 DASH` |
+| `XMR` | Monero | `1 XMR` | `BSV` | Bitcoin SV | `10 BSV` |
+| `AVAX` | Avalanche | `5 AVAX` | `MATIC` | Polygon | `1000 MATIC` |
+
+**Usage Examples:**
+- Select `1 BTC` → Shows current Bitcoin value in your preferred currency
+- Select `5 ETH` → Shows current Ethereum value for 5 tokens
+- Select `BTC` → Shows current Bitcoin value for 1 token
+- Select `0.5 bitcoin` → Shows current Bitcoin value for 0.5 tokens
 
 
 ## Installation
@@ -116,7 +135,10 @@ Works on all Chromium-based browsers (Chrome, Vivaldi, Edge, Brave, etc.).
 ## Advanced Features
 - **Clipboard Fallback:** Uses modern Clipboard API with fallback for maximum compatibility.
 - **Exchange Rate Caching:** Currency rates are cached and updated daily for fast, offline-friendly conversion.
+- **Real-time Crypto Prices:** Cryptocurrency prices are fetched live from CoinGecko API with CORS proxy fallback.
 - **Locale-aware Number Parsing:** Handles both `1,234.56` and `1.234,56` formats.
+- **Multi-format Number Support:** Supports both Western (1,000,000) and Indian (10,00,000) number formats.
+- **Rate Limiting Protection:** Multiple CORS proxy fallbacks ensure reliable API access.
 
 ---
 
