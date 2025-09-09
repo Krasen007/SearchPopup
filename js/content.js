@@ -104,7 +104,10 @@ async function fetchCryptoRates() {
     let fetchVs = vsCurrency;
     if (vsCurrency === 'bgn') fetchVs = 'eur'; // Fetch EUR if BGN is selected
     try {
-        const response = await fetch(`https://api.coingecko.com/api/v3/simple/price?ids=${coinIds}&vs_currencies=${fetchVs}`);
+        // Use CORS proxy to avoid CORS issues
+        const proxyUrl = 'https://api.allorigins.win/raw?url=';
+        const apiUrl = `https://api.coingecko.com/api/v3/simple/price?ids=${coinIds}&vs_currencies=${fetchVs}`;
+        const response = await fetch(proxyUrl + encodeURIComponent(apiUrl));
         if (!response.ok) {
             throw new Error(`HTTP ${response.status}: ${response.statusText}`);
         }
@@ -343,7 +346,10 @@ async function fetchExchangeRates() {
 
     try {
         apiCallAttempts++;
-        const response = await fetch('https://api.exchangerate-api.com/v4/latest/EUR');
+        // Use CORS proxy to avoid CORS issues
+        const proxyUrl = 'https://api.allorigins.win/raw?url=';
+        const apiUrl = 'https://api.exchangerate-api.com/v4/latest/EUR';
+        const response = await fetch(proxyUrl + encodeURIComponent(apiUrl));
         if (!response.ok) {
             throw new Error(`HTTP ${response.status}: ${response.statusText}`);
         }
@@ -569,11 +575,14 @@ async function detectAndConvertUnit(text) {
     // Updated pattern to handle currency symbols before or after the number
     // Allow both comma, period, and space as decimal/thousands separators
     // Allow trailing punctuation like periods, commas, etc.
+    // Support both Western (1,000,000) and Indian (10,00,000) number formats
     // Expanded currency symbols to include ₺, ₽, ₹, ₩, ₪, ₱, ฿, ₣, ₦, ₲, ₵, ₡, ₫, ₭, ₮, ₯, ₠, ₢, ₳, ₴, ₸, ₼, ₾, ₿, and others
     const currencySymbolPattern = '[a-zA-Z°/€$£¥₺₽₹₩₪₱฿₣₦₲₵₡₫₭₮₯₠₢₳₴₸₼₾₿]';
-    // Updated pattern to better handle multi-word units like "inch", "foot", etc.
-    const valueUnitPattern = new RegExp(`^(-?\\d{1,3}(?:[.,\\s]\\d{3})*(?:[.,]\\d+)?|\\d+/\\d+)\\s*(${currencySymbolPattern}+|[a-zA-Z]+(?:\\s+[a-zA-Z]+)*)[.,;:!?]*$`, 'i');
-    const unitValuePattern = new RegExp(`^(${currencySymbolPattern}+|[a-zA-Z]+(?:\\s+[a-zA-Z]+)*)\\s*(-?\\d{1,3}(?:[.,\\s]\\d{3})*(?:[.,]\\d+)?|\\d+/\\d+)[.,;:!?]*$`, 'i');
+    // Updated pattern to handle both Western and Indian number formats
+    // Western: 1,000,000 or 1.000.000 or 1 000 000
+    // Indian: 10,00,000 or 1,00,000 or 5,00,000
+    const valueUnitPattern = new RegExp(`^(-?\\d{1,3}(?:[.,\\s]\\d{2,3})*(?:[.,]\\d+)?|\\d+/\\d+)\\s*(${currencySymbolPattern}+|[a-zA-Z]+(?:\\s+[a-zA-Z]+)*)[.,;:!?]*$`, 'i');
+    const unitValuePattern = new RegExp(`^(${currencySymbolPattern}+|[a-zA-Z]+(?:\\s+[a-zA-Z]+)*)\\s*(-?\\d{1,3}(?:[.,\\s]\\d{2,3})*(?:[.,]\\d+)?|\\d+/\\d+)[.,;:!?]*$`, 'i');
 
     const valueUnitMatch = text.trim().match(valueUnitPattern);
     const unitValueMatch = text.trim().match(unitValuePattern);
@@ -598,9 +607,21 @@ async function detectAndConvertUnit(text) {
         const [numerator, denominator] = value.split('/');
         value = parseFloat(numerator.replace(',', '.').replace(/\s/g, '')) / parseFloat(denominator.replace(',', '.').replace(/\s/g, ''));
     } else {
-        // Normalize value: remove thousands separators (dot, comma, space), replace decimal comma with period
-        value = value.replace(/[.\,\s](?=\d{3}(\D|$))/g, ''); // Remove thousands sep (dot, comma, space)
-        value = value.replace(',', '.'); // Replace decimal comma with period
+        // Normalize value: handle both Western and Indian number formats
+        // First, detect if it's Indian format (has 2 digits after first separator)
+        // Indian format examples: 5,00,000 or 10,00,000 or 1,00,000 or 1,00,00,000
+        const isIndianFormat = /^\d{1,3}[.,\s]\d{2}[.,\s]\d{2,3}(?:[.,\s]\d{2})*/.test(value);
+        
+        if (isIndianFormat) {
+            // Indian format: 5,00,000 -> 500000
+            // Remove all separators for Indian format
+            value = value.replace(/[.,\s]/g, '');
+        } else {
+            // Western format: 1,000,000 -> 1000000
+            // Remove thousands separators (dot, comma, space) but keep decimal point
+            value = value.replace(/[.,\s](?=\d{3}(\D|$))/g, ''); // Remove thousands sep
+            value = value.replace(',', '.'); // Replace decimal comma with period
+        }
         value = parseFloat(value);
     }
 
