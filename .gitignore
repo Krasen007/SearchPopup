@@ -1,6 +1,8 @@
 # Ignore all files in the todos directory
 todos/done/*
 todos/work/*
+node_modules/*
+.kiro/
 
 #################
 ## Eclipse
