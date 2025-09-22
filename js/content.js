@@ -54,21 +54,27 @@ function updateRatesFromCache() {
     
     const cacheManager = getCacheManager();
     if (cacheManager && cacheManager.getStatus().isReady) {
-        // Cache is ready, update immediately
+        // Cache is ready, update immediately (silently)
         fetchExchangeRates();
         fetchCryptoRates();
     } else {
-        // Cache not ready yet, wait for initialization
-        console.log('Waiting for cache system to initialize...');
+        // Cache not ready yet, wait for initialization (reduce logging)
+        let hasLoggedWaiting = false;
         
         // Check periodically for cache readiness
         const checkCacheReady = () => {
             const manager = getCacheManager();
             if (manager && manager.getStatus().isReady) {
-                console.log('Cache system ready, updating rates');
+                if (!hasLoggedWaiting) {
+                    console.log('Cache system ready, updating rates');
+                }
                 fetchExchangeRates();
                 fetchCryptoRates();
             } else {
+                if (!hasLoggedWaiting) {
+                    console.log('Waiting for cache system to initialize...');
+                    hasLoggedWaiting = true;
+                }
                 // Check again in 500ms
                 setTimeout(checkCacheReady, 500);
             }
@@ -147,14 +153,12 @@ async function fetchCryptoRates() {
     
     const cacheManager = getCacheManager();
     if (!cacheManager) {
-        console.log('Cache manager not available, rates will be loaded on initialization');
-        return;
+        return; // Silently return if cache manager not available
     }
     
     const cacheStatus = cacheManager.getStatus();
     if (!cacheStatus.isReady) {
-        console.log('Cache not ready yet, rates will be available once initialization completes');
-        return;
+        return; // Silently return if cache not ready
     }
     
     // Update legacy cryptoRates object from cache for backward compatibility
@@ -179,7 +183,11 @@ async function fetchCryptoRates() {
     updateCryptoUnitConversions(cacheManager);
     
     cryptoRatesError = null; // Clear any previous errors
-    console.log('Crypto rates updated from cache:', Object.keys(cryptoRates.prices).length, 'coins');
+    // Only log once per session to reduce noise
+    if (!window.hasLoggedCryptoRates) {
+        console.log('Crypto rates updated from cache:', Object.keys(cryptoRates.prices).length, 'coins');
+        window.hasLoggedCryptoRates = true;
+    }
 }
 
 /**
@@ -212,7 +220,11 @@ function updateCryptoUnitConversions(cacheManager) {
             }
         }
         
-        console.log('Crypto unit conversions updated for', Object.keys(cryptoCurrencies).length, 'currencies');
+        // Only log once per session to reduce noise
+        if (!window.hasLoggedCryptoConversions) {
+            console.log('Crypto unit conversions updated for', Object.keys(cryptoCurrencies).length, 'currencies');
+            window.hasLoggedCryptoConversions = true;
+        }
         
     } catch (error) {
         console.error('Failed to update crypto unit conversions:', error);
@@ -556,14 +568,12 @@ async function fetchExchangeRates() {
     
     const cacheManager = getCacheManager();
     if (!cacheManager) {
-        console.log('Cache manager not available, rates will be loaded on initialization');
-        return;
+        return; // Silently return if cache manager not available
     }
     
     const cacheStatus = cacheManager.getStatus();
     if (!cacheStatus.isReady) {
-        console.log('Cache not ready yet, rates will be available once initialization completes');
-        return;
+        return; // Silently return if cache not ready
     }
     
     // Update legacy exchangeRates object from cache for backward compatibility
@@ -576,7 +586,9 @@ async function fetchExchangeRates() {
     const preferredRate = cacheManager.getFiatRate(target);
     
     if (preferredRate === null) {
-        console.log(`Preferred currency ${target} rate not found in cache`);
+        if (target !== 'BGN') { // Only log if not the default BGN (which often isn't in cache)
+            console.log(`Preferred currency ${target} rate not found in cache`);
+        }
         // Use default rates as fallback
         exchangeRates.rates = {
             EUR: 1.95583,
@@ -622,7 +634,11 @@ async function fetchExchangeRates() {
     }
     
     exchangeRatesError = null; // Clear any previous errors
-    console.log('Exchange rates updated from cache:', Object.keys(exchangeRates.rates).length, 'currencies');
+    // Only log once per session to reduce noise
+    if (!window.hasLoggedExchangeRates) {
+        console.log('Exchange rates updated from cache:', Object.keys(exchangeRates.rates).length, 'currencies');
+        window.hasLoggedExchangeRates = true;
+    }
 }
 
 // --- Improved Time Zone Conversion ---
@@ -730,7 +746,7 @@ async function detectAndConvertUnit(text) {
     
     // Only proceed with crypto detection if the text contains crypto-related content
     if (hasCryptoContent) {
-        console.log('Checking crypto for:', trimmedText, 'Available:', cryptoSymbols);
+        // Reduced logging for cleaner console
         
         // Check for crypto amounts with numbers
         const cryptoAmountPattern = /^(\d+(?:\.\d+)?)\s*([A-Z]{2,5})$/i;
@@ -741,11 +757,10 @@ async function detectAndConvertUnit(text) {
             const cryptoSymbol = cryptoMatch[2].toUpperCase();
             
             if (cryptoCurrencies[cryptoSymbol]) {
-                console.log('Crypto amount detected:', amount, cryptoSymbol, 'ID:', cryptoCurrencies[cryptoSymbol]);
+                // Reduced logging for cleaner console
                 
                 // Get price from cache system
                 const price = getCryptoPriceFromCache(cryptoSymbol);
-                console.log('Crypto price found:', price);
                 
                 if (price !== null) {
                     const totalValue = amount * price.value;

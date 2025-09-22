@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Test Logging Fix</title>
+</head>
+<body>
+    <h1>Test Page for Logging Fix</h1>
+    <p>Open the console to see the reduced logging output.</p>
+    <p>The extension should initialize only once and show minimal duplicate messages.</p>
+    
+    <script>
+        // Simulate the extension loading
+        console.log('Test page loaded - check for duplicate initialization messages');
+        
+        // Monitor console for duplicate messages
+        let messageCount = {};
+        const originalLog = console.log;
+        console.log = function(...args) {
+            const message = args.join(' ');
+            messageCount[message] = (messageCount[message] || 0) + 1;
+            
+            if (messageCount[message] > 1) {
+                originalLog.call(console, `[DUPLICATE ${messageCount[message]}x]`, ...args);
+            } else {
+                originalLog.call(console, ...args);
+            }
+        };
+        
+        setTimeout(() => {
+            console.log('\n=== DUPLICATE MESSAGE SUMMARY ===');
+            for (const [msg, count] of Object.entries(messageCount)) {
+                if (count > 1) {
+                    console.log(`${count}x: ${msg.substring(0, 100)}...`);
+                }
+            }
+        }, 5000);
+    </script>
+</body>
+</html>
+</script>

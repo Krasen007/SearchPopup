@@ -5,6 +5,16 @@
 
 // Global extension initializer instance
 let extensionInitializer = null;
+let isGloballyInitialized = false;
+
+// Use a global flag to prevent multiple initializations across different content script instances
+if (typeof window !== 'undefined') {
+    if (window.extensionInitializationInProgress) {
+        isGloballyInitialized = true;
+    } else {
+        window.extensionInitializationInProgress = false;
+    }
+}
 
 /**
  * Initialize the extension with cache loading
@@ -12,6 +22,16 @@ let extensionInitializer = null;
  */
 async function initializeExtension() {
     try {
+        // Prevent multiple initializations across different pages
+        if (isGloballyInitialized || (typeof window !== 'undefined' && window.extensionInitializationInProgress)) {
+            return extensionInitializer ? extensionInitializer.getInitializationStatus() : { success: true, initialized: true };
+        }
+
+        // Mark initialization as in progress
+        if (typeof window !== 'undefined') {
+            window.extensionInitializationInProgress = true;
+        }
+
         console.log('Starting extension initialization...');
 
         // Create extension initializer if not already created
@@ -49,6 +69,7 @@ async function initializeExtension() {
         const status = extensionInitializer.getInitializationStatus();
         if (status.isInitialized) {
             console.log('Extension already initialized');
+            isGloballyInitialized = true;
             return status;
         }
 
@@ -57,6 +78,11 @@ async function initializeExtension() {
             showUI: true // Show loading UI by default
         });
 
+        isGloballyInitialized = true;
+        if (typeof window !== 'undefined') {
+            window.extensionInitializationInProgress = false;
+            window.extensionInitialized = true;
+        }
         console.log('Extension initialization successful:', result);
         return result;
 
@@ -113,9 +139,11 @@ function updateLegacyGlobals(initResult) {
                     }
                 }
                 
-                console.log('Updated legacy exchangeRates:', exchangeRates);
+                // Reduced logging for cleaner console
             } else {
-                console.log(`Preferred currency ${targetCurrency} not found in cache`);
+                if (targetCurrency !== 'BGN') { // Only log if not the default BGN
+                    console.log(`Preferred currency ${targetCurrency} not found in cache`);
+                }
             }
         }
 
@@ -138,7 +166,7 @@ function updateLegacyGlobals(initResult) {
                 }
             }
             
-            console.log('Updated legacy cryptoRates:', cryptoRates);
+            // Reduced logging for cleaner console
         }
 
         // Update unit conversions for currency
@@ -146,7 +174,7 @@ function updateLegacyGlobals(initResult) {
             updateCurrencyConversions(cacheManager);
         }
 
-        console.log('Legacy globals updated successfully');
+        // Reduced logging for cleaner console
 
     } catch (error) {
         console.error('Failed to update legacy globals:', error);
@@ -192,7 +220,7 @@ function updateCurrencyConversions(cacheManager) {
                     };
                 }
                 
-                console.log(`Currency conversion: 1 ${currency} = ${conversionRate.toFixed(4)} ${targetCurrency}`);
+                // Reduced logging for cleaner console
             }
         }
 
@@ -211,7 +239,7 @@ function updateCurrencyConversions(cacheManager) {
             }
         }
 
-        console.log('Currency conversions updated');
+        // Reduced logging for cleaner console
 
     } catch (error) {
         console.error('Failed to update currency conversions:', error);
@@ -472,6 +500,11 @@ async function saveApiKeyAndReinitialize(apiKey) {
  * Initialize extension when DOM is ready
  */
 function initializeWhenReady() {
+    // Check if already initialized globally to prevent multiple initializations
+    if (typeof window !== 'undefined' && window.extensionInitialized) {
+        return;
+    }
+    
     if (document.readyState === 'loading') {
         document.addEventListener('DOMContentLoaded', () => {
             setTimeout(initializeExtension, 100); // Small delay to ensure everything is loaded
@@ -482,8 +515,10 @@ function initializeWhenReady() {
     }
 }
 
-// Auto-initialize when script loads
-initializeWhenReady();
+// Auto-initialize when script loads (but only once globally)
+if (typeof window === 'undefined' || !window.extensionInitialized) {
+    initializeWhenReady();
+}
 
 // Export functions for global access
 if (typeof window !== 'undefined') {
