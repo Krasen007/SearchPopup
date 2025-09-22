@@ -93,8 +93,8 @@ function updateLegacyGlobals(initResult) {
             exchangeRates.lastUpdated = cacheStatus.lastUpdated || Date.now();
             
             // Get the preferred currency (default BGN)
-            const preferredCurrency = (typeof preferredCurrency !== 'undefined') ? preferredCurrency : 'BGN';
-            const preferredRate = cacheManager.getFiatRate(preferredCurrency);
+            const targetCurrency = (typeof window !== 'undefined' && window.preferredCurrency) ? window.preferredCurrency : 'BGN';
+            const preferredRate = cacheManager.getFiatRate(targetCurrency);
             
             if (preferredRate !== null) {
                 // Populate rates from cache for supported fiat currencies
@@ -104,7 +104,7 @@ function updateLegacyGlobals(initResult) {
                 for (const currency of supportedFiats) {
                     const sourceRate = cacheManager.getFiatRate(currency);
                     if (sourceRate !== null) {
-                        if (currency === preferredCurrency) {
+                        if (currency === targetCurrency) {
                             exchangeRates.rates[currency] = 1; // Base currency is always 1
                         } else {
                             // Convert: source currency -> USD -> preferred currency
@@ -115,7 +115,7 @@ function updateLegacyGlobals(initResult) {
                 
                 console.log('Updated legacy exchangeRates:', exchangeRates);
             } else {
-                console.warn(`Preferred currency ${preferredCurrency} not found in cache`);
+                console.warn(`Preferred currency ${targetCurrency} not found in cache`);
             }
         }
 
@@ -158,13 +158,13 @@ function updateLegacyGlobals(initResult) {
  */
 function updateCurrencyConversions(cacheManager) {
     try {
-        const preferredCurrency = (typeof preferredCurrency !== 'undefined') ? preferredCurrency : 'BGN';
+        const targetCurrency = (typeof window !== 'undefined' && window.preferredCurrency) ? window.preferredCurrency : 'BGN';
         
         // Get the rate for the preferred currency (how many preferred currency units = 1 USD)
-        const preferredRate = cacheManager.getFiatRate(preferredCurrency);
+        const preferredRate = cacheManager.getFiatRate(targetCurrency);
         
         if (preferredRate === null) {
-            console.warn(`Preferred currency ${preferredCurrency} rate not found in cache`);
+            console.warn(`Preferred currency ${targetCurrency} rate not found in cache`);
             return;
         }
         
@@ -172,7 +172,7 @@ function updateCurrencyConversions(cacheManager) {
         const fiatCurrencies = ['EUR', 'USD', 'GBP', 'JPY', 'AUD', 'CAD', 'CHF'];
         for (const currency of fiatCurrencies) {
             const sourceRate = cacheManager.getFiatRate(currency);
-            if (sourceRate !== null && currency !== preferredCurrency) {
+            if (sourceRate !== null && currency !== targetCurrency) {
                 // Convert: source currency -> USD -> preferred currency
                 // If 1 USD = sourceRate units of source currency
                 // And 1 USD = preferredRate units of preferred currency
@@ -180,31 +180,31 @@ function updateCurrencyConversions(cacheManager) {
                 const conversionRate = preferredRate / sourceRate;
                 
                 unitConversions[currency] = {
-                    to: preferredCurrency,
+                    to: targetCurrency,
                     convert: (val) => val * conversionRate
                 };
                 
                 // Add currency symbol conversion if available
                 if (typeof currencySymbols !== 'undefined' && currencySymbols[currency]) {
                     unitConversions[currencySymbols[currency]] = {
-                        to: preferredCurrency,
+                        to: targetCurrency,
                         convert: (val) => val * conversionRate
                     };
                 }
                 
-                console.log(`Currency conversion: 1 ${currency} = ${conversionRate.toFixed(4)} ${preferredCurrency}`);
+                console.log(`Currency conversion: 1 ${currency} = ${conversionRate.toFixed(4)} ${targetCurrency}`);
             }
         }
 
         // Update crypto currency conversions
         if (typeof cryptoCurrencies !== 'undefined') {
-            const preferredCryptoCurrency = (typeof preferredCryptoCurrency !== 'undefined') ? preferredCryptoCurrency : 'USD';
+            const targetCryptoCurrency = (typeof window !== 'undefined' && window.preferredCryptoCurrency) ? window.preferredCryptoCurrency : 'USD';
             
             for (const [symbol, coinId] of Object.entries(cryptoCurrencies)) {
-                const rate = cacheManager.getCryptoRate(coinId, preferredCryptoCurrency.toLowerCase());
+                const rate = cacheManager.getCryptoRate(coinId, targetCryptoCurrency.toLowerCase());
                 if (rate !== null) {
                     unitConversions[symbol] = {
-                        to: preferredCryptoCurrency,
+                        to: targetCryptoCurrency,
                         convert: (val) => val * rate
                     };
                 }

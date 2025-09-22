@@ -193,7 +193,7 @@ class StartupCacheLoader {
         try {
             // Get supported coin IDs and currencies from config
             const coinIds = this.getSupportedCoinIds();
-            const vsCurrencies = this.getSupportedFiatCurrencies();
+            const vsCurrencies = this.getSupportedCryptoVsCurrencies();
 
             if (coinIds.length === 0) {
                 throw new Error('No supported cryptocurrencies configured');
@@ -334,6 +334,19 @@ class StartupCacheLoader {
         
         // Default minimal set
         return ['usd', 'eur', 'gbp', 'bgn'];
+    }
+
+    /**
+     * Get supported currencies for crypto price fetching (excludes BGN which isn't supported)
+     * @returns {Array<string>} Array of currency codes
+     */
+    getSupportedCryptoVsCurrencies() {
+        if (this.config.cryptoVsCurrencies) {
+            return this.config.cryptoVsCurrencies.map(c => c.toLowerCase());
+        }
+        
+        // Default set without BGN
+        return ['usd', 'eur', 'gbp', 'jpy', 'aud', 'cad', 'chf'];
     }
 
     /**

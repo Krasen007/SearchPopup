@@ -13,17 +13,27 @@ let preferredCurrency = 'BGN';
 let preferredCryptoCurrency = 'USD';
 let preferredSearchEngine = 'google';
 
+// Make variables globally accessible for the cache system
+if (typeof window !== 'undefined') {
+    window.preferredCurrency = preferredCurrency;
+    window.preferredCryptoCurrency = preferredCryptoCurrency;
+    window.preferredSearchEngine = preferredSearchEngine;
+}
+
 // Fetch all preferences from chrome.storage.sync
 if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.sync) {
     chrome.storage.sync.get(['preferredCurrency', 'preferredCryptoCurrency', 'preferredSearchEngine'], (result) => {
         if (result.preferredCurrency) {
             preferredCurrency = result.preferredCurrency;
+            if (typeof window !== 'undefined') window.preferredCurrency = preferredCurrency;
         }
         if (result.preferredCryptoCurrency) {
             preferredCryptoCurrency = result.preferredCryptoCurrency;
+            if (typeof window !== 'undefined') window.preferredCryptoCurrency = preferredCryptoCurrency;
         }
         if (result.preferredSearchEngine) {
             preferredSearchEngine = result.preferredSearchEngine;
+            if (typeof window !== 'undefined') window.preferredSearchEngine = preferredSearchEngine;
         }
         
         // Update rates from cache system (cache system handles the actual fetching)

@@ -26,16 +26,16 @@ const CACHE_CONFIG = {
         'FIL': 'filecoin',
         'AAVE': 'aave',
         'UNI': 'uniswap',
-        'SUSHI': 'sushiswap',
+        'SUSHI': 'sushi',
         'YFI': 'yearn-finance',
-        'COMP': 'compound',
+        'COMP': 'compound-governance-token',
         'MKR': 'maker',
-        'SNX': 'synthetix-network-token',
+        'SNX': 'havven',
         'UMA': 'uma',
         'ZEC': 'zcash',
         'DASH': 'dash',
         'XMR': 'monero',
-        'BSV': 'bitcoin-sv',
+        'BSV': 'bitcoin-cash-sv',
         'AVAX': 'avalanche-2',
         'MATIC': 'matic-network'
     },
@@ -45,6 +45,12 @@ const CACHE_CONFIG = {
         'USD', 'EUR', 'GBP', 'JPY', 'AUD', 'CAD', 'CHF', 'CNY',
         'SEK', 'NZD', 'MXN', 'SGD', 'HKD', 'NOK', 'KRW', 'TRY',
         'RUB', 'INR', 'BRL', 'ZAR', 'BGN'
+    ],
+
+    // Supported currencies for crypto price fetching (BGN not supported by CoinGecko for crypto)
+    cryptoVsCurrencies: [
+        'USD', 'EUR', 'GBP', 'JPY', 'AUD', 'CAD', 'CHF', 'CNY',
+        'SEK', 'NOK', 'KRW', 'TRY', 'RUB', 'INR', 'BRL'
     ],
 
     // API settings
