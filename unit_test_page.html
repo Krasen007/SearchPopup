@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Unit Conversion Test Page</title>
+    <style>
+        body { 
+            font-family: Arial, sans-serif; 
+            margin: 20px; 
+            line-height: 1.6;
+        }
+        .test-section {
+            margin: 20px 0;
+            padding: 15px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+        }
+        .test-section h3 {
+            margin-top: 0;
+            color: #333;
+        }
+        .unit-example {
+            display: inline-block;
+            margin: 5px 10px;
+            padding: 5px 10px;
+            background: #f0f0f0;
+            border-radius: 3px;
+            cursor: pointer;
+        }
+        .unit-example:hover {
+            background: #e0e0e0;
+        }
+        .instructions {
+            background: #e7f3ff;
+            padding: 15px;
+            border-radius: 5px;
+            margin-bottom: 20px;
+        }
+    </style>
+</head>
+<body>
+    <h1>Unit Conversion Test Page</h1>
+    
+    <div class="instructions">
+        <strong>Instructions:</strong> Select any of the unit measurements below to test if your extension properly handles different unit formats, especially those with hyphens.
+    </div>
+
+    <div class="test-section">
+        <h3>Distance/Length - Hyphenated</h3>
+        <span class="unit-example">14-inch</span>
+        <span class="unit-example">24-inch</span>
+        <span class="unit-example">32-inch</span>
+        <span class="unit-example">55-inch</span>
+        <span class="unit-example">6-foot</span>
+        <span class="unit-example">10-foot</span>
+        <span class="unit-example">5-meter</span>
+        <span class="unit-example">100-yard</span>
+    </div>
+
+    <div class="test-section">
+        <h3>Distance/Length - Spaced</h3>
+        <span class="unit-example">14 inch</span>
+        <span class="unit-example">24 inches</span>
+        <span class="unit-example">6 feet</span>
+        <span class="unit-example">5 meters</span>
+        <span class="unit-example">100 cm</span>
+        <span class="unit-example">50 mm</span>
+    </div>
+
+    <div class="test-section">
+        <h3>Distance/Length - No Space</h3>
+        <span class="unit-example">14inch</span>
+        <span class="unit-example">24inches</span>
+        <span class="unit-example">6ft</span>
+        <span class="unit-example">5m</span>
+        <span class="unit-example">100cm</span>
+        <span class="unit-example">50mm</span>
+    </div>
+
+    <div class="test-section">
+        <h3>Weight - Various Formats</h3>
+        <span class="unit-example">150-lb</span>
+        <span class="unit-example">150 lb</span>
+        <span class="unit-example">150lb</span>
+        <span class="unit-example">68-kg</span>
+        <span class="unit-example">68 kg</span>
+        <span class="unit-example">68kg</span>
+        <span class="unit-example">16-oz</span>
+        <span class="unit-example">500-grams</span>
+    </div>
+
+    <div class="test-section">
+        <h3>Temperature - Various Formats</h3>
+        <span class="unit-example">72°F</span>
+        <span class="unit-example">22°C</span>
+        <span class="unit-example">72 fahrenheit</span>
+        <span class="unit-example">22 celsius</span>
+        <span class="unit-example">100-degrees</span>
+    </div>
+
+    <div class="test-section">
+        <h3>Speed - Various Formats</h3>
+        <span class="unit-example">60-mph</span>
+        <span class="unit-example">60 mph</span>
+        <span class="unit-example">100-km/h</span>
+        <span class="unit-example">100 km/h</span>
+        <span class="unit-example">25-mpg</span>
+    </div>
+
+    <div class="test-section">
+        <h3>Volume - Various Formats</h3>
+        <span class="unit-example">1-gallon</span>
+        <span class="unit-example">2-liters</span>
+        <span class="unit-example">500-ml</span>
+        <span class="unit-example">1-cup</span>
+        <span class="unit-example">2-tbsp</span>
+        <span class="unit-example">1-tsp</span>
+    </div>
+
+    <div class="test-section">
+        <h3>Power/Torque - Various Formats</h3>
+        <span class="unit-example">300-hp</span>
+        <span class="unit-example">250-kW</span>
+        <span class="unit-example">400-lb-ft</span>
+        <span class="unit-example">500-Nm</span>
+    </div>
+
+    <script>
+        // Add click handlers to make selection easier
+        document.querySelectorAll('.unit-example').forEach(element => {
+            element.addEventListener('click', function() {
+                // Select the text
+                const range = document.createRange();
+                range.selectNodeContents(this);
+                const selection = window.getSelection();
+                selection.removeAllRanges();
+                selection.addRange(range);
+                
+                // Visual feedback
+                this.style.background = '#d4edda';
+                setTimeout(() => {
+                    this.style.background = '#f0f0f0';
+                }, 500);
+            });
+        });
+    </script>
+</body>
+</html>

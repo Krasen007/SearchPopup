@@ -1035,8 +1035,8 @@ async function detectAndConvertUnit(text) {
     // Updated pattern to handle both Western and Indian number formats
     // Western: 1,000,000 or 1.000.000 or 1 000 000
     // Indian: 10,00,000 or 1,00,000 or 5,00,000
-    const valueUnitPattern = new RegExp(`^(-?\\d{1,3}(?:[.,\\s]\\d{2,3})*(?:[.,]\\d+)?|\\d+/\\d+)\\s*(${currencySymbolPattern}+|[a-zA-Z]+(?:\\s+[a-zA-Z]+)*)[.,;:!?]*$`, 'i');
-    const unitValuePattern = new RegExp(`^(${currencySymbolPattern}+|[a-zA-Z]+(?:\\s+[a-zA-Z]+)*)\\s*(-?\\d{1,3}(?:[.,\\s]\\d{2,3})*(?:[.,]\\d+)?|\\d+/\\d+)[.,;:!?]*$`, 'i');
+    const valueUnitPattern = new RegExp(`^(-?\\d{1,3}(?:[.,\\s]\\d{2,3})*(?:[.,]\\d+)?|\\d+/\\d+)[\\s-]*(${currencySymbolPattern}+|[a-zA-Z]+(?:\\s+[a-zA-Z]+)*)[.,;:!?]*$`, 'i');
+    const unitValuePattern = new RegExp(`^(${currencySymbolPattern}+|[a-zA-Z]+(?:\\s+[a-zA-Z]+)*)[\\s-]*(-?\\d{1,3}(?:[.,\\s]\\d{2,3})*(?:[.,]\\d+)?|\\d+/\\d+)[.,;:!?]*$`, 'i');
 
     const valueUnitMatch = text.trim().match(valueUnitPattern);
     const unitValueMatch = text.trim().match(unitValuePattern);
