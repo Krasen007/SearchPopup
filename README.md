@@ -130,6 +130,39 @@ https://chromewebstore.google.com/detail/search-popup/plaekmbmccfiagpfodadmohfmm
 
 Works on all Chromium-based browsers (Chrome, Vivaldi, Edge, Brave, etc.).
 
+## Required Permissions
+
+The extension requires minimal permissions to function. Here's what each permission does and why it's needed:
+
+### Browser Permission Requests (and what they actually do):
+
+- **"Modify data you copy and paste"** (`clipboardWrite`)
+  - **What it actually does:** Allows the extension to copy selected text or converted values to your clipboard when you click the "Copy" button
+  - **Why it's needed:** Core functionality - without this, the copy feature wouldn't work
+  - **Privacy note:** Only writes to clipboard, never reads your clipboard data
+
+- **"Read your browsing history"** (`storage`)
+  - **What it actually does:** Stores your extension preferences (preferred currency, search engine, API keys) locally in your browser
+  - **Why it's needed:** Remembers your settings between browser sessions
+  - **Privacy note:** Only stores extension settings locally, never accesses your actual browsing history
+
+- **"Access your data on all websites"** (`<all_urls>`)
+  - **What it actually does:** Allows the extension to detect text selection and show the popup on any website you visit
+  - **Why it's needed:** Core functionality - the extension needs to work on all websites to detect when you select text
+  - **Privacy note:** Only monitors text selection events and makes API calls for currency conversion, doesn't track or collect your browsing data
+
+### Network Requests:
+The extension makes secure HTTPS requests to:
+- `api.coingecko.com` - For real-time cryptocurrency prices and exchange rates
+- Search engines (Google, DuckDuckGo, etc.) - Only when you click the search button
+
+### Security & Privacy:
+- Uses Manifest V3 (latest browser security standard)
+- No access to sensitive browser APIs like tabs, bookmarks, or passwords
+- All data processing happens locally in your browser
+- Settings are stored locally and never transmitted to external servers
+- Open source - you can review all code in this repository
+
 ---
 
 ## Advanced Features

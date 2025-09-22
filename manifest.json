@@ -23,12 +23,14 @@
 				"<all_urls>"
 			],
 			"js": [
-				"js/cache/BackgroundRefresher.js",
-				"js/cache/CacheStatusMonitor.js",
 				"js/cache/config.js",
+				"js/cache/ConfigManager.js",
+				"js/cache/ErrorHandler.js",
 				"js/cache/RateCacheManager.js",
+				"js/cache/CacheStatusMonitor.js",
 				"js/cache/CoinGeckoAPIClient.js",
 				"js/cache/StartupCacheLoader.js",
+				"js/cache/BackgroundRefresher.js",
 				"js/cache/ExtensionInitializer.js",
 				"js/cache/startup.js",
 				"js/content.js"
