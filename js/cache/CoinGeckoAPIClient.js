@@ -47,12 +47,16 @@ class CoinGeckoAPIClient {
     }
 
     /**
-     * Fetch fiat exchange rates from CoinGecko
+     * Fetch fiat exchange rates using Bitcoin as a reference point
      * @returns {Promise<Object>} API response with exchange rate data
      */
     async fetchExchangeRates() {
-        const url = `${this.baseURL}/exchange_rates`;
-        const params = {};
+        // Get Bitcoin price in multiple fiat currencies to calculate cross-rates
+        const url = `${this.baseURL}/simple/price`;
+        const params = {
+            ids: 'bitcoin',
+            vs_currencies: 'usd,eur,gbp,jpy,aud,cad,chf,cny,sek,nzd,mxn,sgd,hkd,nok,krw,try,rub,inr,brl,zar,bgn'
+        };
 
         // Add API key if provided
         if (this.apiKey) {
@@ -61,8 +65,42 @@ class CoinGeckoAPIClient {
 
         try {
             const response = await this.makeRequest(url, params);
-            console.log('Fetched exchange rates from CoinGecko');
-            return response;
+            console.log('Fetched Bitcoin prices for fiat rate calculation');
+            
+            // Convert Bitcoin prices to cross-exchange rates
+            if (response && response.bitcoin) {
+                const btcPrices = response.bitcoin;
+                
+                // Create exchange rates response using USD as base
+                const exchangeRatesResponse = {
+                    rates: {}
+                };
+                
+                const usdPrice = btcPrices.usd;
+                if (!usdPrice || usdPrice <= 0) {
+                    throw new Error('Invalid USD price for Bitcoin');
+                }
+                
+                // Calculate exchange rates relative to USD
+                for (const [currency, btcPrice] of Object.entries(btcPrices)) {
+                    if (typeof btcPrice === 'number' && !isNaN(btcPrice) && btcPrice > 0) {
+                        // Rate = how many units of this currency equal 1 USD
+                        const rate = btcPrice / usdPrice;
+                        
+                        exchangeRatesResponse.rates[currency.toUpperCase()] = {
+                            value: rate,
+                            name: currency.toUpperCase(),
+                            unit: currency.toUpperCase(),
+                            type: 'fiat'
+                        };
+                    }
+                }
+                
+                console.log('Calculated fiat exchange rates:', exchangeRatesResponse.rates);
+                return exchangeRatesResponse;
+            }
+            
+            throw new Error('Invalid response format from CoinGecko Bitcoin price API');
         } catch (error) {
             console.error('Error fetching exchange rates:', error);
             throw new Error(`Failed to fetch exchange rates: ${error.message}`);

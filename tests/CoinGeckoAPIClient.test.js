@@ -107,17 +107,19 @@ describe('CoinGeckoAPIClient', () => {
     });
 
     describe('fetchExchangeRates', () => {
-        const mockExchangeResponse = {
-            rates: {
-                usd: { name: 'US Dollar', unit: '$', value: 1, type: 'fiat' },
-                eur: { name: 'Euro', unit: '€', value: 0.85, type: 'fiat' }
+        const mockBitcoinPriceResponse = {
+            bitcoin: {
+                usd: 50000,
+                eur: 42500,
+                gbp: 37500,
+                bgn: 85000
             }
         };
 
         beforeEach(() => {
             fetch.mockResolvedValue({
                 ok: true,
-                json: () => Promise.resolve(mockExchangeResponse)
+                json: () => Promise.resolve(mockBitcoinPriceResponse)
             });
         });
 
@@ -125,7 +127,7 @@ describe('CoinGeckoAPIClient', () => {
             const result = await client.fetchExchangeRates();
             
             expect(fetch).toHaveBeenCalledWith(
-                expect.stringContaining('/exchange_rates'),
+                expect.stringContaining('/simple/price'),
                 expect.objectContaining({
                     method: 'GET'
                 })
@@ -133,7 +135,11 @@ describe('CoinGeckoAPIClient', () => {
             
             const calledUrl = fetch.mock.calls[0][0];
             expect(calledUrl).toContain('x_cg_demo_api_key=test-api-key-12345');
-            expect(result).toEqual(mockExchangeResponse);
+            expect(result).toBeDefined();
+            expect(result.rates).toBeDefined();
+            expect(result.rates.USD).toBeDefined();
+            expect(result.rates.EUR).toBeDefined();
+            expect(typeof result.rates.USD.value).toBe('number');
         });
 
         test('should work without API key', async () => {

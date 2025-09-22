@@ -2,6 +2,17 @@
 
 The Search Popup extension now supports CoinGecko API keys for improved reliability and performance when converting currencies and cryptocurrencies.
 
+## Recent Fix: Currency Conversion Accuracy
+
+**Issue Fixed**: Currency conversions to BGN (and other preferred currencies) now show correct exchange rates.
+
+**What was wrong**: The previous implementation was using Bitcoin-relative exchange rates incorrectly, causing inaccurate currency conversions.
+
+**What was fixed**: 
+- Updated to use Bitcoin prices in multiple currencies to calculate proper cross-exchange rates
+- Fixed conversion logic to properly convert between any two fiat currencies
+- Ensured rates are calculated relative to USD as an intermediate currency for accuracy
+
 ## Why Use an API Key?
 
 - **Better Reliability**: Direct API access without proxy limitations
