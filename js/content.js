@@ -279,6 +279,72 @@ function getCryptoPriceFromCache(cryptoSymbol) {
     }
 }
 
+/**
+ * Get fiat currency conversion rate from cache system
+ * @param {string} fromCurrency - Source currency code (e.g., 'USD')
+ * @param {string} toCurrency - Target currency code (e.g., 'BGN')
+ * @returns {Object|null} Conversion object with rate, currencies, and cache info, or null if not found
+ */
+function getFiatConversionFromCache(fromCurrency, toCurrency) {
+    try {
+        const cacheManager = getCacheManager();
+        if (!cacheManager) {
+            console.log('Cache manager not available');
+            return null;
+        }
+        
+        const cacheStatus = cacheManager.getStatus();
+        if (!cacheStatus.isReady) {
+            console.log('Cache not ready yet');
+            return null;
+        }
+        
+        // Normalize currency codes to uppercase
+        fromCurrency = fromCurrency.toUpperCase();
+        toCurrency = toCurrency.toUpperCase();
+        
+        // If same currency, return 1:1 rate
+        if (fromCurrency === toCurrency) {
+            return {
+                rate: 1,
+                fromCurrency: fromCurrency,
+                toCurrency: toCurrency,
+                cacheAge: cacheStatus.cacheAge,
+                isStale: cacheStatus.isStale,
+                lastUpdated: cacheStatus.lastUpdated
+            };
+        }
+        
+        // Get rates for both currencies (rates are stored as how many units = 1 USD)
+        const fromRate = cacheManager.getFiatRate(fromCurrency);
+        const toRate = cacheManager.getFiatRate(toCurrency);
+        
+        if (fromRate === null || toRate === null) {
+            console.log(`Fiat rates not found: ${fromCurrency}=${fromRate}, ${toCurrency}=${toRate}`);
+            return null;
+        }
+        
+        // Convert: fromCurrency -> USD -> toCurrency
+        // If 1 USD = fromRate units of fromCurrency
+        // And 1 USD = toRate units of toCurrency
+        // Then 1 unit of fromCurrency = (toRate / fromRate) units of toCurrency
+        const conversionRate = toRate / fromRate;
+        
+        return {
+            rate: conversionRate,
+            fromCurrency: fromCurrency,
+            toCurrency: toCurrency,
+            cacheAge: cacheStatus.cacheAge,
+            isStale: cacheStatus.isStale,
+            lastUpdated: cacheStatus.lastUpdated
+        };
+        
+    } catch (error) {
+        console.error('Error getting fiat conversion from cache:', error);
+        return null;
+    }
+}
+
 
 // --- Rate limiting for API calls ---
 let apiCallAttempts = 0;
@@ -688,6 +754,122 @@ async function detectAndConvertUnit(text) {
         }
     }
 
+    // --- Fiat Currency Detection and Conversion ---
+    if (hasFiatContent) {
+        console.log('Checking fiat currency for:', trimmedText);
+        
+        // Check for fiat currency amounts with numbers (e.g., "100 USD", "$50", "€25")
+        const fiatAmountPattern = /^([€$£¥₺₽₹₩₪₱฿₣₦₲₵₡₫₭₮₯₠₢₳₴₸₼₾₿]?)(\d+(?:[.,]\d+)?)\s*([A-Z]{3}|[€$£¥₺₽₹₩₪₱฿₣₦₲₵₡₫₭₮₯₠₢₳₴₸₼₾₿]?)$/i;
+        const fiatMatch = trimmedText.match(fiatAmountPattern);
+        
+        if (fiatMatch) {
+            const symbolBefore = fiatMatch[1];
+            const amount = parseFloat(fiatMatch[2].replace(',', '.'));
+            const symbolAfter = fiatMatch[3];
+            
+            // Determine the currency from symbol or code
+            let fromCurrency = null;
+            
+            if (symbolBefore) {
+                // Symbol before number (e.g., "$100", "€50")
+                for (const [code, symbol] of Object.entries(currencySymbols)) {
+                    if (symbol === symbolBefore) {
+                        fromCurrency = code;
+                        break;
+                    }
+                }
+            } else if (symbolAfter) {
+                // Symbol or code after number (e.g., "100 USD", "50€")
+                if (symbolAfter.length === 3) {
+                    // Three-letter currency code
+                    fromCurrency = symbolAfter.toUpperCase();
+                } else {
+                    // Currency symbol
+                    for (const [code, symbol] of Object.entries(currencySymbols)) {
+                        if (symbol === symbolAfter) {
+                            fromCurrency = code;
+                            break;
+                        }
+                    }
+                }
+            }
+            
+            if (fromCurrency && !isNaN(amount)) {
+                console.log('Fiat amount detected:', amount, fromCurrency);
+                
+                // Get conversion rate from cache system
+                const targetCurrency = preferredCurrency || 'BGN';
+                const conversion = getFiatConversionFromCache(fromCurrency, targetCurrency);
+                console.log('Fiat conversion found:', conversion);
+                
+                if (conversion !== null) {
+                    const convertedAmount = amount * conversion.rate;
+                    const targetSymbol = currencySymbols[targetCurrency] || targetCurrency;
+                    
+                    // Format timestamp for display
+                    let timestampInfo = '';
+                    if (conversion.lastUpdated) {
+                        const ageMinutes = Math.floor(conversion.cacheAge / (1000 * 60));
+                        if (ageMinutes < 60) {
+                            timestampInfo = ` (${ageMinutes}m ago)`;
+                        } else {
+                            const ageHours = Math.floor(ageMinutes / 60);
+                            timestampInfo = ` (${ageHours}h ago)`;
+                        }
+                    }
+                    
+                    return {
+                        original: `${amount} ${fromCurrency}`,
+                        converted: `${convertedAmount.toFixed(2)} ${targetSymbol}${timestampInfo}`,
+                        value: convertedAmount,
+                        cacheAge: conversion.cacheAge,
+                        isStale: conversion.isStale,
+                        lastUpdated: conversion.lastUpdated
+                    };
+                }
+            }
+        }
+        
+        // Also check for single currency codes (e.g., "USD", "EUR")
+        const currencyCodePattern = /^([A-Z]{3})$/;
+        const currencyCodeMatch = upperCaseText.match(currencyCodePattern);
+        
+        if (currencyCodeMatch && currencySymbols[currencyCodeMatch[1]]) {
+            const fromCurrency = currencyCodeMatch[1];
+            console.log('Currency code detected:', fromCurrency);
+            
+            // Get conversion rate for 1 unit
+            const targetCurrency = preferredCurrency || 'BGN';
+            const conversion = getFiatConversionFromCache(fromCurrency, targetCurrency);
+            console.log('Currency conversion found:', conversion);
+            
+            if (conversion !== null) {
+                const targetSymbol = currencySymbols[targetCurrency] || targetCurrency;
+                
+                // Format timestamp for display
+                let timestampInfo = '';
+                if (conversion.lastUpdated) {
+                    const ageMinutes = Math.floor(conversion.cacheAge / (1000 * 60));
+                    if (ageMinutes < 60) {
+                        timestampInfo = ` (${ageMinutes}m ago)`;
+                    } else {
+                        const ageHours = Math.floor(ageMinutes / 60);
+                        timestampInfo = ` (${ageHours}h ago)`;
+                    }
+                }
+                
+                return {
+                    original: `1 ${fromCurrency}`,
+                    converted: `${conversion.rate.toFixed(4)} ${targetSymbol}${timestampInfo}`,
+                    value: conversion.rate,
+                    cacheAge: conversion.cacheAge,
+                    isStale: conversion.isStale,
+                    lastUpdated: conversion.lastUpdated
+                };
+            }
+        }
+    }
+
     // --- Time Zone Conversion ---
     const tzResult = convertTimeZone(text);
     if (tzResult) return tzResult;
@@ -763,7 +945,10 @@ async function detectAndConvertUnit(text) {
         normUnit = 'l/100km';
     } else if (normUnit === 'mpg') {
         normUnit = 'mpg';
-    } for (const [key, conversion] of Object.entries(unitConversions)) {
+    }
+    
+    // Find matching unit conversion
+    for (const [key, conversion] of Object.entries(unitConversions)) {
         let normKey = key.toLowerCase().replace(/\s+/g, '');
         if (normKey === normUnit) {
             let converted;
@@ -772,13 +957,37 @@ async function detectAndConvertUnit(text) {
             } else {
                 converted = value * conversion.factor;
             }
+            
+            // Check if this is a currency conversion to add timestamp info
+            const isCurrency = key.match(/[€$£]/) || currencySymbols[key] || cryptoCurrencies[key.toUpperCase()];
+            let timestampInfo = '';
+            
+            if (isCurrency) {
+                // Get cache status for timestamp information
+                const cacheManager = getCacheManager();
+                if (cacheManager) {
+                    const cacheStatus = cacheManager.getStatus();
+                    if (cacheStatus.lastUpdated) {
+                        const ageMinutes = Math.floor(cacheStatus.cacheAge / (1000 * 60));
+                        if (ageMinutes < 60) {
+                            timestampInfo = ` (${ageMinutes}m ago)`;
+                        } else {
+                            const ageHours = Math.floor(ageMinutes / 60);
+                            timestampInfo = ` (${ageHours}h ago)`;
+                        }
+                    }
+                }
+            }
+            
             // Round to 2 decimal places for currency, 4 for other units
-            const decimals = key.match(/[€$£]/) || cryptoCurrencies[key.toUpperCase()] ? 2 : 4;
+            const decimals = isCurrency ? 2 : 4;
             converted = Math.round(converted * Math.pow(10, decimals)) / Math.pow(10, decimals);
+            
             return {
                 original: `${value} ${key}`,
-                converted: `${converted} ${conversion.to}`,
-                value: converted
+                converted: `${converted} ${conversion.to}${timestampInfo}`,
+                value: converted,
+                cacheAge: isCurrency ? (cacheManager ? cacheManager.getStatus().cacheAge : null) : null
             };
         }
     }

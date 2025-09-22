@@ -115,7 +115,7 @@ function updateLegacyGlobals(initResult) {
                 
                 console.log('Updated legacy exchangeRates:', exchangeRates);
             } else {
-                console.warn(`Preferred currency ${targetCurrency} not found in cache`);
+                console.log(`Preferred currency ${targetCurrency} not found in cache`);
             }
         }
 
@@ -164,7 +164,7 @@ function updateCurrencyConversions(cacheManager) {
         const preferredRate = cacheManager.getFiatRate(targetCurrency);
         
         if (preferredRate === null) {
-            console.warn(`Preferred currency ${targetCurrency} rate not found in cache`);
+            console.log(`Preferred currency ${targetCurrency} rate not found in cache`);
             return;
         }
         
