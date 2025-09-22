@@ -7,11 +7,11 @@
 const mockCacheManager = {
     isReady: true,
     fiatRates: new Map([
-        ['USD', { value: 1.8, timestamp: Date.now(), source: 'coingecko' }],
-        ['EUR', { value: 1.95583, timestamp: Date.now(), source: 'coingecko' }],
-        ['GBP', { value: 2.3, timestamp: Date.now(), source: 'coingecko' }],
-        ['JPY', { value: 0.012, timestamp: Date.now(), source: 'coingecko' }],
-        ['BGN', { value: 1, timestamp: Date.now(), source: 'coingecko' }]
+        ['USD', { value: 1.0, timestamp: Date.now(), source: 'coingecko' }], // 1 USD = 1 USD (base)
+        ['EUR', { value: 0.85, timestamp: Date.now(), source: 'coingecko' }], // 1 USD = 0.85 EUR
+        ['GBP', { value: 0.74, timestamp: Date.now(), source: 'coingecko' }], // 1 USD = 0.74 GBP
+        ['JPY', { value: 147.75, timestamp: Date.now(), source: 'coingecko' }] // 1 USD = 147.75 JPY
+        // Note: BGN is not in cache to simulate real-world scenario
     ]),
 
     getStatus() {
@@ -48,6 +48,7 @@ global.cryptoCurrencies = {
 };
 global.convertTimeZone = () => null; // Mock function to avoid errors
 global.unitConversions = {}; // Mock empty unit conversions
+global.exchangeRates = { rates: { USD: 1.8 } }; // Mock legacy exchange rates for BGN fallback
 
 // Load the functions we want to test
 const fs = require('fs');
@@ -65,7 +66,7 @@ describe('Fiat Currency Conversion Integration Tests', () => {
             const result = getFiatConversionFromCache('USD', 'BGN');
 
             expect(result).not.toBeNull();
-            expect(result.rate).toBeCloseTo(0.556, 3); // 1 / 1.8 = 0.556
+            expect(result.rate).toBeCloseTo(1.8, 3); // 1 USD = 1.8 BGN (from legacy fallback)
             expect(result.fromCurrency).toBe('USD');
             expect(result.toCurrency).toBe('BGN');
             expect(result.cacheAge).toBe(900000);
@@ -76,7 +77,7 @@ describe('Fiat Currency Conversion Integration Tests', () => {
             const result = getFiatConversionFromCache('EUR', 'BGN');
 
             expect(result).not.toBeNull();
-            expect(result.rate).toBeCloseTo(0.511, 3); // 1 / 1.95583 = 0.511
+            expect(result.rate).toBeCloseTo(2.12, 2); // EUR to BGN: (1.8 / 0.85) = 2.12
             expect(result.fromCurrency).toBe('EUR');
             expect(result.toCurrency).toBe('BGN');
         });
@@ -113,9 +114,9 @@ describe('Fiat Currency Conversion Integration Tests', () => {
 
             expect(result).not.toBeNull();
             expect(result.original).toBe('100 USD');
-            expect(result.converted).toContain('55.56 лв'); // 100 * (1/1.8) = 55.56
+            expect(result.converted).toContain('180.00 лв'); // 100 * 1.8 = 180
             expect(result.converted).toContain('15m ago');
-            expect(result.value).toBeCloseTo(55.56, 2);
+            expect(result.value).toBeCloseTo(180, 2);
             expect(result.cacheAge).toBe(900000);
         });
 
@@ -124,9 +125,9 @@ describe('Fiat Currency Conversion Integration Tests', () => {
 
             expect(result).not.toBeNull();
             expect(result.original).toBe('50 EUR');
-            expect(result.converted).toContain('25.56 лв'); // 50 * (1/1.95583) = 25.56
+            expect(result.converted).toContain('105.88 лв'); // 50 * (1.8/0.85) = 105.88
             expect(result.converted).toContain('15m ago');
-            expect(result.value).toBeCloseTo(25.56, 2);
+            expect(result.value).toBeCloseTo(105.88, 2);
         });
 
         test('should detect and convert currency with three-letter code', async () => {
@@ -134,8 +135,8 @@ describe('Fiat Currency Conversion Integration Tests', () => {
 
             expect(result).not.toBeNull();
             expect(result.original).toBe('75 GBP');
-            expect(result.converted).toContain('32.61 лв');
-            expect(result.value).toBeCloseTo(32.61, 2);
+            expect(result.converted).toContain('182.43 лв'); // 75 * (1.8/0.74) = 182.43
+            expect(result.value).toBeCloseTo(182.43, 2);
         });
 
         test('should detect single currency code and show rate', async () => {
@@ -143,9 +144,9 @@ describe('Fiat Currency Conversion Integration Tests', () => {
 
             expect(result).not.toBeNull();
             expect(result.original).toBe('1 USD');
-            expect(result.converted).toContain('0.5556 лв');
+            expect(result.converted).toContain('1.8000 лв'); // 1 USD = 1.8 BGN
             expect(result.converted).toContain('15m ago');
-            expect(result.value).toBeCloseTo(0.5556, 4);
+            expect(result.value).toBeCloseTo(1.8, 4);
         });
 
         test('should handle decimal amounts', async () => {
@@ -153,8 +154,8 @@ describe('Fiat Currency Conversion Integration Tests', () => {
 
             expect(result).not.toBeNull();
             expect(result.original).toBe('25.5 USD');
-            expect(result.converted).toContain('14.17 лв');
-            expect(result.value).toBeCloseTo(14.17, 2);
+            expect(result.converted).toContain('45.90 лв'); // 25.5 * 1.8 = 45.9
+            expect(result.value).toBeCloseTo(45.9, 2);
         });
 
         test('should handle comma as decimal separator', async () => {
@@ -162,8 +163,8 @@ describe('Fiat Currency Conversion Integration Tests', () => {
 
             expect(result).not.toBeNull();
             expect(result.original).toBe('12.75 EUR');
-            expect(result.converted).toContain('6.52 лв');
-            expect(result.value).toBeCloseTo(6.52, 2);
+            expect(result.converted).toContain('27.00 лв'); // 12.75 * (1.8/0.85) = 27.0
+            expect(result.value).toBeCloseTo(27.0, 2);
         });
 
         test('should not detect unsupported currency', async () => {
@@ -234,14 +235,14 @@ describe('Fiat Currency Conversion Integration Tests', () => {
             const result = await detectAndConvertUnit('$0.01');
 
             expect(result).not.toBeNull();
-            expect(result.value).toBeCloseTo(0.0056, 4);
+            expect(result.value).toBeCloseTo(0.018, 4); // 0.01 * 1.8 = 0.018
         });
 
         test('should handle large amounts', async () => {
             const result = await detectAndConvertUnit('$1000000');
 
             expect(result).not.toBeNull();
-            expect(result.value).toBeCloseTo(555555.56, 0); // 1000000 * (1/1.8) = 555555.56
+            expect(result.value).toBeCloseTo(1800000, 0); // 1000000 * 1.8 = 1800000
         });
 
         test('should handle zero amount', async () => {

@@ -299,6 +299,8 @@ function getFiatConversionFromCache(fromCurrency, toCurrency) {
             return null;
         }
         
+
+        
         // Normalize currency codes to uppercase
         fromCurrency = fromCurrency.toUpperCase();
         toCurrency = toCurrency.toUpperCase();
@@ -315,9 +317,31 @@ function getFiatConversionFromCache(fromCurrency, toCurrency) {
             };
         }
         
-        // Get rates for both currencies (rates are stored as how many units = 1 USD)
-        const fromRate = cacheManager.getFiatRate(fromCurrency);
-        const toRate = cacheManager.getFiatRate(toCurrency);
+        // Get rates for both currencies
+        // The cache stores rates as "how many units of currency = 1 USD"
+        let fromRate = cacheManager.getFiatRate(fromCurrency);
+        let toRate = cacheManager.getFiatRate(toCurrency);
+        
+        // Handle BGN fallback - if BGN is not in cache, use legacy exchange rates
+        if (toCurrency === 'BGN' && toRate === null) {
+            // BGN is the target currency but not in cache
+            // Use legacy exchange rates system as fallback
+            if (typeof exchangeRates !== 'undefined' && exchangeRates.rates && exchangeRates.rates.USD) {
+                toRate = exchangeRates.rates.USD; // How many BGN = 1 USD
+            } else {
+                toRate = 1.8; // Default: 1 USD = 1.8 BGN
+            }
+        }
+        
+        if (fromCurrency === 'BGN' && fromRate === null) {
+            // BGN is the source currency but not in cache
+            // Use legacy exchange rates system as fallback
+            if (typeof exchangeRates !== 'undefined' && exchangeRates.rates && exchangeRates.rates.USD) {
+                fromRate = exchangeRates.rates.USD; // How many BGN = 1 USD
+            } else {
+                fromRate = 1.8; // Default: 1 USD = 1.8 BGN
+            }
+        }
         
         if (fromRate === null || toRate === null) {
             console.log(`Fiat rates not found: ${fromCurrency}=${fromRate}, ${toCurrency}=${toRate}`);
@@ -326,7 +350,7 @@ function getFiatConversionFromCache(fromCurrency, toCurrency) {
         
         // Convert: fromCurrency -> USD -> toCurrency
         // If 1 USD = fromRate units of fromCurrency
-        // And 1 USD = toRate units of toCurrency
+        // And 1 USD = toRate units of toCurrency  
         // Then 1 unit of fromCurrency = (toRate / fromRate) units of toCurrency
         const conversionRate = toRate / fromRate;
         
@@ -552,7 +576,7 @@ async function fetchExchangeRates() {
     const preferredRate = cacheManager.getFiatRate(target);
     
     if (preferredRate === null) {
-        console.warn(`Preferred currency ${target} rate not found in cache`);
+        console.log(`Preferred currency ${target} rate not found in cache`);
         // Use default rates as fallback
         exchangeRates.rates = {
             EUR: 1.95583,
