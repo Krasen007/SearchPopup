@@ -68,8 +68,8 @@ class ExtensionInitializer {
             // Create and configure startup loader
             this.createStartupLoader();
 
-            // Show loading UI if requested
-            if (options.showUI !== false) {
+            // Show loading UI if requested (disabled by default to prevent popup)
+            if (options.showUI === true) {
                 this.showLoadingUI();
             }
 

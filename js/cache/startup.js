@@ -9,7 +9,7 @@ let isGloballyInitialized = false;
 
 // Use a global flag to prevent multiple initializations across different content script instances
 if (typeof window !== 'undefined') {
-    if (window.extensionInitializationInProgress) {
+    if (window.extensionInitializationInProgress || window.extensionInitialized) {
         isGloballyInitialized = true;
     } else {
         window.extensionInitializationInProgress = false;
@@ -48,7 +48,11 @@ async function initializeExtension() {
             });
             
             extensionInitializer.setOnInitComplete((event) => {
-                console.log('Extension initialization completed:', event);
+                // Only log once per session to reduce noise
+                if (!window.hasLoggedInitComplete) {
+                    console.log('Extension initialization completed:', event);
+                    window.hasLoggedInitComplete = true;
+                }
                 
                 // Update global variables for backward compatibility
                 updateLegacyGlobals(event);
@@ -75,7 +79,7 @@ async function initializeExtension() {
 
         // Initialize with configuration
         const result = await extensionInitializer.initialize({
-            showUI: true // Show loading UI by default
+            showUI: false // Hide loading UI to prevent popup
         });
 
         isGloballyInitialized = true;
@@ -83,7 +87,11 @@ async function initializeExtension() {
             window.extensionInitializationInProgress = false;
             window.extensionInitialized = true;
         }
-        console.log('Extension initialization successful:', result);
+        // Only log once per session to reduce noise
+        if (!window.hasLoggedInitSuccess) {
+            console.log('Extension initialization successful:', result);
+            window.hasLoggedInitSuccess = true;
+        }
         return result;
 
     } catch (error) {
@@ -192,7 +200,11 @@ function updateCurrencyConversions(cacheManager) {
         const preferredRate = cacheManager.getFiatRate(targetCurrency);
         
         if (preferredRate === null) {
-            console.log(`Preferred currency ${targetCurrency} rate not found in cache`);
+            // Only log once per session to reduce noise
+            if (!window.hasLoggedBGNWarning) {
+                console.log(`Preferred currency ${targetCurrency} rate not found in cache`);
+                window.hasLoggedBGNWarning = true;
+            }
             return;
         }
         
