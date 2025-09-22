@@ -32,6 +32,9 @@ async function initializeExtension() {
                 
                 // Update global variables for backward compatibility
                 updateLegacyGlobals(event);
+                
+                // Show API key status briefly
+                showApiKeyStatus();
             });
             
             extensionInitializer.setOnInitError((event) => {
@@ -61,7 +64,7 @@ async function initializeExtension() {
         console.error('Extension initialization failed:', error);
         
         // Handle specific error cases
-        if (error.message.includes('API key not configured')) {
+        if (error.message.includes('Invalid API key format')) {
             showApiKeyConfigurationHelp();
         } else {
             showGenericError(error.message);
@@ -200,25 +203,34 @@ function showApiKeyConfigurationHelp() {
             border: 2px solid #007cba;
             border-radius: 8px;
             padding: 20px;
-            max-width: 400px;
+            max-width: 450px;
             box-shadow: 0 4px 12px rgba(0,0,0,0.3);
             z-index: 10001;
             font-family: Arial, sans-serif;
             font-size: 14px;
             line-height: 1.4;
         ">
-            <h3 style="margin: 0 0 15px 0; color: #007cba;">API Key Required</h3>
+            <h3 style="margin: 0 0 15px 0; color: #007cba;">Invalid API Key</h3>
             <p style="margin: 0 0 15px 0;">
-                This extension requires a CoinGecko API key to fetch current exchange rates.
+                The CoinGecko API key you configured appears to be invalid. The extension is currently using the free tier with limited reliability.
             </p>
             <p style="margin: 0 0 15px 0;">
-                <strong>To get your free API key:</strong><br>
+                <strong>To fix this:</strong><br>
                 1. Visit <a href="https://www.coingecko.com/en/api" target="_blank" style="color: #007cba;">coingecko.com/en/api</a><br>
                 2. Sign up for a free account<br>
                 3. Copy your API key<br>
-                4. Open extension settings and paste it
+                4. Open extension settings and update your API key
             </p>
             <div style="text-align: right;">
+                <button onclick="chrome.runtime.openOptionsPage(); this.parentElement.parentElement.remove();" style="
+                    background: #2f855a;
+                    color: white;
+                    border: none;
+                    padding: 8px 16px;
+                    border-radius: 4px;
+                    cursor: pointer;
+                    margin-right: 8px;
+                ">Open Settings</button>
                 <button onclick="this.parentElement.parentElement.remove()" style="
                     background: #007cba;
                     color: white;
@@ -274,6 +286,42 @@ function showGenericError(errorMessage) {
             errorDiv.remove();
         }
     }, 10000);
+}
+
+/**
+ * Show API key status briefly after successful initialization
+ */
+function showApiKeyStatus() {
+    if (!extensionInitializer) return;
+    
+    const status = extensionInitializer.getInitializationStatus();
+    if (!status.hasApiKey) {
+        const statusDiv = document.createElement('div');
+        statusDiv.style.cssText = `
+            position: fixed;
+            top: 10px;
+            right: 10px;
+            background: #e6fffa;
+            color: #2c7a7b;
+            border: 1px solid #81e6d9;
+            padding: 8px 12px;
+            border-radius: 4px;
+            font-size: 12px;
+            font-family: Arial, sans-serif;
+            z-index: 10000;
+            max-width: 300px;
+        `;
+        statusDiv.textContent = 'Using CoinGecko free tier. Configure API key in settings for better reliability.';
+        
+        document.body.appendChild(statusDiv);
+        
+        // Auto-remove after 5 seconds
+        setTimeout(() => {
+            if (statusDiv.parentElement) {
+                statusDiv.remove();
+            }
+        }, 5000);
+    }
 }
 
 /**

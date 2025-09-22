@@ -151,8 +151,8 @@ class ExtensionInitializer {
     }
 
     /**
-     * Load API key from storage or prompt user
-     * @returns {Promise<string>} API key
+     * Load API key from storage (optional for free tier)
+     * @returns {Promise<string|null>} API key or null for free tier
      */
     async loadApiKey() {
         try {
@@ -163,6 +163,7 @@ class ExtensionInitializer {
                 });
 
                 if (result.coinGeckoApiKey) {
+                    console.log('Using configured CoinGecko API key');
                     return result.coinGeckoApiKey;
                 }
             }
@@ -170,30 +171,33 @@ class ExtensionInitializer {
             // Try to load from localStorage as fallback
             const storedKey = localStorage.getItem('coinGeckoApiKey');
             if (storedKey) {
+                console.log('Using CoinGecko API key from localStorage');
                 return storedKey;
             }
 
-            // No API key found - this will trigger configuration UI
-            throw new Error('CoinGecko API key not configured. Please configure your API key in extension settings.');
+            // No API key found - use free tier
+            console.log('No API key configured, using CoinGecko free tier');
+            return null;
 
         } catch (error) {
-            console.error('API key loading failed:', error);
-            throw error;
+            console.warn('API key loading failed, using free tier:', error);
+            return null;
         }
     }
 
     /**
-     * Validate API key format and availability
+     * Validate API key format if provided
      */
     validateApiKey() {
         if (!this.apiKey) {
-            throw new Error('API key is required for extension initialization');
+            console.log('No API key provided, using free tier');
+            return;
         }
 
         // Use CoinGeckoAPIClient validation if available
         if (typeof CoinGeckoAPIClient !== 'undefined' && CoinGeckoAPIClient.validateApiKey) {
             if (!CoinGeckoAPIClient.validateApiKey(this.apiKey)) {
-                throw new Error('Invalid API key format. Please check your CoinGecko API key.');
+                throw new Error('Invalid API key format. Please check your CoinGecko API key in extension settings.');
             }
         }
 

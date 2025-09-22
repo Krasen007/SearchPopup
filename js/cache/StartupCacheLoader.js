@@ -10,12 +10,8 @@
  * StartupCacheLoader class that manages the initial loading of all rates
  */
 class StartupCacheLoader {
-    constructor(apiKey, config = null) {
-        if (!apiKey) {
-            throw new Error('API key is required for StartupCacheLoader');
-        }
-
-        // Initialize dependencies
+    constructor(apiKey = null, config = null) {
+        // Initialize dependencies - API key is optional for free tier
         this.apiClient = new CoinGeckoAPIClient(apiKey);
         this.cacheManager = new RateCacheManager();
         

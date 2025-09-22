@@ -316,7 +316,7 @@ describe('ExtensionInitializer', () => {
             expect(result.isInitialized).toBe(true);
         });
 
-        test('should handle missing API key', async () => {
+        test('should work without API key (free tier)', async () => {
             const options = {
                 config: mockConfig,
                 showUI: false
@@ -327,7 +327,10 @@ describe('ExtensionInitializer', () => {
                 callback({});
             });
 
-            await expect(initializer.initialize(options)).rejects.toThrow('CoinGecko API key not configured');
+            const result = await initializer.initialize(options);
+
+            expect(result.success).toBe(true);
+            expect(result.initialized).toBe(true);
         }, 10000);
 
         test('should handle invalid API key', async () => {
@@ -415,12 +418,13 @@ describe('ExtensionInitializer', () => {
             expect(apiKey).toBe(testApiKey);
         });
 
-        test('should throw error when no API key found', async () => {
+        test('should return null when no API key found (free tier)', async () => {
             global.chrome.storage.sync.get.mockImplementation((keys, callback) => {
                 callback({});
             });
 
-            await expect(initializer.loadApiKey()).rejects.toThrow('CoinGecko API key not configured');
+            const apiKey = await initializer.loadApiKey();
+            expect(apiKey).toBeNull();
         });
     });
 

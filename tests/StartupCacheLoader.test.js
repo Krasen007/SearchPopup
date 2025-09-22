@@ -161,10 +161,13 @@ describe('StartupCacheLoader', () => {
             expect(loader.config).toEqual(mockConfig);
         });
 
-        test('should throw error without API key', () => {
-            expect(() => {
-                new StartupCacheLoader(null, mockConfig);
-            }).toThrow('API key is required for StartupCacheLoader');
+        test('should create instance without API key (free tier)', () => {
+            loader = new StartupCacheLoader(null, mockConfig);
+            
+            expect(loader).toBeInstanceOf(StartupCacheLoader);
+            expect(loader.apiClient).toBeInstanceOf(MockCoinGeckoAPIClient);
+            expect(loader.cacheManager).toBeInstanceOf(MockRateCacheManager);
+            expect(loader.config).toEqual(mockConfig);
         });
 
         test('should use default config when none provided', () => {

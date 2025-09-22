@@ -27,12 +27,13 @@ describe('CoinGeckoAPIClient', () => {
             expect(client.apiKey).toBe(mockApiKey);
             expect(client.baseURL).toBe('https://api.coingecko.com/api/v3');
             expect(client.requestCount).toBe(0);
-            expect(client.rateLimitDelay).toBe(2000);
+            expect(client.rateLimitDelay).toBe(1000); // 1s with API key
         });
 
         test('should work without API key', () => {
             const clientWithoutKey = new CoinGeckoAPIClient();
-            expect(clientWithoutKey.apiKey).toBeUndefined();
+            expect(clientWithoutKey.apiKey).toBeNull();
+            expect(clientWithoutKey.rateLimitDelay).toBe(3000); // 3s without API key
         });
     });
 
@@ -290,7 +291,7 @@ describe('CoinGeckoAPIClient', () => {
             expect(stats.requestCount).toBe(1);
             expect(stats.lastRequestTime).toBeGreaterThan(0);
             expect(stats.hasApiKey).toBe(true);
-            expect(stats.rateLimitDelay).toBe(2000);
+            expect(stats.rateLimitDelay).toBe(1000); // 1s with API key
         });
 
         test('should reset statistics', async () => {

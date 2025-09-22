@@ -249,6 +249,27 @@
 
         <div class="content">
             <div class="section">
+                <h2>API Configuration</h2>
+                <label for="api-key-input">CoinGecko API Key (Optional):</label>
+                <input type="password" id="api-key-input" placeholder="Enter your CoinGecko API key for better reliability" style="font-size: 1rem; padding: 8px 12px; border-radius: 6px; border: 1px solid #ccc; margin-bottom: 8px; margin-top: 4px; background: #fafbfc; transition: border-color 0.2s; width: 100%; min-height: 40px;">
+                <div class="api-key-info" style="background: #e6fffa; border: 1px solid #81e6d9; border-radius: 6px; padding: 12px; margin-bottom: 18px; font-size: 0.9rem; color: #2c7a7b;">
+                    <strong>Free API Key Benefits:</strong>
+                    <ul style="margin: 8px 0 0 20px; line-height: 1.5;">
+                        <li>More reliable currency conversion data</li>
+                        <li>Higher rate limits (10,000 requests/month)</li>
+                        <li>Better performance and accuracy</li>
+                    </ul>
+                    <p style="margin: 8px 0 0 0;">
+                        <strong>How to get your free API key:</strong><br>
+                        1. Visit <a href="https://www.coingecko.com/en/api" target="_blank" style="color: #2f855a; text-decoration: none;">coingecko.com/en/api</a><br>
+                        2. Sign up for a free account<br>
+                        3. Copy your API key and paste it above
+                    </p>
+                </div>
+                <div class="api-status" id="api-status" style="display: none; padding: 8px 12px; border-radius: 6px; margin-bottom: 18px; font-size: 0.9rem;"></div>
+            </div>
+
+            <div class="section">
                 <h2>Configure Your Preferences</h2>
                 <label for="currency-select">Preferred Target Currency:</label>
                 <select id="currency-select">

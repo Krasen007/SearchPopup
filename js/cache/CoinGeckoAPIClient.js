@@ -3,12 +3,13 @@
  * Handles direct API calls to CoinGecko with proper authentication and error handling
  */
 class CoinGeckoAPIClient {
-    constructor(apiKey) {
+    constructor(apiKey = null) {
         this.apiKey = apiKey;
         this.baseURL = 'https://api.coingecko.com/api/v3';
         this.requestCount = 0;
         this.lastRequestTime = 0;
-        this.rateLimitDelay = 2000; // 2 seconds between requests for free tier
+        // Adjust rate limiting based on API key availability
+        this.rateLimitDelay = apiKey ? 1000 : 3000; // 1s with API key, 3s without (free tier)
     }
 
     /**
