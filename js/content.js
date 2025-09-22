@@ -25,13 +25,48 @@ if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.sync) {
         if (result.preferredSearchEngine) {
             preferredSearchEngine = result.preferredSearchEngine;
         }
-        // Fetch rates once on startup for caching
-        fetchExchangeRates();
-        fetchCryptoRates();
+        
+        // Update rates from cache system (cache system handles the actual fetching)
+        updateRatesFromCache();
     });
 } else {
-    fetchExchangeRates();
-    fetchCryptoRates();
+    // Update rates from cache system
+    updateRatesFromCache();
+}
+
+/**
+ * Update legacy rate objects from the cache system
+ * This maintains backward compatibility while using the new cache system
+ */
+function updateRatesFromCache() {
+    // The cache system initialization happens automatically via startup.js
+    // This function updates the legacy global variables when cache is ready
+    
+    const cacheManager = getCacheManager();
+    if (cacheManager && cacheManager.getStatus().isReady) {
+        // Cache is ready, update immediately
+        fetchExchangeRates();
+        fetchCryptoRates();
+    } else {
+        // Cache not ready yet, wait for initialization
+        console.log('Waiting for cache system to initialize...');
+        
+        // Check periodically for cache readiness
+        const checkCacheReady = () => {
+            const manager = getCacheManager();
+            if (manager && manager.getStatus().isReady) {
+                console.log('Cache system ready, updating rates');
+                fetchExchangeRates();
+                fetchCryptoRates();
+            } else {
+                // Check again in 500ms
+                setTimeout(checkCacheReady, 500);
+            }
+        };
+        
+        // Start checking after a short delay to allow initialization
+        setTimeout(checkCacheReady, 1000);
+    }
 }
 
 // --- Input validation constants ---
@@ -97,94 +132,140 @@ let cryptoRates = {
 let isFetchingCryptoRates = false;
 
 async function fetchCryptoRates() {
-    const now = Date.now();
-    if (cryptoRates.lastUpdated && now - cryptoRates.lastUpdated < 5 * 60 * 1000) { // 5-minute cache
+    // This function is now deprecated - crypto rates are loaded via the cache system
+    // Keep for backward compatibility but use cache system instead
+    
+    const cacheManager = getCacheManager();
+    if (!cacheManager) {
+        console.log('Cache manager not available, rates will be loaded on initialization');
         return;
     }
     
-    // Prevent multiple simultaneous calls
-    if (isFetchingCryptoRates) {
-        console.log('Crypto rates fetch already in progress, skipping...');
+    const cacheStatus = cacheManager.getStatus();
+    if (!cacheStatus.isReady) {
+        console.log('Cache not ready yet, rates will be available once initialization completes');
         return;
     }
     
-    isFetchingCryptoRates = true;
-
-    const coinIds = Object.values(cryptoCurrencies).join(',');
-    let vsCurrency = preferredCryptoCurrency ? preferredCryptoCurrency.toLowerCase() : 'usd';
-    let fetchVs = vsCurrency;
-    if (vsCurrency === 'bgn') fetchVs = 'eur'; // Fetch EUR if BGN is selected
-    try {
-        // Try multiple CORS proxies for better reliability
-        const proxies = [
-            'https://api.allorigins.win/raw?url=',
-            'https://cors-anywhere.herokuapp.com/',
-            'https://api.codetabs.com/v1/proxy?quest='
-        ];
+    // Update legacy cryptoRates object from cache for backward compatibility
+    cryptoRates.lastUpdated = cacheStatus.lastUpdated || Date.now();
+    cryptoRates.prices = {};
+    
+    // Populate crypto prices from cache
+    for (const [symbol, coinId] of Object.entries(cryptoCurrencies)) {
+        cryptoRates.prices[coinId] = {};
         
-        let data = null;
-        let lastError = null;
-        
-        for (let i = 0; i < proxies.length; i++) {
-            const proxyUrl = proxies[i];
-            try {
-                const apiUrl = `https://api.coingecko.com/api/v3/simple/price?ids=${coinIds}&vs_currencies=${fetchVs}`;
-                const response = await fetch(proxyUrl + encodeURIComponent(apiUrl));
-                if (!response.ok) {
-                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-                }
-                data = await response.json();
-                if (data && Object.keys(data).length > 0) {
-                    console.log('Crypto API response from', proxyUrl, ':', data);
-                    break; // Success, exit the loop
-                }
-            } catch (error) {
-                console.log('Proxy failed:', proxyUrl, error.message);
-                lastError = error;
-                // Add delay between proxy attempts to avoid rate limiting
-                if (i < proxies.length - 1) {
-                    await new Promise(resolve => setTimeout(resolve, 1000));
-                }
-                continue; // Try next proxy
+        // Get rates for common currencies
+        const currencies = ['usd', 'eur', 'bgn'];
+        for (const currency of currencies) {
+            const rate = cacheManager.getCryptoRate(coinId, currency);
+            if (rate !== null) {
+                cryptoRates.prices[coinId][currency] = rate;
             }
-        }    
-        
-        cryptoRates.prices = data;
-        cryptoRates.lastUpdated = now;
-        cryptoRatesError = null; // Clear error on success
+        }
+    }
+    
+    // Update unit conversions for crypto currencies
+    updateCryptoUnitConversions(cacheManager);
+    
+    cryptoRatesError = null; // Clear any previous errors
+    console.log('Crypto rates updated from cache:', Object.keys(cryptoRates.prices).length, 'coins');
+}
 
-        // Add to unitConversions
-        for (const [symbol, id] of Object.entries(cryptoCurrencies)) {
-            if (cryptoRates.prices[id] && cryptoRates.prices[id][fetchVs]) {
-                let convertFn;
-                let toLabel = preferredCryptoCurrency;
-                if (vsCurrency === 'bgn' && exchangeRates.rates && exchangeRates.rates['EUR']) {
-                    // Convert EUR price to BGN
-                    convertFn = (val) => val * cryptoRates.prices[id]['eur'] * exchangeRates.rates['EUR'];
+/**
+ * Update crypto currency conversions in unitConversions using cache data
+ */
+function updateCryptoUnitConversions(cacheManager) {
+    try {
+        const targetCurrency = preferredCryptoCurrency ? preferredCryptoCurrency.toLowerCase() : 'usd';
+        
+        for (const [symbol, coinId] of Object.entries(cryptoCurrencies)) {
+            let rate = cacheManager.getCryptoRate(coinId, targetCurrency);
+            let toLabel = preferredCryptoCurrency || 'USD';
+            
+            // Handle BGN conversion through EUR if needed
+            if (targetCurrency === 'bgn' && rate === null) {
+                const eurRate = cacheManager.getCryptoRate(coinId, 'eur');
+                const bgnToEurRate = cacheManager.getFiatRate('EUR');
+                
+                if (eurRate !== null && bgnToEurRate !== null) {
+                    rate = eurRate * bgnToEurRate;
                     toLabel = 'BGN';
-                } else {
-                    convertFn = (val) => val * cryptoRates.prices[id][fetchVs];
                 }
+            }
+            
+            if (rate !== null) {
                 unitConversions[symbol] = {
                     to: toLabel,
-                    convert: convertFn
+                    convert: (val) => val * rate
                 };
             }
         }
-
-        localStorage.setItem('cryptoRates', JSON.stringify(cryptoRates));
+        
+        console.log('Crypto unit conversions updated for', Object.keys(cryptoCurrencies).length, 'currencies');
+        
     } catch (error) {
-        console.error('Crypto rates fetch error:', error);
-        cryptoRatesError = 'Could not fetch crypto rates.';
-        const cached = localStorage.getItem('cryptoRates');
-        if (cached) {
-            const parsed = JSON.parse(cached);
-            if (parsed && parsed.prices) {
-                cryptoRates = parsed;
+        console.error('Failed to update crypto unit conversions:', error);
+    }
+}
+
+/**
+ * Get cryptocurrency price from cache system
+ * @param {string} cryptoSymbol - Crypto symbol (e.g., 'BTC')
+ * @returns {Object|null} Price object with value, currency, and cache info, or null if not found
+ */
+function getCryptoPriceFromCache(cryptoSymbol) {
+    try {
+        const cacheManager = getCacheManager();
+        if (!cacheManager) {
+            console.log('Cache manager not available');
+            return null;
+        }
+        
+        const cacheStatus = cacheManager.getStatus();
+        if (!cacheStatus.isReady) {
+            console.log('Cache not ready yet');
+            return null;
+        }
+        
+        const coinId = cryptoCurrencies[cryptoSymbol];
+        if (!coinId) {
+            console.log('Unsupported crypto symbol:', cryptoSymbol);
+            return null;
+        }
+        
+        const targetCurrency = preferredCryptoCurrency ? preferredCryptoCurrency.toLowerCase() : 'usd';
+        let rate = cacheManager.getCryptoRate(coinId, targetCurrency);
+        let currency = preferredCryptoCurrency || 'USD';
+        
+        // Handle BGN conversion through EUR if direct BGN rate not available
+        if (targetCurrency === 'bgn' && rate === null) {
+            const eurRate = cacheManager.getCryptoRate(coinId, 'eur');
+            const bgnToEurRate = cacheManager.getFiatRate('EUR');
+            
+            if (eurRate !== null && bgnToEurRate !== null) {
+                rate = eurRate * bgnToEurRate;
+                currency = 'BGN';
+                console.log(`Using EUR->BGN conversion: ${eurRate} EUR * ${bgnToEurRate} = ${rate} BGN`);
             }
         }
-    } finally {
-        isFetchingCryptoRates = false;
+        
+        if (rate === null) {
+            console.log(`No rate found for ${coinId} in ${targetCurrency}`);
+            return null;
+        }
+        
+        return {
+            value: rate,
+            currency: currency,
+            cacheAge: cacheStatus.cacheAge,
+            isStale: cacheStatus.isStale,
+            lastUpdated: cacheStatus.lastUpdated
+        };
+        
+    } catch (error) {
+        console.error('Error getting crypto price from cache:', error);
+        return null;
     }
 }
 
@@ -370,142 +451,78 @@ const unitConversions = {
 
 // --- Helper function to fetch exchange rates ---
 async function fetchExchangeRates() {
-    // Check if we need to update rates (once per day)
-    const now = Date.now();
-    if (exchangeRates.lastUpdated &&
-        now - exchangeRates.lastUpdated < 24 * 60 * 60 * 1000) {
-        return; // Use cached rates if less than 24 hours old
-    }
-
-    // Prevent multiple simultaneous calls
-    if (isFetchingExchangeRates) {
-        console.log('Exchange rates fetch already in progress, skipping...');
-        return;
-    }
-
-    // Rate limiting check
-    if (apiCallAttempts >= MAX_API_ATTEMPTS) {
-        exchangeRatesError = 'Could not fetch latest rates. Please try again later.';
+    // This function is now deprecated - exchange rates are loaded via the cache system
+    // Keep for backward compatibility but use cache system instead
+    
+    const cacheManager = getCacheManager();
+    if (!cacheManager) {
+        console.log('Cache manager not available, rates will be loaded on initialization');
         return;
     }
     
-    isFetchingExchangeRates = true;
-
-    try {
-        apiCallAttempts++;
-        // Use CORS proxy to avoid CORS issues
-        const proxyUrl = 'https://api.allorigins.win/raw?url=';
-        const apiUrl = 'https://api.exchangerate-api.com/v4/latest/EUR';
-        const response = await fetch(proxyUrl + encodeURIComponent(apiUrl));
-        if (!response.ok) {
-            throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-        }
-
-        const data = await response.json();
-
-        // Validate the response data structure
-        if (!data || !data.rates || typeof data.rates !== 'object') {
-            throw new Error('Invalid response format from exchange rate API');
-        }
-
-        // Reset API attempts on success
-        apiCallAttempts = 0;
-        exchangeRatesError = null; // Clear error on success
-
-        // Update rates (converting to preferredCurrency)
-        exchangeRates.rates = {};
-        const target = preferredCurrency || 'BGN';
-        for (const [currency, rate] of Object.entries(data.rates)) {
-            if (typeof rate !== 'number' || isNaN(rate)) {
-                continue;
-            }
-            // Calculate conversion rate to preferred currency
-            if (currency !== target) {
-                exchangeRates.rates[currency] = data.rates[target] / rate;
+    const cacheStatus = cacheManager.getStatus();
+    if (!cacheStatus.isReady) {
+        console.log('Cache not ready yet, rates will be available once initialization completes');
+        return;
+    }
+    
+    // Update legacy exchangeRates object from cache for backward compatibility
+    exchangeRates.lastUpdated = cacheStatus.lastUpdated || Date.now();
+    exchangeRates.rates = {};
+    
+    const target = preferredCurrency || 'BGN';
+    
+    // Get the rate for the preferred currency (how many preferred currency units = 1 USD)
+    const preferredRate = cacheManager.getFiatRate(target);
+    
+    if (preferredRate === null) {
+        console.warn(`Preferred currency ${target} rate not found in cache`);
+        // Use default rates as fallback
+        exchangeRates.rates = {
+            EUR: 1.95583,
+            USD: 1.8,
+            GBP: 2.3
+        };
+        return;
+    }
+    
+    // Populate rates from cache for supported fiat currencies
+    const supportedFiats = ['EUR', 'USD', 'GBP', 'JPY', 'AUD', 'CAD', 'CHF', 'CNY', 'SEK', 'NOK'];
+    
+    for (const currency of supportedFiats) {
+        const sourceRate = cacheManager.getFiatRate(currency);
+        if (sourceRate !== null) {
+            if (currency === target) {
+                exchangeRates.rates[currency] = 1; // Base currency is always 1
             } else {
-                exchangeRates.rates[currency] = 1; // Correct: base currency rate is always 1
+                // Convert: source currency -> USD -> preferred currency
+                // If 1 USD = sourceRate units of source currency
+                // And 1 USD = preferredRate units of preferred currency
+                // Then 1 unit of source currency = (preferredRate / sourceRate) units of preferred currency
+                exchangeRates.rates[currency] = preferredRate / sourceRate;
             }
+            
             // Add currency conversion to unitConversions
             if (currency !== target) {
+                const conversionRate = exchangeRates.rates[currency];
                 unitConversions[currency] = {
                     to: target,
-                    convert: (val) => val * exchangeRates.rates[currency]
+                    convert: (val) => val * conversionRate
                 };
+                
                 // Add symbol conversion if available
                 if (currencySymbols[currency]) {
                     unitConversions[currencySymbols[currency]] = {
                         to: target,
-                        convert: (val) => val * exchangeRates.rates[currency]
+                        convert: (val) => val * conversionRate
                     };
                 }
             }
         }
-        exchangeRates.lastUpdated = now;   // store epoch ms
-        // Save to localStorage
-        try {
-            localStorage.setItem('exchangeRates', JSON.stringify(exchangeRates));
-        } catch (storageError) {
-        }
-    } catch (error) {
-        // Exponential backoff for retries
-        if (apiCallAttempts < MAX_API_ATTEMPTS) {
-            const retryDelay = BASE_RETRY_DELAY * Math.pow(2, apiCallAttempts - 1);
-            setTimeout(() => fetchExchangeRates(), retryDelay);
-            return; // Exit early to prevent fallback execution during retry attempts
-        }
-        exchangeRatesError = 'Could not fetch latest rates. Please try again later.';
-        // Load from localStorage if available (only when max retries reached)
-        try {
-            const cached = localStorage.getItem('exchangeRates');
-            if (cached) {
-                const parsed = JSON.parse(cached);
-                // Validate cached data structure
-                if (parsed && typeof parsed === 'object' &&
-                    parsed.rates && typeof parsed.rates === 'object' &&
-                    parsed.lastUpdated && typeof parsed.lastUpdated === 'number') {
-                    // Validate that the cached data is not too old (more than 7 days)
-                    const now = Date.now();
-                    const cacheAge = now - parsed.lastUpdated;
-                    const maxCacheAge = 7 * 24 * 60 * 60 * 1000; // 7 days in milliseconds
-                    if (cacheAge < maxCacheAge) {
-                        exchangeRates = parsed;
-                    } else {
-                        // Reset to default rates
-                        exchangeRates = {
-                            lastUpdated: 0, // Force refresh on next call
-                            rates: {
-                                EUR: 1.95583,
-                                USD: 1.8,
-                                GBP: 2.3
-                            }
-                        };
-                    }
-                } else {
-                    // Reset to default rates
-                    exchangeRates = {
-                        lastUpdated: 0, // Force refresh on next call
-                        rates: {
-                            EUR: 1.95583,
-                            USD: 1.8,
-                            GBP: 2.3
-                        }
-                    };
-                }
-            }
-        } catch (parseError) {
-            // Reset to default rates
-            exchangeRates = {
-                lastUpdated: 0, // Force refresh on next call
-                rates: {
-                    EUR: 1.95583,
-                    USD: 1.8,
-                    GBP: 2.3
-                }
-            };
-        }
-    } finally {
-        isFetchingExchangeRates = false;
     }
+    
+    exchangeRatesError = null; // Clear any previous errors
+    console.log('Exchange rates updated from cache:', Object.keys(exchangeRates.rates).length, 'currencies');
 }
 
 // --- Improved Time Zone Conversion ---
@@ -625,27 +642,18 @@ async function detectAndConvertUnit(text) {
             
             if (cryptoCurrencies[cryptoSymbol]) {
                 console.log('Crypto amount detected:', amount, cryptoSymbol, 'ID:', cryptoCurrencies[cryptoSymbol]);
-                // Only fetch if we don't have recent data
-                if (!cryptoRates.lastUpdated || Date.now() - cryptoRates.lastUpdated > 5 * 60 * 1000) {
-                    await fetchCryptoRates();
-                }
-                const id = cryptoCurrencies[cryptoSymbol];
-                let vsCurrency = preferredCryptoCurrency ? preferredCryptoCurrency.toLowerCase() : 'usd';
-                console.log('Crypto rates available:', cryptoRates.prices);
-                console.log('Looking for:', id, 'in', vsCurrency);
-                let price = null;
-                if (vsCurrency === 'bgn' && cryptoRates.prices[id] && cryptoRates.prices[id]['eur'] && exchangeRates.rates && exchangeRates.rates['EUR']) {
-                    price = cryptoRates.prices[id]['eur'] * exchangeRates.rates['EUR'];
-                } else if (cryptoRates.prices[id] && cryptoRates.prices[id][vsCurrency]) {
-                    price = cryptoRates.prices[id][vsCurrency];
-                }
+                
+                // Get price from cache system
+                const price = getCryptoPriceFromCache(cryptoSymbol);
                 console.log('Crypto price found:', price);
+                
                 if (price !== null) {
-                    const totalValue = amount * price;
+                    const totalValue = amount * price.value;
                     return {
                         original: `${amount} ${cryptoSymbol}`,
-                        converted: `${totalValue.toFixed(2)} ${preferredCryptoCurrency.toUpperCase()}`,
-                        value: totalValue
+                        converted: `${totalValue.toFixed(2)} ${price.currency}`,
+                        value: totalValue,
+                        cacheAge: price.cacheAge
                     };
                 }
             }
@@ -654,26 +662,17 @@ async function detectAndConvertUnit(text) {
         // Also check for single crypto symbols (e.g., "BTC", "bitcoin")
         if (cryptoCurrencies[upperCaseText]) {
             console.log('Crypto symbol detected:', upperCaseText, 'ID:', cryptoCurrencies[upperCaseText]);
-            // Only fetch if we don't have recent data
-            if (!cryptoRates.lastUpdated || Date.now() - cryptoRates.lastUpdated > 5 * 60 * 1000) {
-                await fetchCryptoRates();
-            }
-            const id = cryptoCurrencies[upperCaseText];
-            let vsCurrency = preferredCryptoCurrency ? preferredCryptoCurrency.toLowerCase() : 'usd';
-            console.log('Crypto rates available:', cryptoRates.prices);
-            console.log('Looking for:', id, 'in', vsCurrency);
-            let price = null;
-            if (vsCurrency === 'bgn' && cryptoRates.prices[id] && cryptoRates.prices[id]['eur'] && exchangeRates.rates && exchangeRates.rates['EUR']) {
-                price = cryptoRates.prices[id]['eur'] * exchangeRates.rates['EUR'];
-            } else if (cryptoRates.prices[id] && cryptoRates.prices[id][vsCurrency]) {
-                price = cryptoRates.prices[id][vsCurrency];
-            }
+            
+            // Get price from cache system
+            const price = getCryptoPriceFromCache(upperCaseText);
             console.log('Crypto price found:', price);
+            
             if (price !== null) {
                 return {
                     original: `1 ${upperCaseText}`,
-                    converted: `${price.toFixed(2)} ${preferredCryptoCurrency.toUpperCase()}`,
-                    value: price
+                    converted: `${price.value.toFixed(2)} ${price.currency}`,
+                    value: price.value,
+                    cacheAge: price.cacheAge
                 };
             }
         }
