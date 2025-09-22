@@ -1,0 +1,151 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Currency Format Test Page</title>
+    <style>
+        body { 
+            font-family: Arial, sans-serif; 
+            margin: 20px; 
+            line-height: 1.6;
+        }
+        .test-section {
+            margin: 20px 0;
+            padding: 15px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+        }
+        .test-section h3 {
+            margin-top: 0;
+            color: #333;
+        }
+        .currency-example {
+            display: inline-block;
+            margin: 5px 10px;
+            padding: 5px 10px;
+            background: #f0f0f0;
+            border-radius: 3px;
+            cursor: pointer;
+        }
+        .currency-example:hover {
+            background: #e0e0e0;
+        }
+        .instructions {
+            background: #e7f3ff;
+            padding: 15px;
+            border-radius: 5px;
+            margin-bottom: 20px;
+        }
+    </style>
+</head>
+<body>
+    <h1>Currency Format Test Page</h1>
+    
+    <div class="instructions">
+        <strong>Instructions:</strong> Select any of the currency amounts below to test if your extension properly handles different international number formats. The extension should detect and convert these amounts correctly.
+    </div>
+
+    <div class="test-section">
+        <h3>Turkish Lira with Thousands Separators</h3>
+        <span class="currency-example">1,600,000 TRY</span>
+        <span class="currency-example">2,500,000 TRY</span>
+        <span class="currency-example">₺1,000,000</span>
+    </div>
+
+    <div class="test-section">
+        <h3>Euro with Comma Decimals</h3>
+        <span class="currency-example">569,00€</span>
+        <span class="currency-example">1.234,56€</span>
+        <span class="currency-example">€999,99</span>
+        <span class="currency-example">€5.000,00</span>
+    </div>
+
+    <div class="test-section">
+        <h3>Euro with Dot Decimals</h3>
+        <span class="currency-example">569.00€</span>
+        <span class="currency-example">€1,234.56</span>
+        <span class="currency-example">€999.99</span>
+    </div>
+
+    <div class="test-section">
+        <h3>US Dollar Formats</h3>
+        <span class="currency-example">$1,234.56</span>
+        <span class="currency-example">1,234.56 USD</span>
+        <span class="currency-example">$10,000</span>
+        <span class="currency-example">10 USD</span>
+        <span class="currency-example">20 USD</span>
+    </div>
+
+    <div class="test-section">
+        <h3>European Format (Dot Thousands, Comma Decimal)</h3>
+        <span class="currency-example">1.234,56 USD</span>
+        <span class="currency-example">€1.000.000,00</span>
+        <span class="currency-example">999.999,99€</span>
+    </div>
+
+    <div class="test-section">
+        <h3>British Pound</h3>
+        <span class="currency-example">£2,000</span>
+        <span class="currency-example">2,000 GBP</span>
+        <span class="currency-example">50 GBP</span>
+    </div>
+
+    <div class="test-section">
+        <h3>Other Currencies</h3>
+        <span class="currency-example">100 BGN</span>
+        <span class="currency-example">¥10,000</span>
+        <span class="currency-example">10,000 JPY</span>
+    </div>
+
+    <div class="test-section">
+        <h3>Indian Rupee (Lakh Format)</h3>
+        <span class="currency-example">₹5,00,000</span>
+        <span class="currency-example">₹10,00,000</span>
+        <span class="currency-example">5,00,000 INR</span>
+        <span class="currency-example">₹1,00,00,000</span>
+    </div>
+
+    <div class="test-section">
+        <h3>Space Separators</h3>
+        <span class="currency-example">1 000 000 USD</span>
+        <span class="currency-example">€1 000 000</span>
+        <span class="currency-example">5 000,50€</span>
+    </div>
+
+    <div class="test-section">
+        <h3>Complex Mixed Formats</h3>
+        <span class="currency-example">€5.00,000</span>
+        <span class="currency-example">$123,456,789.12</span>
+        <span class="currency-example">€1.000.000,99</span>
+        <span class="currency-example">₹99,99,999.50</span>
+    </div>
+
+    <div class="test-section">
+        <h3>Plain Numbers</h3>
+        <span class="currency-example">10 USD</span>
+        <span class="currency-example">20 EUR</span>
+        <span class="currency-example">50 GBP</span>
+        <span class="currency-example">€100</span>
+        <span class="currency-example">$200</span>
+    </div>
+
+    <script>
+        // Add click handlers to make selection easier
+        document.querySelectorAll('.currency-example').forEach(element => {
+            element.addEventListener('click', function() {
+                // Select the text
+                const range = document.createRange();
+                range.selectNodeContents(this);
+                const selection = window.getSelection();
+                selection.removeAllRanges();
+                selection.addRange(range);
+                
+                // Visual feedback
+                this.style.background = '#d4edda';
+                setTimeout(() => {
+                    this.style.background = '#f0f0f0';
+                }, 500);
+            });
+        });
+    </script>
+</body>
+</html>

@@ -726,6 +726,105 @@ function getTimeZoneOffsetString(timeZone, dateStr) {
     }
 }
 
+/**
+ * Parse international number formats with various separators
+ * Handles formats like: 1,600,000 | 569,00 | 569.00 | 1.234,56 | 5,00,000 | 10 | 20.5
+ */
+function parseInternationalNumber(numberStr) {
+    if (!numberStr || typeof numberStr !== 'string') {
+        return NaN;
+    }
+    
+    // Remove any leading/trailing whitespace and handle negative numbers
+    let cleaned = numberStr.trim();
+    let isNegative = false;
+    
+    if (cleaned.startsWith('-')) {
+        isNegative = true;
+        cleaned = cleaned.substring(1).trim();
+    }
+    
+    // If it's just digits, return as is
+    if (/^\d+$/.test(cleaned)) {
+        const result = parseFloat(cleaned);
+        return isNegative ? -result : result;
+    }
+    
+    // Count separators to determine format
+    const commas = (cleaned.match(/,/g) || []).length;
+    const dots = (cleaned.match(/\./g) || []).length;
+    const spaces = (cleaned.match(/\s/g) || []).length;
+    
+    // Handle different separator patterns
+    if (commas === 0 && dots === 0 && spaces === 0) {
+        // Simple integer: "1000"
+        const result = parseFloat(cleaned);
+        return isNegative ? -result : result;
+    }
+    
+    if (commas === 0 && dots === 1 && spaces === 0) {
+        // Simple decimal with dot: "123.45"
+        const result = parseFloat(cleaned);
+        return isNegative ? -result : result;
+    }
+    
+    if (commas === 1 && dots === 0 && spaces === 0) {
+        // Could be decimal comma "123,45" or thousands separator "1,000"
+        const parts = cleaned.split(',');
+        if (parts[1].length <= 2) {
+            // Decimal comma: "123,45" or "569,00"
+            const result = parseFloat(parts[0] + '.' + parts[1]);
+            return isNegative ? -result : result;
+        } else {
+            // Thousands separator: "1,000"
+            const result = parseFloat(cleaned.replace(',', ''));
+            return isNegative ? -result : result;
+        }
+    }
+    
+    // Multiple separators - need to determine which is decimal
+    if (commas > 0 || dots > 0 || spaces > 0) {
+        // Find the last separator - this is likely the decimal separator
+        const lastCommaPos = cleaned.lastIndexOf(',');
+        const lastDotPos = cleaned.lastIndexOf('.');
+        const lastSpacePos = cleaned.lastIndexOf(' ');
+        
+        let decimalPos = -1;
+        let decimalSep = '';
+        
+        // Determine which separator appears last (most likely decimal)
+        if (lastCommaPos > lastDotPos && lastCommaPos > lastSpacePos) {
+            decimalPos = lastCommaPos;
+            decimalSep = ',';
+        } else if (lastDotPos > lastCommaPos && lastDotPos > lastSpacePos) {
+            decimalPos = lastDotPos;
+            decimalSep = '.';
+        } else if (lastSpacePos > lastCommaPos && lastSpacePos > lastDotPos) {
+            decimalPos = lastSpacePos;
+            decimalSep = ' ';
+        }
+        
+        if (decimalPos > 0) {
+            const beforeDecimal = cleaned.substring(0, decimalPos);
+            const afterDecimal = cleaned.substring(decimalPos + 1);
+            
+            // Check if what's after the separator looks like decimals (1-3 digits)
+            if (/^\d{1,3}$/.test(afterDecimal)) {
+                // This looks like a decimal separator
+                const integerPart = beforeDecimal.replace(/[.,\s]/g, ''); // Remove all separators from integer part
+                const result = parseFloat(integerPart + '.' + afterDecimal);
+                return isNegative ? -result : result;
+            }
+        }
+        
+        // If no clear decimal separator, treat all separators as thousands separators
+        const result = parseFloat(cleaned.replace(/[.,\s]/g, ''));
+        return isNegative ? -result : result;
+    }
+    
+    return NaN;
+}
+
 // --- Helper function to detect and convert units ---
 async function detectAndConvertUnit(text) {
     const trimmedText = text.trim();
@@ -749,11 +848,16 @@ async function detectAndConvertUnit(text) {
         // Reduced logging for cleaner console
         
         // Check for crypto amounts with numbers
-        const cryptoAmountPattern = /^(\d+(?:\.\d+)?)\s*([A-Z]{2,5})$/i;
+        const cryptoAmountPattern = /^([\d.,\s]+?)\s*([A-Z]{2,5})$/i;
         const cryptoMatch = trimmedText.match(cryptoAmountPattern);
         
         if (cryptoMatch) {
-            const amount = parseFloat(cryptoMatch[1]);
+            const rawAmount = cryptoMatch[1].trim();
+            const amount = parseInternationalNumber(rawAmount);
+            if (isNaN(amount)) {
+                console.log('Failed to parse crypto amount:', rawAmount);
+                return null; // Invalid number format
+            }
             const cryptoSymbol = cryptoMatch[2].toUpperCase();
             
             if (cryptoCurrencies[cryptoSymbol]) {
@@ -797,14 +901,22 @@ async function detectAndConvertUnit(text) {
     if (hasFiatContent) {
         console.log('Checking fiat currency for:', trimmedText);
         
-        // Check for fiat currency amounts with numbers (e.g., "100 USD", "$50", "€25")
-        const fiatAmountPattern = /^([€$£¥₺₽₹₩₪₱฿₣₦₲₵₡₫₭₮₯₠₢₳₴₸₼₾₿]?)(\d+(?:[.,]\d+)?)\s*([A-Z]{3}|[€$£¥₺₽₹₩₪₱฿₣₦₲₵₡₫₭₮₯₠₢₳₴₸₼₾₿]?)$/i;
+        // Check for fiat currency amounts with numbers (e.g., "100 USD", "$50", "€25", "1,600,000 TRY", "569,00€")
+        // More flexible pattern to handle various number formats and spacing
+        const fiatAmountPattern = /^([€$£¥₺₽₹₩₪₱฿₣₦₲₵₡₫₭₮₯₠₢₳₴₸₼₾₿]?)\s*([\d.,\s]+?)\s*([A-Z]{3}|[€$£¥₺₽₹₩₪₱฿₣₦₲₵₡₫₭₮₯₠₢₳₴₸₼₾₿]?)$/i;
         const fiatMatch = trimmedText.match(fiatAmountPattern);
         
         if (fiatMatch) {
             const symbolBefore = fiatMatch[1];
-            const amount = parseFloat(fiatMatch[2].replace(',', '.'));
+            const rawAmount = fiatMatch[2].trim();
             const symbolAfter = fiatMatch[3];
+            
+            // Parse the amount using improved number parsing
+            const amount = parseInternationalNumber(rawAmount);
+            if (isNaN(amount)) {
+                console.log('Failed to parse fiat amount:', rawAmount);
+                return null; // Invalid number format
+            }
             
             // Determine the currency from symbol or code
             let fromCurrency = null;
@@ -947,24 +1059,18 @@ async function detectAndConvertUnit(text) {
     // Handle fractions
     if (value.includes('/')) {
         const [numerator, denominator] = value.split('/');
-        value = parseFloat(numerator.replace(',', '.').replace(/\s/g, '')) / parseFloat(denominator.replace(',', '.').replace(/\s/g, ''));
-    } else {
-        // Normalize value: handle both Western and Indian number formats
-        // First, detect if it's Indian format (has 2 digits after first separator)
-        // Indian format examples: 5,00,000 or 10,00,000 or 1,00,000 or 1,00,00,000
-        const isIndianFormat = /^\d{1,3}[.,\s]\d{2}[.,\s]\d{2,3}(?:[.,\s]\d{2})*/.test(value);
-        
-        if (isIndianFormat) {
-            // Indian format: 5,00,000 -> 500000
-            // Remove all separators for Indian format
-            value = value.replace(/[.,\s]/g, '');
-        } else {
-            // Western format: 1,000,000 -> 1000000
-            // Remove thousands separators (dot, comma, space) but keep decimal point
-            value = value.replace(/[.,\s](?=\d{3}(\D|$))/g, ''); // Remove thousands sep
-            value = value.replace(',', '.'); // Replace decimal comma with period
+        const num = parseInternationalNumber(numerator);
+        const den = parseInternationalNumber(denominator);
+        if (isNaN(num) || isNaN(den) || den === 0) {
+            return null;
         }
-        value = parseFloat(value);
+        value = num / den;
+    } else {
+        // Use improved international number parsing
+        value = parseInternationalNumber(value);
+        if (isNaN(value)) {
+            return null;
+        }
     }
 
     // Special case for temperature without F suffix
