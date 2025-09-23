@@ -826,8 +826,56 @@ function parseInternationalNumber(numberStr) {
 }
 
 // --- Helper function to detect and convert units ---
+/**
+ * Check if text contains any convertible content (crypto, fiat, units, time zones)
+ * This prevents unnecessary processing and API calls for non-convertible text
+ */
+function hasConvertibleContent(text) {
+    const trimmedText = text.trim();
+    const upperCaseText = trimmedText.toUpperCase();
+    
+    // Check for cryptocurrency symbols and names
+    const cryptoSymbols = Object.keys(cryptoCurrencies);
+    const hasCryptoContent = cryptoSymbols.some(symbol => 
+        upperCaseText.includes(symbol) || 
+        upperCaseText.includes(cryptoCurrencies[symbol].toUpperCase())
+    );
+    
+    // Check for fiat currency symbols and codes
+    const fiatSymbols = Object.keys(currencySymbols);
+    const hasFiatContent = fiatSymbols.some(symbol => 
+        upperCaseText.includes(symbol) || 
+        upperCaseText.includes(currencySymbols[symbol])
+    );
+    
+    // Check for time zone abbreviations
+    const timeZonePattern = /\b(PST|PDT|PT|MST|MDT|MT|CST|CDT|CT|EST|EDT|ET|AKST|AKDT|HST|GMT|UTC|CET|CEST|EET|EEST|BST|IST|JST|KST|AEST|AEDT|ACST|ACDT|AWST)\b/i;
+    const hasTimeZoneContent = timeZonePattern.test(trimmedText);
+    
+    // Check for common unit abbreviations (weight, distance, temperature, etc.)
+    const unitPattern = /\b(lb|lbs|pound|pounds|kg|kilogram|kilograms|kilo|kilos|oz|ounce|ounces|gram|grams|cup|cups|tbsp|tsp|tablespoon|teaspoon|fl\s*oz|floz|pint|pints|quart|quarts|gallon|gallons|mph|km\/h|kph|kmh|mpg|l\/100km|gal|liter|litre|qt|ml|milliliter|millilitre|mi|mile|miles|km|kilometer|kilometre|yd|yard|yards|meter|metre|meters|metres|ft|foot|feet|in|inch|inches|cm|centimeter|centimetre|mm|millimeter|millimetre|kW|kilowatt|kilowatts|hp|horsepower|Nm|°F|°C|fahrenheit|celsius|centigrade)\b/i;
+    const hasUnitContent = unitPattern.test(trimmedText);
+    
+    // Check for currency symbols in the text
+    const currencySymbolPattern = /[€$£¥₺₽₹₩₪₱฿₣₦₲₵₡₫₭₮₯₠₢₳₴₸₼₾₿]/;
+    const hasCurrencySymbols = currencySymbolPattern.test(trimmedText);
+    
+    // Check for number + unit patterns (basic check)
+    const numberUnitPattern = /\d+\s*[a-zA-Z°/€$£¥₺₽₹₩₪₱฿₣₦₲₵₡₫₭₮₯₠₢₳₴₸₼₾₿]+/;
+    const hasNumberUnitPattern = numberUnitPattern.test(trimmedText);
+    
+    return hasCryptoContent || hasFiatContent || hasTimeZoneContent || hasUnitContent || hasCurrencySymbols || hasNumberUnitPattern;
+}
+
 async function detectAndConvertUnit(text) {
     const trimmedText = text.trim();
+    
+    // Early exit if text doesn't contain any convertible content
+    // This prevents unnecessary processing and potential API calls
+    if (!hasConvertibleContent(trimmedText)) {
+        console.log('Skipping text processing (no convertible content):', trimmedText.substring(0, 50) + (trimmedText.length > 50 ? '...' : ''));
+        return null;
+    }
     
     // First, check if the text contains any crypto or fiat currency content before doing expensive checks
     const upperCaseText = trimmedText.toUpperCase();

@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Content Filter Test</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            line-height: 1.6;
+        }
+        .test-section {
+            margin: 20px 0;
+            padding: 15px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+        }
+        .should-not-trigger {
+            background-color: #f0f8ff;
+        }
+        .should-trigger {
+            background-color: #f0fff0;
+        }
+        h2 {
+            color: #333;
+        }
+        p {
+            margin: 10px 0;
+        }
+        .highlight {
+            background-color: yellow;
+            padding: 2px 4px;
+            border-radius: 3px;
+        }
+    </style>
+</head>
+<body>
+    <h1>Content Filter Test Page</h1>
+    <p>This page tests the content filter optimization. Select text to see if the extension popup appears.</p>
+    
+    <div class="test-section should-not-trigger">
+        <h2>Text that should NOT trigger the extension (no API calls)</h2>
+        <p>Hello world, this is just regular text.</p>
+        <p>JavaScript programming tutorial for beginners.</p>
+        <p>The quick brown fox jumps over the lazy dog.</p>
+        <p>Lorem ipsum dolor sit amet, consectetur adipiscing elit.</p>
+        <p>This is a sample paragraph with no convertible content.</p>
+        <p>Machine learning algorithms and data structures.</p>
+        <p>Web development best practices and design patterns.</p>
+        <p>Software engineering principles and methodologies.</p>
+    </div>
+
+    <div class="test-section should-trigger">
+        <h2>Text that SHOULD trigger the extension (with conversions)</h2>
+        <p>Cryptocurrency prices: <span class="highlight">BTC</span> and <span class="highlight">ETH</span> are rising.</p>
+        <p>Currency conversion: <span class="highlight">$100</span> or <span class="highlight">€50</span> or <span class="highlight">£25</span></p>
+        <p>Unit measurements: <span class="highlight">5 miles</span>, <span class="highlight">100 kg</span>, <span class="highlight">32°F</span></p>
+        <p>Time zones: Meeting at <span class="highlight">5 PM PST</span> or <span class="highlight">2:00 EST</span></p>
+        <p>Cooking measurements: <span class="highlight">2 cups</span> flour and <span class="highlight">1 tbsp</span> sugar</p>
+        <p>Speed and distance: <span class="highlight">60 mph</span> on the highway for <span class="highlight">10 miles</span></p>
+    </div>
+
+    <div class="test-section should-not-trigger">
+        <h2>Edge cases that should NOT trigger</h2>
+        <p>Just numbers without units: 123, 45.67, 1,000,000</p>
+        <p>Common words: football, example, important, cupboard</p>
+        <p>Technical terms: JavaScript, HTML, CSS, API, HTTP</p>
+        <p>Random text: The meeting is scheduled for next week.</p>
+    </div>
+
+    <div class="test-section should-trigger">
+        <h2>Edge cases that SHOULD trigger</h2>
+        <p>Compact units: <span class="highlight">25lb</span>, <span class="highlight">100km</span>, <span class="highlight">50°</span></p>
+        <p>Currency codes: <span class="highlight">USD</span>, <span class="highlight">EUR</span>, <span class="highlight">GBP</span></p>
+        <p>Crypto names: <span class="highlight">bitcoin</span>, <span class="highlight">ethereum</span>, <span class="highlight">dogecoin</span></p>
+        <p>Separate units: <span class="highlight">5 ft</span> tall, <span class="highlight">10 in</span> wide</p>
+    </div>
+
+    <script>
+        // Add some visual feedback for testing
+        document.addEventListener('mouseup', function() {
+            const selection = window.getSelection().toString().trim();
+            if (selection) {
+                console.log('Selected text:', selection);
+                console.log('Length:', selection.length);
+            }
+        });
+    </script>
+</body>
+</html>
