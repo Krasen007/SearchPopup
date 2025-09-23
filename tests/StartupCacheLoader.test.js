@@ -6,6 +6,7 @@
 const StartupCacheLoader = require('../js/cache/StartupCacheLoader');
 
 // Mock dependencies
+const CacheStatusMonitor = require('../js/cache/CacheStatusMonitor');
 class MockCoinGeckoAPIClient {
     constructor(apiKey) {
         this.apiKey = apiKey;

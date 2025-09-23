@@ -1,7 +1,7 @@
 {
 	"manifest_version": 3,
 	"name": "Search Popup",
-	"version": "1.64.0",
+	"version": "1.64.1",
 	"description": "Displays a smart popup when you select text on any webpage: search, copy, convert, copy to clipboard, open URLs.",
 	"icons": {
 		"128": "img/icon.png"
@@ -28,6 +28,7 @@
 				"js/cache/ErrorHandler.js",
 				"js/cache/RateCacheManager.js",
 				"js/cache/CacheStatusMonitor.js",
+				"js/cache/CacheStatusDisplay.js",
 				"js/cache/CoinGeckoAPIClient.js",
 				"js/cache/StartupCacheLoader.js",
 				"js/cache/BackgroundRefresher.js",

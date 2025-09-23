@@ -7,6 +7,9 @@
 let extensionInitializer = null;
 let isGloballyInitialized = false;
 
+// Global status display instance
+let cacheStatusDisplay = null;
+
 // Use a global flag to prevent multiple initializations across different content script instances
 if (typeof window !== 'undefined') {
     if (window.extensionInitializationInProgress || window.extensionInitialized) {
@@ -56,6 +59,9 @@ async function initializeExtension() {
                 
                 // Update global variables for backward compatibility
                 updateLegacyGlobals(event);
+                
+                // Initialize status display
+                initializeStatusDisplay();
                 
                 // Show API key status briefly
                 showApiKeyStatus();
@@ -355,6 +361,48 @@ function showGenericError(errorMessage) {
             errorDiv.remove();
         }
     }, 10000);
+}
+
+/**
+ * Initialize the cache status display system
+ */
+function initializeStatusDisplay() {
+    try {
+        if (cacheStatusDisplay) {
+            return; // Already initialized
+        }
+
+        const cacheManager = extensionInitializer.getCacheManager();
+        const statusMonitor = extensionInitializer.getStatusMonitor();
+        
+        if (!cacheManager || !statusMonitor) {
+            console.warn('Cannot initialize status display: missing cache manager or status monitor');
+            return;
+        }
+
+        // Create status display with configuration
+        cacheStatusDisplay = new CacheStatusDisplay(cacheManager, statusMonitor, {
+            showLoadingIndicator: true,
+            showTimestamps: true,
+            showStalenessWarnings: true,
+            showErrorMessages: true,
+            position: 'top-right',
+            autoHideDelay: 5000,
+            enableLogging: false, // Reduce console noise
+            compactMode: false,
+            theme: 'auto'
+        });
+
+        console.log('Cache status display initialized');
+
+        // Make globally accessible
+        if (typeof window !== 'undefined') {
+            window.cacheStatusDisplay = cacheStatusDisplay;
+        }
+
+    } catch (error) {
+        console.error('Failed to initialize status display:', error);
+    }
 }
 
 /**

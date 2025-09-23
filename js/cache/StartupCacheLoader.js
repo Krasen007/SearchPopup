@@ -15,6 +15,9 @@ class StartupCacheLoader {
         this.apiClient = new CoinGeckoAPIClient(apiKey);
         this.cacheManager = new RateCacheManager();
         
+        // Initialize status monitor
+        this.statusMonitor = new CacheStatusMonitor(this.cacheManager);
+        
         // Load configuration
         this.config = config || (typeof CACHE_CONFIG !== 'undefined' ? CACHE_CONFIG : this.getDefaultConfig());
         
@@ -377,6 +380,14 @@ class StartupCacheLoader {
      */
     getCacheManager() {
         return this.cacheManager;
+    }
+
+    /**
+     * Get the status monitor instance
+     * @returns {CacheStatusMonitor} Status monitor instance
+     */
+    getStatusMonitor() {
+        return this.statusMonitor;
     }
 
     /**

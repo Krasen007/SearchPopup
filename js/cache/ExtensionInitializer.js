@@ -537,6 +537,14 @@ class ExtensionInitializer {
     }
 
     /**
+     * Get the status monitor instance
+     * @returns {CacheStatusMonitor|null} Status monitor or null if not initialized
+     */
+    getStatusMonitor() {
+        return this.startupLoader ? this.startupLoader.getStatusMonitor() : null;
+    }
+
+    /**
      * Save API key to storage
      * @param {string} apiKey - API key to save
      * @returns {Promise<void>}

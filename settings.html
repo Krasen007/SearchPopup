@@ -270,6 +270,54 @@
             </div>
 
             <div class="section">
+                <h2>Cache Status Dashboard</h2>
+                <div id="cache-dashboard" style="background: #f8f9fa; border: 1px solid #e9ecef; border-radius: 8px; padding: 20px; margin-bottom: 20px;">
+                    <div class="cache-status-header" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
+                        <h3 style="margin: 0; color: #495057;">Exchange Rate Cache</h3>
+                        <button id="refresh-cache-btn" class="btn" style="background: #17a2b8; padding: 8px 16px; font-size: 0.9rem;">
+                            <span id="refresh-btn-text">Refresh Cache</span>
+                        </button>
+                    </div>
+                    
+                    <div class="cache-status-grid" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px; margin-bottom: 16px;">
+                        <div class="status-card" style="background: white; border: 1px solid #dee2e6; border-radius: 6px; padding: 12px;">
+                            <div style="font-size: 0.85rem; color: #6c757d; margin-bottom: 4px;">Status</div>
+                            <div id="cache-status-value" style="font-weight: 600; color: #495057;">Loading...</div>
+                        </div>
+                        
+                        <div class="status-card" style="background: white; border: 1px solid #dee2e6; border-radius: 6px; padding: 12px;">
+                            <div style="font-size: 0.85rem; color: #6c757d; margin-bottom: 4px;">Last Updated</div>
+                            <div id="cache-age-value" style="font-weight: 600; color: #495057;">Never</div>
+                        </div>
+                        
+                        <div class="status-card" style="background: white; border: 1px solid #dee2e6; border-radius: 6px; padding: 12px;">
+                            <div style="font-size: 0.85rem; color: #6c757d; margin-bottom: 4px;">Crypto Rates</div>
+                            <div id="crypto-count-value" style="font-weight: 600; color: #495057;">0</div>
+                        </div>
+                        
+                        <div class="status-card" style="background: white; border: 1px solid #dee2e6; border-radius: 6px; padding: 12px;">
+                            <div style="font-size: 0.85rem; color: #6c757d; margin-bottom: 4px;">Fiat Rates</div>
+                            <div id="fiat-count-value" style="font-weight: 600; color: #495057;">0</div>
+                        </div>
+                    </div>
+                    
+                    <div id="cache-recommendations" style="display: none; background: #fff3cd; border: 1px solid #ffeaa7; border-radius: 6px; padding: 12px; margin-bottom: 16px;">
+                        <div style="font-size: 0.85rem; color: #856404; font-weight: 600; margin-bottom: 8px;">Recommendations:</div>
+                        <ul id="recommendations-list" style="margin: 0; padding-left: 20px; color: #856404; font-size: 0.9rem;"></ul>
+                    </div>
+                    
+                    <div class="cache-controls" style="display: flex; gap: 12px; flex-wrap: wrap;">
+                        <button id="view-detailed-status" class="btn" style="background: #6c757d; padding: 8px 16px; font-size: 0.9rem;">View Details</button>
+                        <button id="clear-cache-btn" class="btn" style="background: #dc3545; padding: 8px 16px; font-size: 0.9rem;">Clear Cache</button>
+                        <label style="display: flex; align-items: center; gap: 8px; font-size: 0.9rem; color: #6c757d;">
+                            <input type="checkbox" id="auto-refresh-checkbox" checked>
+                            Auto-refresh every 15 minutes
+                        </label>
+                    </div>
+                </div>
+            </div>
+
+            <div class="section">
                 <h2>Configure Your Preferences</h2>
                 <label for="currency-select">Preferred Target Currency:</label>
                 <select id="currency-select">
