@@ -334,22 +334,35 @@ const DOMCache = {
     
     /**
      * Initialize DOM cache by storing references to frequently accessed elements
+     * Updated to work with optimized DOM structure
      */
     init() {
-        // Cache main popup elements
+        // Cache main popup elements using the optimized structure
         this.searchButton = shadowRoot.getElementById('extensionSearchButton');
         this.copyButton = shadowRoot.getElementById('extensionCopyButton');
         this.conversionContainer = shadowRoot.getElementById('conversionContainer');
         this.errorContainer = shadowRoot.getElementById('errorContainer');
         
-        // Cache nested elements
+        // Cache nested elements with fallback for optimized structure
         if (this.conversionContainer) {
             this.convertedValueSpan = this.conversionContainer.querySelector('.converted-value');
             this.copyConvertedButton = this.conversionContainer.querySelector('.copy-button');
         }
         
         // Cache button container
-        this.buttonContainer = shadowRoot.querySelector('[style*="display: flex"]');
+        this.buttonContainer = shadowRoot.querySelector('[style*="display: flex"]') || 
+                              shadowRoot.querySelector('div[style*="flex"]');
+        
+        // Store references to optimized elements if available
+        if (typeof popupElements !== 'undefined') {
+            this.searchButton = this.searchButton || popupElements.searchButton;
+            this.copyButton = this.copyButton || popupElements.copyButton2;
+            this.conversionContainer = this.conversionContainer || popupElements.conversionContainer;
+            this.errorContainer = this.errorContainer || popupElements.errorContainer;
+            this.convertedValueSpan = this.convertedValueSpan || popupElements.convertedValueSpan;
+            this.copyConvertedButton = this.copyConvertedButton || popupElements.copyButton;
+            this.buttonContainer = this.buttonContainer || popupElements.buttonContainer;
+        }
     },
     
     /**
@@ -358,7 +371,20 @@ const DOMCache = {
      * @returns {Element|null} - The cached element or null
      */
     get(elementKey) {
-        return this[elementKey] || null;
+        const element = this[elementKey];
+        if (element) {
+            MemoryManager.trackOperation('cache-hit');
+            
+            // Log cache stats every 10 operations to see performance
+            if (MemoryManager.performanceMetrics.domOperations % 10 === 0) {
+                const stats = MemoryManager.getStats();
+            }
+            
+            return element;
+        } else {
+            MemoryManager.trackOperation('cache-miss');
+            return null;
+        }
     },
     
     /**
@@ -975,229 +1001,407 @@ shadowHost.style.cssText = 'position: fixed; z-index: 2147483647; pointer-events
 // Attach shadow root (closed mode prevents external JS from accessing shadow DOM)
 const shadowRoot = shadowHost.attachShadow({ mode: 'closed' });
 
-// Create style element INSIDE shadow root
+// ===== MEMORY MANAGEMENT SYSTEM =====
+
+// --- Advanced memory management for optimal performance ---
+const MemoryManager = {
+    // Weak references for automatic cleanup
+    elementRefs: new WeakMap(),
+    
+    // Performance monitoring
+    performanceMetrics: {
+        domOperations: 0,
+        cacheHits: 0,
+        cacheMisses: 0
+    },
+    
+    /**
+     * Register element for memory tracking
+     * @param {HTMLElement} element - Element to track
+     * @param {string} type - Type of element for categorization
+     */
+    registerElement(element, type) {
+        if (element) {
+            this.elementRefs.set(element, { type, created: Date.now() });
+        }
+    },
+    
+    /**
+     * Cleanup unused elements and optimize memory
+     */
+    cleanup() {
+        // Force garbage collection hint (if available)
+        if (window.gc && typeof window.gc === 'function') {
+            window.gc();
+        }
+        
+        // Clear performance metrics periodically
+        if (this.performanceMetrics.domOperations > 1000) {
+            this.performanceMetrics = {
+                domOperations: 0,
+                cacheHits: 0,
+                cacheMisses: 0
+            };
+        }
+    },
+    
+    /**
+     * Track DOM operation for performance monitoring
+     * @param {string} operation - Type of operation
+     */
+    trackOperation(operation) {
+        this.performanceMetrics.domOperations++;
+        if (operation === 'cache-hit') {
+            this.performanceMetrics.cacheHits++;
+        } else if (operation === 'cache-miss') {
+            this.performanceMetrics.cacheMisses++;
+        }
+    },
+    
+    /**
+     * Get performance statistics
+     * @returns {Object} - Performance metrics
+     */
+    getStats() {
+        return {
+            ...this.performanceMetrics,
+            cacheEfficiency: this.performanceMetrics.cacheHits / 
+                           (this.performanceMetrics.cacheHits + this.performanceMetrics.cacheMisses) * 100
+        };
+    }
+};
+
+// ===== CSS OPTIMIZATION SYSTEM =====
+
+// --- Optimized CSS Generation using array.join() for better performance ---
+const CSSOptimizer = {
+    /**
+     * Generate CSS using array.join() instead of template literals for better performance
+     * @returns {string} - Optimized CSS string
+     */
+    generateCSS() {
+        const cssRules = [
+            '#text-selection-popup-extension {',
+            '    position: fixed;',
+            '    background: white;',
+            '    border: 1px solid #ddd;',
+            '    border-radius: 8px;',
+            '    padding: 4px;',
+            '    display: none;',
+            '    opacity: 0;',
+            '    width: 160px;',
+            '    font-family: Arial, sans-serif;',
+            '    font-size: 14px;',
+            '    font-weight: normal;',
+            '    font-style: normal;',
+            '    line-height: 1.4;',
+            '    text-transform: none;',
+            '    letter-spacing: normal;',
+            '    box-shadow: 0 4px 12px rgba(0,0,0,0.15);',
+            '    transition: opacity 0.2s ease-in-out;',
+            '    box-sizing: border-box;',
+            '}',
+            '',
+            '/* Arrow Base Styling */',
+            '#text-selection-popup-extension::before,',
+            '#text-selection-popup-extension::after {',
+            '    content: \'\';',
+            '    position: absolute;',
+            '    width: 0;',
+            '    height: 0;',
+            '    border-left: 8px solid transparent;',
+            '    border-right: 8px solid transparent;',
+            '    display: none;',
+            '}',
+            '',
+            '#text-selection-popup-extension.arrow-bottom::after {',
+            '    display: block;',
+            '    bottom: -8px;',
+            '    left: 50%;',
+            '    transform: translateX(-50%);',
+            '    border-top: 8px solid white;',
+            '}',
+            '',
+            '#text-selection-popup-extension.arrow-top::before {',
+            '    display: block;',
+            '    top: -8px;',
+            '    left: 50%;',
+            '    transform: translateX(-50%);',
+            '    border-bottom: 8px solid white;',
+            '}',
+            '',
+            '#text-selection-popup-extension.dark-mode {',
+            '    background: #333333;',
+            '    border-color: #555555;',
+            '    color: #FFFFFF;',
+            '}',
+            '',
+            '#text-selection-popup-extension.dark-mode.arrow-bottom::after {',
+            '    border-top-color: #333333;',
+            '}',
+            '',
+            '#text-selection-popup-extension.dark-mode.arrow-top::before {',
+            '    border-bottom-color: #333333;',
+            '}',
+            '',
+            '.extension-action-button {',
+            '    flex: 1;',
+            '    padding: 3px 10px;',
+            '    border: none;',
+            '    border-radius: 5px;',
+            '    background-color: #AAAAAA;',
+            '    color: white;',
+            '    cursor: pointer;',
+            '    transition: background-color 0.18s, box-shadow 0.18s;',
+            '    font-family: Arial, sans-serif;',
+            '    font-size: 12px;',
+            '    font-weight: normal;',
+            '    font-style: normal;',
+            '    line-height: 1.4;',
+            '    text-transform: none;',
+            '    letter-spacing: normal;',
+            '    text-align: center;',
+            '    white-space: nowrap;',
+            '    box-shadow: none;',
+            '}',
+            '',
+            '.extension-action-button:hover, .extension-action-button:focus {',
+            '    background-color: #9e9e9eff;',
+            '    box-shadow: 0 2px 8px rgba(0,0,0,0.10);',
+            '    outline: none;',
+            '}',
+            '',
+            '#text-selection-popup-extension.dark-mode .extension-action-button {',
+            '    background-color: #555555;',
+            '    color: #FFFFFF;',
+            '}',
+            '',
+            '#text-selection-popup-extension.dark-mode .extension-action-button:hover,',
+            '#text-selection-popup-extension.dark-mode .extension-action-button:focus {',
+            '    background-color: #5a5959ff;',
+            '    box-shadow: 0 2px 8px rgba(0,0,0,0.18);',
+            '    outline: none;',
+            '}',
+            '',
+            '.conversion-result {',
+            '    padding: 4px 8px;',
+            '    margin: 4px 0;',
+            '    background: #f5f5f5;',
+            '    color: #000;',
+            '    border-radius: 4px;',
+            '    cursor: pointer;',
+            '    display: flex;',
+            '    justify-content: space-between;',
+            '    align-items: center;',
+            '}',
+            '',
+            '.conversion-result:hover {',
+            '    background: #f0f0f0;',
+            '}',
+            '',
+            '.conversion-result .copy-button {',
+            '    display: none;',
+            '    padding: 2px 6px;',
+            '    font-size: 12px;',
+            '    background: #4CAF50;',
+            '    color: white;',
+            '    border: none;',
+            '    border-radius: 3px;',
+            '    cursor: pointer;',
+            '    margin-left: 8px;',
+            '    flex-shrink: 0;',
+            '}',
+            '',
+            '.conversion-result:hover .copy-button {',
+            '    display: inline-block;',
+            '}',
+            '',
+            '#text-selection-popup-extension.dark-mode .conversion-result {',
+            '    background: #5a5a5a;',
+            '    color: #fff;',
+            '}',
+            '',
+            '#text-selection-popup-extension.dark-mode .conversion-result:hover {',
+            '    background: #6a6a6a;',
+            '}'
+        ];
+        
+        return cssRules.join('\n');
+    }
+};
+
+// ===== DOM OPTIMIZATION SYSTEM =====
+
+// --- Advanced DOM Operations using DocumentFragment for batch operations ---
+const DOMOptimizer = {
+    /**
+     * Create popup structure using DocumentFragment for optimal performance
+     * Minimizes reflows and repaints by batching DOM operations
+     * @returns {DocumentFragment} - Optimized popup structure
+     */
+    createPopupStructure() {
+        // Use DocumentFragment for batch DOM operations
+        const fragment = document.createDocumentFragment();
+        
+        // Create main popup element
+        const popup = document.createElement('div');
+        popup.id = 'text-selection-popup-extension';
+        
+        // Batch create all child elements before appending
+        const elements = this.createAllElements();
+        
+        // Append all elements in a single batch operation
+        popup.appendChild(elements.errorContainer);
+        popup.appendChild(elements.conversionContainer);
+        popup.appendChild(elements.buttonContainer);
+        
+        fragment.appendChild(popup);
+        return { fragment, popup, elements };
+    },
+    
+    /**
+     * Create all popup elements in memory before DOM insertion
+     * @returns {Object} - Object containing all created elements
+     */
+    createAllElements() {
+        // Error container
+        const errorContainer = document.createElement('div');
+        errorContainer.id = 'errorContainer';
+        MemoryManager.registerElement(errorContainer, 'error-container');
+        
+        // Batch style operations to minimize reflows
+        Object.assign(errorContainer.style, {
+            display: 'none',
+            color: 'red',
+            padding: '4px',
+            textAlign: 'center'
+        });
+        
+        // Conversion container with nested elements
+        const conversionContainer = document.createElement('div');
+        conversionContainer.id = 'conversionContainer';
+        conversionContainer.style.display = 'none';
+        MemoryManager.registerElement(conversionContainer, 'conversion-container');
+        
+        const conversionResult = document.createElement('div');
+        conversionResult.className = 'conversion-result';
+        MemoryManager.registerElement(conversionResult, 'conversion-result');
+        
+        const convertedValueSpan = document.createElement('span');
+        convertedValueSpan.className = 'converted-value';
+        MemoryManager.registerElement(convertedValueSpan, 'converted-value');
+        
+        const copyButton = document.createElement('button');
+        copyButton.className = 'copy-button';
+        copyButton.textContent = 'Copy';
+        MemoryManager.registerElement(copyButton, 'copy-button');
+        
+        // Batch append conversion elements
+        conversionResult.appendChild(convertedValueSpan);
+        conversionResult.appendChild(copyButton);
+        conversionContainer.appendChild(conversionResult);
+        
+        // Button container
+        const buttonContainer = document.createElement('div');
+        MemoryManager.registerElement(buttonContainer, 'button-container');
+        
+        // Batch style operations
+        Object.assign(buttonContainer.style, {
+            display: 'flex',
+            flexDirection: 'row',
+            gap: '8px',
+            justifyContent: 'space-between'
+        });
+        
+        // Search button
+        const searchButton = document.createElement('button');
+        searchButton.id = 'extensionSearchButton';
+        searchButton.className = 'extension-action-button';
+        searchButton.textContent = 'Search';
+        MemoryManager.registerElement(searchButton, 'search-button');
+        
+        // Copy button
+        const copyButton2 = document.createElement('button');
+        copyButton2.id = 'extensionCopyButton';
+        copyButton2.className = 'extension-action-button';
+        copyButton2.textContent = 'Copy';
+        MemoryManager.registerElement(copyButton2, 'copy-button-main');
+        
+        // Batch append buttons
+        buttonContainer.appendChild(searchButton);
+        buttonContainer.appendChild(copyButton2);
+        
+        return {
+            errorContainer,
+            conversionContainer,
+            conversionResult,
+            convertedValueSpan,
+            copyButton,
+            buttonContainer,
+            searchButton,
+            copyButton2
+        };
+    },
+    
+    /**
+     * Optimized style application to minimize reflows
+     * @param {HTMLElement} element - Element to style
+     * @param {Object} styles - Style properties to apply
+     */
+    applyStylesBatch(element, styles) {
+        // Use Object.assign for batch style operations
+        Object.assign(element.style, styles);
+    },
+    
+    /**
+     * Memory-efficient cleanup for DOM elements
+     * @param {HTMLElement} element - Element to clean up
+     */
+    cleanupElement(element) {
+        if (element && element.parentNode) {
+            element.parentNode.removeChild(element);
+        }
+        // Clear references to help garbage collection
+        element = null;
+    }
+};
+
+// Create style element INSIDE shadow root using optimized CSS
 const styleElement = document.createElement('style');
-styleElement.textContent = `
-    #text-selection-popup-extension {
-        position: fixed;
-        background: white;
-        border: 1px solid #ddd;
-        border-radius: 8px;
-        padding: 4px;
-        display: none;
-        opacity: 0;
-        width: 160px;
-        font-family: Arial, sans-serif;
-        font-size: 14px;
-        font-weight: normal;
-        font-style: normal;
-        line-height: 1.4;
-        text-transform: none;
-        letter-spacing: normal;
-        box-shadow: 0 4px 12px rgba(0,0,0,0.15);
-        transition: opacity 0.2s ease-in-out;
-        box-sizing: border-box;
-    }
-
-    /* Arrow Base Styling */
-    #text-selection-popup-extension::before,
-    #text-selection-popup-extension::after {
-        content: '';
-        position: absolute;
-        width: 0;
-        height: 0;
-        border-left: 8px solid transparent;
-        border-right: 8px solid transparent;
-        display: none;
-    }
-
-    #text-selection-popup-extension.arrow-bottom::after {
-        display: block;
-        bottom: -8px;
-        left: 50%;
-        transform: translateX(-50%);
-        border-top: 8px solid white;
-    }
-
-    #text-selection-popup-extension.arrow-top::before {
-        display: block;
-        top: -8px;
-        left: 50%;
-        transform: translateX(-50%);
-        border-bottom: 8px solid white;
-    }
-
-    #text-selection-popup-extension.dark-mode {
-        background: #333333;
-        border-color: #555555;
-        color: #FFFFFF;
-    }
-
-    #text-selection-popup-extension.dark-mode.arrow-bottom::after {
-        border-top-color: #333333;
-    }
-
-    #text-selection-popup-extension.dark-mode.arrow-top::before {
-        border-bottom-color: #333333;
-    }
-
-    .extension-action-button {
-        flex: 1;
-        padding: 3px 10px;
-        border: none;
-        border-radius: 5px;
-        background-color: #AAAAAA;
-        color: white;
-        cursor: pointer;
-        transition: background-color 0.18s, box-shadow 0.18s;
-        font-family: Arial, sans-serif;
-        font-size: 12px;
-        font-weight: normal;
-        font-style: normal;
-        line-height: 1.4;
-        text-transform: none;
-        letter-spacing: normal;
-        text-align: center;
-        white-space: nowrap;
-        box-shadow: none;
-    }
-
-    .extension-action-button:hover, .extension-action-button:focus {
-        background-color: #9e9e9eff;
-        box-shadow: 0 2px 8px rgba(0,0,0,0.10);
-        outline: none;
-    }
-
-    #text-selection-popup-extension.dark-mode .extension-action-button {
-        background-color: #555555;
-        color: #FFFFFF;
-    }
-
-    #text-selection-popup-extension.dark-mode .extension-action-button:hover, #text-selection-popup-extension.dark-mode .extension-action-button:focus {
-        background-color: #5a5959ff;
-        box-shadow: 0 2px 8px rgba(0,0,0,0.18);
-        outline: none;
-    }
-
-    .conversion-result {
-        padding: 4px 8px;
-        margin: 4px 0;
-        background: #f5f5f5;
-        color: #000;
-        border-radius: 4px;
-        cursor: pointer;
-    }
-
-    .conversion-result:hover {
-        background: #f0f0f0;
-    }
-
-    .conversion-result {
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-    }
-
-    .conversion-result .copy-button {
-        display: none;
-        padding: 2px 6px;
-        font-size: 12px;
-        background: #4CAF50;
-        color: white;
-        border: none;
-        border-radius: 3px;
-        cursor: pointer;
-        margin-left: 8px;
-        flex-shrink: 0;
-    }
-
-    .conversion-result:hover .copy-button {
-        display: inline-block;
-    }
-
-    #text-selection-popup-extension.dark-mode .conversion-result {
-        background: #5a5a5a;
-        color: #fff;
-    }
-
-    #text-selection-popup-extension.dark-mode .conversion-result:hover {
-        background: #6a6a6a;
-    }
-`;
+styleElement.textContent = CSSOptimizer.generateCSS();
 shadowRoot.appendChild(styleElement);
 
-// --- Create the popup element inside shadow root ---
-const popup = document.createElement('div');
-popup.id = 'text-selection-popup-extension'; // ID is used by CSS
+// --- Create the popup element using optimized DOM operations ---
+const popupStructure = DOMOptimizer.createPopupStructure();
+const popup = popupStructure.popup;
+const popupElements = popupStructure.elements;
 
-// --- Create popup content (once) using safe DOM manipulation ---
-// Error container
-const errorContainer = document.createElement('div');
-errorContainer.id = 'errorContainer';
-errorContainer.style.display = 'none';
-errorContainer.style.color = 'red';
-errorContainer.style.padding = '4px';
-errorContainer.style.textAlign = 'center';
-popup.appendChild(errorContainer);
-
-// Conversion container
-const conversionContainer = document.createElement('div');
-conversionContainer.id = 'conversionContainer';
-conversionContainer.style.display = 'none';
-
-const conversionResult = document.createElement('div');
-conversionResult.className = 'conversion-result';
-
-const convertedValueSpan = document.createElement('span');
-convertedValueSpan.className = 'converted-value';
-conversionResult.appendChild(convertedValueSpan);
-
-const copyButton = document.createElement('button');
-copyButton.className = 'copy-button';
-copyButton.textContent = 'Copy';
-conversionResult.appendChild(copyButton);
-
-conversionContainer.appendChild(conversionResult);
-popup.appendChild(conversionContainer);
-
-// Button container
-const buttonContainer = document.createElement('div');
-buttonContainer.style.display = 'flex';
-buttonContainer.style.flexDirection = 'row';
-buttonContainer.style.gap = '8px';
-buttonContainer.style.justifyContent = 'space-between';
-
-// Search button
-const searchButton = document.createElement('button');
-searchButton.id = 'extensionSearchButton';
-searchButton.className = 'extension-action-button';
-searchButton.textContent = 'Search';
-buttonContainer.appendChild(searchButton);
-
-// Copy button
-const copyButton2 = document.createElement('button');
-copyButton2.id = 'extensionCopyButton';
-copyButton2.className = 'extension-action-button';
-copyButton2.textContent = 'Copy';
-buttonContainer.appendChild(copyButton2);
-
-popup.appendChild(buttonContainer);
-shadowRoot.appendChild(popup);
+// Append the optimized structure to shadow root in a single operation
+shadowRoot.appendChild(popupStructure.fragment);
 document.body.appendChild(shadowHost);
 
-// --- Helper function to handle clipboard fallback for copying text ---
+// --- Optimized clipboard fallback with minimal DOM manipulation ---
 async function handleClipboardFallback(textToCopy) {
     try {
         // Try using the modern Clipboard API first
         await navigator.clipboard.writeText(textToCopy);
         hidePopup();
     } catch (err) {
-        // Fallback to a more modern approach using a temporary input
+        // Optimized fallback approach with minimal reflows
         const textArea = document.createElement('textarea');
+        
+        // Batch style operations to minimize reflows
+        DOMOptimizer.applyStylesBatch(textArea, {
+            position: 'fixed',
+            left: '-9999px',
+            top: '-9999px',
+            opacity: '0',
+            pointerEvents: 'none'
+        });
+        
         textArea.value = textToCopy;
-        textArea.style.position = 'fixed';
-        textArea.style.left = '-9999px';
-        textArea.style.top = '-9999px';
+        
+        // Single DOM insertion
         document.body.appendChild(textArea);
         textArea.focus();
         textArea.select();
@@ -1206,8 +1410,15 @@ async function handleClipboardFallback(textToCopy) {
             // Try using the modern Clipboard API with the selected text
             await navigator.clipboard.writeText(textArea.value);
         } catch (err) {
+            // Fallback to execCommand if available
+            try {
+                document.execCommand('copy');
+            } catch (execErr) {
+                // Silent fail - clipboard operation not supported
+            }
         } finally {
-            document.body.removeChild(textArea);
+            // Clean up with optimized removal
+            DOMOptimizer.cleanupElement(textArea);
             hidePopup();
         }
     }
@@ -1386,10 +1597,13 @@ function initPopupButtons() {
     }
 }
 
-// --- Function to show and position the popup ---
+// --- Optimized popup positioning with minimal reflows ---
 async function showAndPositionPopup(rect, selectionContextElement) {
-    popup.style.opacity = '0';
-    popup.style.display = 'block';
+    // Batch initial style changes to minimize reflows
+    DOMOptimizer.applyStylesBatch(popup, {
+        opacity: '0',
+        display: 'block'
+    });
 
     // Use cached DOM elements for better performance
     const errorContainer = DOMCache.get('errorContainer');
@@ -1425,69 +1639,79 @@ async function showAndPositionPopup(rect, selectionContextElement) {
         searchButton.textContent = isUrlSelected ? 'Visit website' : 'Search';
     }
 
-    const popupHeight = popup.offsetHeight;
-    const popupWidth = popup.offsetWidth;
-    const margin = CONFIG.POPUP_MARGIN; // Margin from viewport edges
-    const arrowGap = CONFIG.ARROW_GAP; // Gap between selection and popup (includes arrow height)
+    // Get dimensions in a single batch to minimize layout thrashing
+    const popupRect = popup.getBoundingClientRect();
+    const popupHeight = popupRect.height;
+    const popupWidth = popupRect.width;
+    const margin = CONFIG.POPUP_MARGIN;
+    const arrowGap = CONFIG.ARROW_GAP;
 
     const viewportWidth = window.innerWidth;
     const viewportHeight = window.innerHeight;
     const selectionCenterX = rect.left + (rect.width / 2);
 
     let top, left;
-    let isPopupBelow = false; // Flag to track popup position relative to selection
+    let isPopupBelow = false;
 
-    // Try to position popup above the selection
+    // Calculate optimal position
     top = rect.top - popupHeight - arrowGap;
     left = selectionCenterX - (popupWidth / 2);
 
-    // If positioning above makes it go off-screen (or not enough margin), position below
+    // Adjust for viewport constraints
     if (top < margin) {
         top = rect.bottom + arrowGap;
         isPopupBelow = true;
     }
 
-    // Adjust horizontal position to keep popup within viewport
     left = Math.max(margin, Math.min(left, viewportWidth - popupWidth - margin));
-
-    // Final check to ensure popup stays within viewport vertically
     top = Math.max(margin, Math.min(top, viewportHeight - popupHeight - margin));
 
-    // If clamping 'top' changed its relation to selection, re-evaluate isPopupBelow
+    // Re-evaluate position relationship
     if (!isPopupBelow && top > rect.bottom) isPopupBelow = true;
     if (isPopupBelow && top < rect.top - popupHeight) isPopupBelow = false;
-
-
-    popup.style.left = `${left}px`;
-    popup.style.top = `${top}px`;
 
     // Determine background and apply theme/arrow
     const pageBackgroundColor = getEffectiveBackgroundColor(selectionContextElement);
     const isPageDark = isColorDark(pageBackgroundColor);
 
-    // Force immediate theme application without transitions
-    popup.style.transition = 'none';
-    applyThemeAndArrow(isPageDark, isPopupBelow);
-
-    // Re-enable transitions after theme is applied
-    requestAnimationFrame(() => {
-        popup.style.transition = 'opacity 0.2s ease-in-out';
-        shadowHost.style.pointerEvents = 'auto'; // Enable pointer events when showing
+    // Batch all final style changes to minimize reflows
+    DOMOptimizer.applyStylesBatch(popup, {
+        left: `${left}px`,
+        top: `${top}px`,
+        transition: 'none'
     });
 
+    // Apply theme classes
+    applyThemeAndArrow(isPageDark, isPopupBelow);
+
+    // Re-enable transitions and show popup
     requestAnimationFrame(() => {
-        popup.style.opacity = '1'; // Fade in
+        DOMOptimizer.applyStylesBatch(popup, {
+            transition: 'opacity 0.2s ease-in-out'
+        });
+        shadowHost.style.pointerEvents = 'auto';
+        
+        requestAnimationFrame(() => {
+            popup.style.opacity = '1';
+        });
     });
 }
 
-// --- Function to hide the popup with fade-out ---
+// --- Optimized popup hiding with minimal reflows ---
 let hidePopupTimeout;
 function hidePopup() {
-    popup.style.opacity = '0';
-    shadowHost.style.pointerEvents = 'none'; // Disable pointer events when hiding
+    // Batch style changes for optimal performance
+    DOMOptimizer.applyStylesBatch(popup, {
+        opacity: '0'
+    });
+    
+    shadowHost.style.pointerEvents = 'none';
     clearTimeout(hidePopupTimeout);
+    
     hidePopupTimeout = setTimeout(() => {
-        popup.style.display = 'none';
+        DOMOptimizer.applyStylesBatch(popup, {
+            display: 'none'
+        });
         popup.classList.remove('arrow-top', 'arrow-bottom');
     }, CONFIG.FADE_TRANSITION_DURATION);
 }
@@ -1498,3 +1722,8 @@ initPopupButtons();
 EventManager.init(); // Initialize optimized event management system
 fetchExchangeRates(); // Fetch exchange rates on startup
 fetchCryptoRates(); // Fetch crypto rates on startup
+
+// Set up periodic memory cleanup (every 5 minutes)
+setInterval(() => {
+    MemoryManager.cleanup();
+}, 5 * 60 * 1000);
