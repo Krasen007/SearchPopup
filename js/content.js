@@ -682,7 +682,15 @@ async function detectAndConvertUnit(text) {
     return null;
 }
 
-// --- Add styles to document head (once) ---
+// --- Create shadow host and attach shadow root ---
+const shadowHost = document.createElement('div');
+shadowHost.id = 'text-selection-popup-shadow-host';
+shadowHost.style.cssText = 'position: fixed; z-index: 2147483647; pointer-events: none;';
+
+// Attach shadow root (closed mode prevents external JS from accessing shadow DOM)
+const shadowRoot = shadowHost.attachShadow({ mode: 'closed' });
+
+// Create style element INSIDE shadow root
 const styleElement = document.createElement('style');
 styleElement.textContent = `
     #text-selection-popup-extension {
@@ -702,7 +710,6 @@ styleElement.textContent = `
         text-transform: none;
         letter-spacing: normal;
         box-shadow: 0 4px 12px rgba(0,0,0,0.15);
-        z-index: 2147483647;
         transition: opacity 0.2s ease-in-out;
         box-sizing: border-box;
     }
@@ -832,9 +839,9 @@ styleElement.textContent = `
         background: #6a6a6a;
     }
 `;
-document.head.appendChild(styleElement);
+shadowRoot.appendChild(styleElement);
 
-// --- Create the popup element (once) ---
+// --- Create the popup element inside shadow root ---
 const popup = document.createElement('div');
 popup.id = 'text-selection-popup-extension'; // ID is used by CSS
 
@@ -890,7 +897,8 @@ copyButton2.textContent = 'Copy';
 buttonContainer.appendChild(copyButton2);
 
 popup.appendChild(buttonContainer);
-document.body.appendChild(popup);
+shadowRoot.appendChild(popup);
+document.body.appendChild(shadowHost);
 
 // --- Helper function to handle clipboard fallback for copying text ---
 async function handleClipboardFallback(textToCopy) {
@@ -1044,9 +1052,9 @@ function getSearchUrl(query) {
 
 // --- Initialize button event listeners (called once on script load) ---
 function initPopupButtons() {
-    const searchButton = document.getElementById('extensionSearchButton');
-    const copyButton = document.getElementById('extensionCopyButton');
-    const conversionContainer = document.getElementById('conversionContainer');
+    const searchButton = shadowRoot.getElementById('extensionSearchButton');
+    const copyButton = shadowRoot.getElementById('extensionCopyButton');
+    const conversionContainer = shadowRoot.getElementById('conversionContainer');
     const convertedValueSpan = conversionContainer.querySelector('.converted-value');
     const copyConvertedButton = conversionContainer.querySelector('.copy-button');
 
@@ -1099,8 +1107,8 @@ async function showAndPositionPopup(rect, selectionContextElement) {
     popup.style.opacity = '0';
     popup.style.display = 'block';
 
-    const errorContainer = document.getElementById('errorContainer');
-    const conversionContainer = document.getElementById('conversionContainer');
+    const errorContainer = shadowRoot.getElementById('errorContainer');
+    const conversionContainer = shadowRoot.getElementById('conversionContainer');
     const convertedValueSpan = conversionContainer.querySelector('.converted-value');
 
     // Check for unit conversion
@@ -1124,7 +1132,7 @@ async function showAndPositionPopup(rect, selectionContextElement) {
     }
 
     // Update button text based on URL detection
-    const searchButton = document.getElementById('extensionSearchButton');
+    const searchButton = shadowRoot.getElementById('extensionSearchButton');
     isUrlSelected = detectUrl(currentSelectedText);
     if (searchButton) {
         searchButton.textContent = isUrlSelected ? 'Visit website' : 'Search';
@@ -1177,6 +1185,7 @@ async function showAndPositionPopup(rect, selectionContextElement) {
     // Re-enable transitions after theme is applied
     requestAnimationFrame(() => {
         popup.style.transition = 'opacity 0.2s ease-in-out';
+        shadowHost.style.pointerEvents = 'auto'; // Enable pointer events when showing
     });
 
     requestAnimationFrame(() => {
@@ -1189,6 +1198,7 @@ let hidePopupTimeout;
 const HIDE_DELAY = 3000; // 3 seconds delay before hiding popup
 function hidePopup() {
     popup.style.opacity = '0';
+    shadowHost.style.pointerEvents = 'none'; // Disable pointer events when hiding
     clearTimeout(hidePopupTimeout);
     hidePopupTimeout = setTimeout(() => {
         popup.style.display = 'none';
@@ -1198,7 +1208,7 @@ function hidePopup() {
 
 // --- Global Event Listeners ---
 document.addEventListener('mouseup', function (e) {
-    if (popup.contains(e.target)) {
+    if (shadowHost.contains(e.target)) {
         return;
     }
     let selection, selectedTextTrimmed, range, rect;
@@ -1235,7 +1245,7 @@ document.addEventListener('mouseup', function (e) {
         } else {
             hidePopup();
         }
-    } else if (!popup.contains(e.target)) {
+    } else if (!shadowHost.contains(e.target)) {
         hidePopup();
     }
 });
@@ -1244,7 +1254,7 @@ document.addEventListener('mouseup', function (e) {
 document.addEventListener('mousedown', function (e) {
     isSelectionComplete = false;
     clearTimeout(hidePopupTimeout); // Clear any existing timer
-    if (popup.style.display === 'block' && !popup.contains(e.target)) {
+    if (popup.style.display === 'block' && !shadowHost.contains(e.target)) {
         hidePopup();
     }
 });
