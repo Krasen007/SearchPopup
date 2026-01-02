@@ -1,6 +1,6 @@
 # Search Popup Extension for Text Selection
 
-A modern browser extension that displays a smart popup menu when you select text on any webpage. Instantly search, copy, or convert selected text — including units and currencies — right from the popup. The extension adapts its theme to match the page (light/dark) and works on all websites.
+A high-performance browser extension that displays a smart popup menu when you select text on any webpage. Instantly search, copy, or convert selected text — including units and currencies — right from the popup. Features advanced DOM caching, pre-compiled regex patterns, and optimized memory management for lightning-fast performance. The extension adapts its theme to match the page (light/dark) and works on all websites.
 
 ## Features
 
@@ -9,6 +9,11 @@ A modern browser extension that displays a smart popup menu when you select text
   - **Copy:** Copy the selected text to your clipboard with robust fallback handling.
   ![Light mode popup](img/light.png)
   
+- **High-Performance Architecture:**
+  - Advanced DOM caching system
+  - Pre-compiled regex patterns
+  - DocumentFragment batch operations
+  - Automatic memory management with leak prevention
  
 - **Unit & Currency Conversion:**
   - Detects and converts common units (kg, lb, mph, km, etc.) and currencies (USD, EUR, GBP, etc.)
@@ -22,7 +27,7 @@ A modern browser extension that displays a smart popup menu when you select text
 ![Dark mode popup](img/dark.png)
 - **Dynamic Positioning:** Popup appears above or below the selection with an arrow, always within the viewport.
 - **Auto-hide on Scroll/Resize:** Disappears smoothly to avoid obstructing content.
-- **Lightweight & Efficient:** Minimal impact on page performance.
+- **Lightweight & Efficient:** Minimal impact on page performance with optimized memory usage.
 
 ## Supported Conversions
 
@@ -116,15 +121,17 @@ Works on all Chromium-based browsers (Chrome, Vivaldi, Edge, Brave, etc.).
 ---
 
 ## Advanced Features
-- **Clipboard Fallback:** Uses modern Clipboard API with fallback for maximum compatibility.
-- **Exchange Rate Caching:** Currency rates are cached and updated daily for fast, offline-friendly conversion.
-- **Locale-aware Number Parsing:** Handles both `1,234.56` and `1.234,56` formats.
+- **High-Performance Engine:** DOM caching, pre-compiled regex patterns, and DocumentFragment operations for maximum speed
+- **Memory Management:** Automatic cleanup with WeakMap references and periodic optimization to prevent memory leaks
+- **Clipboard Fallback:** Uses modern Clipboard API with fallback for maximum compatibility
+- **Exchange Rate Caching:** Currency rates are cached and updated daily for fast, offline-friendly conversion
+- **Locale-aware Number Parsing:** Handles both `1,234.56` and `1.234,56` formats
 
 ---
 
 *Portions of this app were created using various AI tools!*
 
 ## Developed and tested on
-- Vivaldi 7.5
+- Vivaldi Browser
 
 Other Chromium browsers should work as well.
