@@ -294,6 +294,172 @@ const UNIT_CONVERSIONS = {
     'nautical miles': { to: 'km', factor: 1.852 }
 };
 
+// ===== PERFORMANCE UTILITIES =====
+
+// --- Performance optimization utilities for throttling and debouncing ---
+const PerformanceUtils = {
+    /**
+     * Throttles a function to execute at most once per specified time limit
+     * @param {Function} func - The function to throttle
+     * @param {number} limit - The time limit in milliseconds
+     * @returns {Function} - The throttled function
+     */
+    throttle(func, limit) {
+        let inThrottle;
+        return function() {
+            const args = arguments;
+            const context = this;
+            if (!inThrottle) {
+                func.apply(context, args);
+                inThrottle = true;
+                setTimeout(() => inThrottle = false, limit);
+            }
+        };
+    },
+
+    /**
+     * Debounces a function to execute only after it hasn't been called for specified delay
+     * @param {Function} func - The function to debounce
+     * @param {number} delay - The delay in milliseconds
+     * @returns {Function} - The debounced function
+     */
+    debounce(func, delay) {
+        let timeoutId;
+        return function() {
+            const args = arguments;
+            const context = this;
+            clearTimeout(timeoutId);
+            timeoutId = setTimeout(() => func.apply(context, args), delay);
+        };
+    }
+};
+
+// ===== EVENT MANAGEMENT SYSTEM =====
+
+// --- Centralized event management with performance optimizations ---
+const EventManager = {
+    /**
+     * Initialize the event management system
+     */
+    init() {
+        this.createOptimizedHandlers();
+        this.bindEvents();
+    },
+
+    /**
+     * Create throttled and debounced handlers for performance optimization
+     */
+    createOptimizedHandlers() {
+        // Throttle scroll events to maximum 10 times per second (100ms intervals)
+        this.throttledScrollHandler = PerformanceUtils.throttle(() => {
+            if (popup.style.opacity === '1') {
+                hidePopup();
+            }
+        }, 100);
+
+        // Debounce resize events to execute once after 250ms of inactivity
+        this.debouncedResizeHandler = PerformanceUtils.debounce(() => {
+            if (popup.style.opacity === '1') {
+                hidePopup();
+            }
+        }, 250);
+    },
+
+    /**
+     * Bind all event listeners with optimized handlers
+     */
+    bindEvents() {
+        document.addEventListener('mouseup', this.handleMouseUp.bind(this));
+        document.addEventListener('mousedown', this.handleMouseDown.bind(this));
+        window.addEventListener('scroll', this.throttledScrollHandler, { passive: true });
+        window.addEventListener('resize', this.debouncedResizeHandler, { passive: true });
+        
+        // Error handlers
+        window.addEventListener('error', this.handleError.bind(this));
+        window.addEventListener('unhandledrejection', this.handleUnhandledRejection.bind(this));
+    },
+
+    /**
+     * Handle mouseup events for text selection
+     * @param {MouseEvent} e - The mouseup event
+     */
+    handleMouseUp(e) {
+        if (shadowHost.contains(e.target)) {
+            return;
+        }
+        
+        let selection, selectedTextTrimmed, range, rect;
+        try {
+            selection = window.getSelection();
+            selectedTextTrimmed = selection.toString().trim();
+        } catch (err) {
+            // Likely a cross-origin iframe, do nothing
+            return;
+        }
+
+        // Validate selection length
+        if (selectedTextTrimmed &&
+            selectedTextTrimmed.length >= CONFIG.MIN_SELECTION_LENGTH &&
+            selectedTextTrimmed.length <= CONFIG.MAX_SELECTION_LENGTH) {
+            currentSelectedText = selectedTextTrimmed;
+            try {
+                range = selection.getRangeAt(0);
+                rect = range.getBoundingClientRect();
+            } catch (err) {
+                // Likely a cross-origin iframe, do nothing
+                return;
+            }
+            if (rect.width > 0 || rect.height > 0) {
+                showAndPositionPopup(rect, range.commonAncestorContainer);
+                // Set selection complete flag after a short delay to allow for mouse movement
+                setTimeout(() => {
+                    let isSelectionComplete = false;
+                    // Start the hide timer
+                    hidePopupTimeout = setTimeout(() => {
+                        hidePopup();
+                    }, CONFIG.HIDE_DELAY);
+                }, 100);
+            } else {
+                hidePopup();
+            }
+        } else if (!shadowHost.contains(e.target)) {
+            hidePopup();
+        }
+    },
+
+    /**
+     * Handle mousedown events for resetting selection state
+     * @param {MouseEvent} e - The mousedown event
+     */
+    handleMouseDown(e) {
+        isSelectionComplete = false;
+        clearTimeout(hidePopupTimeout); // Clear any existing timer
+        if (popup.style.display === 'block' && !shadowHost.contains(e.target)) {
+            hidePopup();
+        }
+    },
+
+    /**
+     * Handle global errors
+     * @param {ErrorEvent} event - The error event
+     */
+    handleError(event) {
+        // Prevent error from bubbling up
+        event.preventDefault();
+        return false;
+    },
+
+    /**
+     * Handle unhandled promise rejections
+     * @param {PromiseRejectionEvent} event - The promise rejection event
+     */
+    handleUnhandledRejection(event) {
+        // Prevent error from bubbling up
+        event.preventDefault();
+        return false;
+    }
+};
+
 // ===== GLOBAL STATE VARIABLES =====
 
 // --- Global variable to store the currently selected text ---
@@ -1232,85 +1398,8 @@ function hidePopup() {
     }, CONFIG.FADE_TRANSITION_DURATION);
 }
 
-// --- Global Event Listeners ---
-document.addEventListener('mouseup', function (e) {
-    if (shadowHost.contains(e.target)) {
-        return;
-    }
-    let selection, selectedTextTrimmed, range, rect;
-    try {
-        selection = window.getSelection();
-        selectedTextTrimmed = selection.toString().trim();
-    } catch (err) {
-        // Likely a cross-origin iframe, do nothing
-        return;
-    }
-
-    // Validate selection length
-    if (selectedTextTrimmed &&
-        selectedTextTrimmed.length >= CONFIG.MIN_SELECTION_LENGTH &&
-        selectedTextTrimmed.length <= CONFIG.MAX_SELECTION_LENGTH) {
-        currentSelectedText = selectedTextTrimmed;
-        try {
-            range = selection.getRangeAt(0);
-            rect = range.getBoundingClientRect();
-        } catch (err) {
-            // Likely a cross-origin iframe, do nothing
-            return;
-        }
-        if (rect.width > 0 || rect.height > 0) {
-            showAndPositionPopup(rect, range.commonAncestorContainer);
-            // Set selection complete flag after a short delay to allow for mouse movement
-            setTimeout(() => {
-                let isSelectionComplete = false;
-                // Start the hide timer
-                hidePopupTimeout = setTimeout(() => {
-                    hidePopup();
-                }, CONFIG.HIDE_DELAY);
-            }, 100);
-        } else {
-            hidePopup();
-        }
-    } else if (!shadowHost.contains(e.target)) {
-        hidePopup();
-    }
-});
-
-// Reset selection complete flag when selection changes
-document.addEventListener('mousedown', function (e) {
-    isSelectionComplete = false;
-    clearTimeout(hidePopupTimeout); // Clear any existing timer
-    if (popup.style.display === 'block' && !shadowHost.contains(e.target)) {
-        hidePopup();
-    }
-});
-
-window.addEventListener('scroll', () => {
-    if (popup.style.opacity === '1') {
-        hidePopup();
-    }
-}, true);
-
-window.addEventListener('resize', () => {
-    if (popup.style.opacity === '1') {
-        hidePopup();
-    }
-});
-
-// --- Global error handler ---
-window.addEventListener('error', function (event) {
-    // Prevent error from bubbling up
-    event.preventDefault();
-    return false;
-});
-
-window.addEventListener('unhandledrejection', function (event) {
-    // Prevent error from bubbling up
-    event.preventDefault();
-    return false;
-});
-
 // --- Initialize ---
 initPopupButtons();
+EventManager.init(); // Initialize optimized event management system
 fetchExchangeRates(); // Fetch exchange rates on startup
 fetchCryptoRates(); // Fetch crypto rates on startup
