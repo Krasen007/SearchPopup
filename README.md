@@ -36,7 +36,7 @@ The extension supports a wide range of unit and currency conversions. Simply sel
 | **Temperature**| `68 °F`, `20 °C`                                  | `°C`, `°F`    |
 | **Speed**     | `60 mph`, `100 km/h`, `30 mpg`, `8 l/100km`         | `km/h`, `mph`, `l/100km`, `mpg` |
 | **Volume**    | `5 gal`, `20 l`, `2 qt`, `12 fl`, `250 ml`          | `l`, `gal`, `l`, `ml`, `fl` |
-| **Distance**  | `10 mi`, `15 km`, `50 yd`, `100 m`, `10 ft`, `12 in` | `km`, `mi`, `m`, `yd`, `m`, `cm` |
+| **Distance**  | `10 mi`, `15 km`, `50 yd`, `100 m`, `10 ft`, `10 nmi` | `km`, `mi`, `m`, `yd`, `m`, `km` |
 | **Power**     | `150 kW`, `200 hp`                                | `hp`, `kW`    |
 | **Torque**    | `150 lb ft`, `200 Nm`                             | `Nm`, `lb ft` |
 
@@ -61,6 +61,8 @@ The extension supports a wide range of unit and currency conversions. Simply sel
 
 | Example           | Description                        |
 |-------------------|------------------------------------|
+| `3,000 yen`       | Japanese Yen by name      |
+| `10 dollars`      | US Dollars by name        |
 | `1,600,000 TRY`    | Turkish Lira with thousands comma   |
 | `569,00€`         | Euro with comma decimal             |
 | `569.00€`         | Euro with dot decimal               |
