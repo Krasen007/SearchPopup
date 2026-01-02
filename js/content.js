@@ -1,57 +1,90 @@
 // Content script for handling text selection and popup display
 // Copyright 2025 Krasen Ivanov
 
-// --- Global variable to store the currently selected text ---
-let currentSelectedText = '';
-let isUrlSelected = false;
-let convertedValue = null;
-let exchangeRatesError = null;
-let cryptoRatesError = null;
+// ===== CONFIGURATION AND CONSTANTS =====
 
-// --- Preferred currency (default to BGN) ---
-let preferredCurrency = 'BGN';
-let preferredCryptoCurrency = 'USD';
-let preferredSearchEngine = 'google';
-
-// Fetch all preferences from chrome.storage.sync
-if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.sync) {
-    chrome.storage.sync.get(['preferredCurrency', 'preferredCryptoCurrency', 'preferredSearchEngine'], (result) => {
-        if (result.preferredCurrency) {
-            preferredCurrency = result.preferredCurrency;
-        }
-        if (result.preferredCryptoCurrency) {
-            preferredCryptoCurrency = result.preferredCryptoCurrency;
-        }
-        if (result.preferredSearchEngine) {
-            preferredSearchEngine = result.preferredSearchEngine;
-        }
-        // Fetch rates once on startup for caching
-        fetchExchangeRates();
-        fetchCryptoRates();
-    });
-} else {
-    fetchExchangeRates();
-    fetchCryptoRates();
-}
-
-// --- Input validation constants ---
-const MAX_SELECTION_LENGTH = 7000; // Maximum characters for text selection
-const MIN_SELECTION_LENGTH = 2;     // Minimum characters for text selection
-
-// --- Currency exchange rates cache ---
-let exchangeRates = {
-    // Store as Unix epoch (ms) to survive JSON serialisation
-    lastUpdated: 0,
-    rates: {
-        // Default rates will be populated from API
-        EUR: 1.95583, // Default EUR to BGN rate
-        USD: 1.8,     // Default USD to BGN rate
-        GBP: 2.3      // Default GBP to BGN rate
-    }
+// --- Application Configuration ---
+const CONFIG = {
+    MAX_SELECTION_LENGTH: 7000,        // Maximum characters for text selection
+    MIN_SELECTION_LENGTH: 2,           // Minimum characters for text selection
+    HIDE_DELAY: 3000,                  // 3 seconds delay before hiding popup
+    CACHE_DURATION: 24 * 60 * 60 * 1000,      // 24 hours in milliseconds
+    CRYPTO_CACHE_DURATION: 5 * 60 * 1000,     // 5 minutes in milliseconds
+    MAX_API_ATTEMPTS: 3,               // Maximum API retry attempts
+    BASE_RETRY_DELAY: 1000,            // 1 second base retry delay
+    POPUP_MARGIN: 10,                  // Margin from viewport edges
+    ARROW_GAP: 10,                     // Gap between selection and popup (includes arrow height)
+    FADE_TRANSITION_DURATION: 200     // Fade transition duration in milliseconds
 };
 
-// --- Cryptocurrency data ---
-const cryptoCurrencies = {
+// --- Pre-compiled Regex Patterns ---
+const REGEX_PATTERNS = {
+    // URL detection pattern
+    url: /^(https?:\/\/)?(([a-zA-Z0-9]([a-zA-Z0-9-]*[a-zA-Z0-9])?\.)+[a-zA-Z0-9]([a-zA-Z0-9-]*[a-zA-Z0-9])?)(\/[^\s]*)?$/,
+    
+    // Time zone pattern for conversion
+    timeZone: /^(\d{1,2})(?::(\d{2}))?\s*(AM|PM|am|pm)?\s*([A-Z]{2,5})$/i,
+    
+    // Currency symbol pattern for unit detection
+    currencySymbol: '[a-zA-Z°/€$£¥₺₽₹₩₪₱฿₣₦₲₵₡₫₭₮₯₠₢₳₴₸₼₾₿]',
+    
+    // Value-unit pattern (number followed by unit)
+    valueUnit: null, // Will be constructed dynamically
+    
+    // Unit-value pattern (unit followed by number)
+    unitValue: null, // Will be constructed dynamically
+    
+    // RGBA color pattern for transparency detection
+    rgba: /rgba\((\d+),\s*(\d+),\s*(\d+),\s*([\d.]+)\)/,
+    
+    // RGB color pattern for color parsing
+    rgb: /rgba?\((\d+),\s*(\d+),\s*(\d+)(?:,\s*[\d.]+)?\)/,
+    
+    // Hex color pattern
+    hex: /^#([a-f0-9]{3}|[a-f0-9]{6})$/i
+};
+
+// Construct dynamic regex patterns
+REGEX_PATTERNS.valueUnit = new RegExp(`^(-?\\d{1,3}(?:[.,\\s]\\d{3})*(?:[.,]\\d+)?|\\d+/\\d+)\\s*(${REGEX_PATTERNS.currencySymbol}+|[a-zA-Z]+(?:\\s+[a-zA-Z]+)*)[.,;:!?]*$`, 'i');
+REGEX_PATTERNS.unitValue = new RegExp(`^(${REGEX_PATTERNS.currencySymbol}+|[a-zA-Z]+(?:\\s+[a-zA-Z]+)*)\\s*(-?\\d{1,3}(?:[.,\\s]\\d{3})*(?:[.,]\\d+)?|\\d+/\\d+)[.,;:!?]*$`, 'i');
+
+// --- Currency Symbols Mapping ---
+const CURRENCY_SYMBOLS = {
+    'EUR': '€',
+    'USD': '$',
+    'GBP': '£',
+    'JPY': '¥',
+    'CNY': '¥',
+    'INR': '₹',
+    'RUB': '₽',
+    'KRW': '₩',
+    'TRY': '₺',
+    'BRL': 'R$',
+    'ZAR': 'R',
+    'MXN': '$',
+    'SGD': 'S$',
+    'HKD': 'HK$',
+    'NZD': 'NZ$',
+    'SEK': 'kr',
+    'NOK': 'kr',
+    'DKK': 'kr',
+    'PLN': 'zł',
+    'CHF': 'Fr',
+    'CAD': 'C$',
+    'AUD': 'A$',
+    'ILS': '₪',
+    'RON': 'lei',
+    'HUF': 'Ft',
+    'CZK': 'Kč',
+    'PHP': '₱',
+    'THB': '฿',
+    'IDR': 'Rp',
+    'MYR': 'RM',
+    'BGN': 'лв'
+};
+
+// --- Cryptocurrency Data ---
+const CRYPTO_CURRENCIES = {
     'BTC': 'bitcoin',
     'ETH': 'ethereum',
     'XRP': 'ripple',
@@ -88,110 +121,48 @@ const cryptoCurrencies = {
     'MATIC': 'matic-network'
 };
 
-let cryptoRates = {
-    lastUpdated: 0,
-    prices: {} // e.g., { bitcoin: { usd: 50000 } }
+// --- Time Zone Abbreviations Mapping ---
+const TIME_ZONE_ABBRS = {
+    'PST': 'America/Los_Angeles', 'PDT': 'America/Los_Angeles', 'PT': 'America/Los_Angeles',
+    'MST': 'America/Denver', 'MDT': 'America/Denver', 'MT': 'America/Denver',
+    'CST': 'America/Chicago', 'CDT': 'America/Chicago', 'CT': 'America/Chicago',
+    'EST': 'America/New_York', 'EDT': 'America/New_York', 'ET': 'America/New_York',
+    'AKST': 'America/Anchorage', 'AKDT': 'America/Anchorage',
+    'HST': 'Pacific/Honolulu',
+    'GMT': 'Etc/GMT', 'UTC': 'Etc/UTC',
+    'CET': 'Europe/Berlin', 'CEST': 'Europe/Berlin',
+    'EET': 'Europe/Helsinki', 'EEST': 'Europe/Helsinki',
+    'BST': 'Europe/London', 'IST': 'Asia/Kolkata',
+    'JST': 'Asia/Tokyo', 'KST': 'Asia/Seoul',
+    'AEST': 'Australia/Sydney', 'AEDT': 'Australia/Sydney',
+    'ACST': 'Australia/Adelaide', 'ACDT': 'Australia/Adelaide',
+    'AWST': 'Australia/Perth'
 };
 
-async function fetchCryptoRates() {
-    const now = Date.now();
-    if (cryptoRates.lastUpdated && now - cryptoRates.lastUpdated < 5 * 60 * 1000) { // 5-minute cache
-        return;
-    }
-
-    const coinIds = Object.values(cryptoCurrencies).join(',');
-    let vsCurrency = preferredCryptoCurrency ? preferredCryptoCurrency.toLowerCase() : 'usd';
-    let fetchVs = vsCurrency;
-    if (vsCurrency === 'bgn') fetchVs = 'eur'; // Fetch EUR if BGN is selected
-    try {
-        const response = await fetch(`https://api.coingecko.com/api/v3/simple/price?ids=${coinIds}&vs_currencies=${fetchVs}`);
-        if (!response.ok) {
-            throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-        }
-        const data = await response.json();
-        if (!data) {
-            throw new Error('Invalid response format from CoinGecko API');
-        }
-
-        cryptoRates.prices = data;
-        cryptoRates.lastUpdated = now;
-        cryptoRatesError = null; // Clear error on success
-
-        // Add to unitConversions
-        for (const [symbol, id] of Object.entries(cryptoCurrencies)) {
-            if (cryptoRates.prices[id] && cryptoRates.prices[id][fetchVs]) {
-                let convertFn;
-                let toLabel = preferredCryptoCurrency;
-                if (vsCurrency === 'bgn' && exchangeRates.rates && exchangeRates.rates['EUR']) {
-                    // Convert EUR price to BGN
-                    convertFn = (val) => val * cryptoRates.prices[id]['eur'] * exchangeRates.rates['EUR'];
-                    toLabel = 'BGN';
-                } else {
-                    convertFn = (val) => val * cryptoRates.prices[id][fetchVs];
-                }
-                unitConversions[symbol] = {
-                    to: toLabel,
-                    convert: convertFn
-                };
-            }
-        }
-
-        localStorage.setItem('cryptoRates', JSON.stringify(cryptoRates));
-    } catch (error) {
-        cryptoRatesError = 'Could not fetch crypto rates.';
-        const cached = localStorage.getItem('cryptoRates');
-        if (cached) {
-            const parsed = JSON.parse(cached);
-            if (parsed && parsed.prices) {
-                cryptoRates = parsed;
-            }
-        }
-    }
-}
-
-
-// --- Rate limiting for API calls ---
-let apiCallAttempts = 0;
-const MAX_API_ATTEMPTS = 3;
-const BASE_RETRY_DELAY = 1000; // 1 second
-
-// Currency symbols mapping
-const currencySymbols = {
-    'EUR': '€',
-    'USD': '$',
-    'GBP': '£',
-    'JPY': '¥',
-    'CNY': '¥',
-    'INR': '₹',
-    'RUB': '₽',
-    'KRW': '₩',
-    'TRY': '₺',
-    'BRL': 'R$',
-    'ZAR': 'R',
-    'MXN': '$',
-    'SGD': 'S$',
-    'HKD': 'HK$',
-    'NZD': 'NZ$',
-    'SEK': 'kr',
-    'NOK': 'kr',
-    'DKK': 'kr',
-    'PLN': 'zł',
-    'CHF': 'Fr',
-    'CAD': 'C$',
-    'AUD': 'A$',
-    'ILS': '₪',
-    'RON': 'lei',
-    'HUF': 'Ft',
-    'CZK': 'Kč',
-    'PHP': '₱',
-    'THB': '฿',
-    'IDR': 'Rp',
-    'MYR': 'RM',
-    'BGN': 'лв'
+// --- Currency Names to ISO Codes Mapping ---
+const CURRENCY_NAMES = {
+    'dollar': 'USD', 'dollars': 'USD',
+    'euro': 'EUR', 'euros': 'EUR',
+    'pound': 'GBP', 'pounds': 'GBP',
+    'yen': 'JPY',
+    'won': 'KRW',
+    'yuan': 'CNY',
+    'ruble': 'RUB', 'rubles': 'RUB',
+    'rupee': 'INR', 'rupees': 'INR',
+    'franc': 'CHF', 'francs': 'CHF',
+    'lira': 'TRY', 'liras': 'TRY',
+    'peso': 'MXN', 'pesos': 'MXN', // Defaulting to Mexican Peso for generic 'peso'
+    'zloty': 'PLN', 'zlotys': 'PLN',
+    'kroner': 'NOK', // Generic, could be SEK/DKK too but often used for one of them
+    'krone': 'NOK',
+    'shekel': 'ILS', 'shekels': 'ILS',
+    'rand': 'ZAR',
+    'real': 'BRL', 'reais': 'BRL',
+    'lev': 'BGN', 'leva': 'BGN'
 };
 
-// --- Unit conversion definitions ---
-const unitConversions = {
+// --- Unit Conversion Definitions ---
+const UNIT_CONVERSIONS = {
     // Weight
     'lb': { to: 'kg', factor: 0.45359237 },
     'lbs': { to: 'kg', factor: 0.45359237 },
@@ -208,14 +179,6 @@ const unitConversions = {
     'g': { to: 'oz', factor: 0.0352739619 },
     'gram': { to: 'oz', factor: 0.0352739619 },
     'grams': { to: 'oz', factor: 0.0352739619 },
-
-    //Currency - will be populated dynamically
-    'EUR': { to: 'BGN', convert: (val) => val * exchangeRates.rates.EUR },
-    '€': { to: 'BGN', convert: (val) => val * exchangeRates.rates.EUR },
-    'USD': { to: 'BGN', convert: (val) => val * exchangeRates.rates.USD },
-    '$': { to: 'BGN', convert: (val) => val * exchangeRates.rates.USD },
-    'GBP': { to: 'BGN', convert: (val) => val * exchangeRates.rates.GBP },
-    '£': { to: 'BGN', convert: (val) => val * exchangeRates.rates.GBP },
 
     // Temperature
     '°F': { to: '°C', convert: (val) => (val - 32) * 5 / 9 },
@@ -331,17 +294,129 @@ const unitConversions = {
     'nautical miles': { to: 'km', factor: 1.852 }
 };
 
+// ===== GLOBAL STATE VARIABLES =====
+
+// --- Global variable to store the currently selected text ---
+let currentSelectedText = '';
+let isUrlSelected = false;
+let convertedValue = null;
+let exchangeRatesError = null;
+let cryptoRatesError = null;
+
+// --- Preferred currency (default to BGN) ---
+let preferredCurrency = 'BGN';
+let preferredCryptoCurrency = 'USD';
+let preferredSearchEngine = 'google';
+
+// --- Currency exchange rates cache ---
+let exchangeRates = {
+    // Store as Unix epoch (ms) to survive JSON serialisation
+    lastUpdated: 0,
+    rates: {
+        // Default rates will be populated from API
+        EUR: 1.95583, // Default EUR to BGN rate
+        USD: 1.8,     // Default USD to BGN rate
+        GBP: 2.3      // Default GBP to BGN rate
+    }
+};
+
+let cryptoRates = {
+    lastUpdated: 0,
+    prices: {} // e.g., { bitcoin: { usd: 50000 } }
+};
+
+// Fetch all preferences from chrome.storage.sync
+if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.sync) {
+    chrome.storage.sync.get(['preferredCurrency', 'preferredCryptoCurrency', 'preferredSearchEngine'], (result) => {
+        if (result.preferredCurrency) {
+            preferredCurrency = result.preferredCurrency;
+        }
+        if (result.preferredCryptoCurrency) {
+            preferredCryptoCurrency = result.preferredCryptoCurrency;
+        }
+        if (result.preferredSearchEngine) {
+            preferredSearchEngine = result.preferredSearchEngine;
+        }
+        // Fetch rates once on startup for caching
+        fetchExchangeRates();
+        fetchCryptoRates();
+    });
+} else {
+    fetchExchangeRates();
+    fetchCryptoRates();
+}
+
+async function fetchCryptoRates() {
+    const now = Date.now();
+    if (cryptoRates.lastUpdated && now - cryptoRates.lastUpdated < CONFIG.CRYPTO_CACHE_DURATION) {
+        return;
+    }
+
+    const coinIds = Object.values(CRYPTO_CURRENCIES).join(',');
+    let vsCurrency = preferredCryptoCurrency ? preferredCryptoCurrency.toLowerCase() : 'usd';
+    let fetchVs = vsCurrency;
+    if (vsCurrency === 'bgn') fetchVs = 'eur'; // Fetch EUR if BGN is selected
+    try {
+        const response = await fetch(`https://api.coingecko.com/api/v3/simple/price?ids=${coinIds}&vs_currencies=${fetchVs}`);
+        if (!response.ok) {
+            throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+        }
+        const data = await response.json();
+        if (!data) {
+            throw new Error('Invalid response format from CoinGecko API');
+        }
+
+        cryptoRates.prices = data;
+        cryptoRates.lastUpdated = now;
+        cryptoRatesError = null; // Clear error on success
+
+        // Add to UNIT_CONVERSIONS
+        for (const [symbol, id] of Object.entries(CRYPTO_CURRENCIES)) {
+            if (cryptoRates.prices[id] && cryptoRates.prices[id][fetchVs]) {
+                let convertFn;
+                let toLabel = preferredCryptoCurrency;
+                if (vsCurrency === 'bgn' && exchangeRates.rates && exchangeRates.rates['EUR']) {
+                    // Convert EUR price to BGN
+                    convertFn = (val) => val * cryptoRates.prices[id]['eur'] * exchangeRates.rates['EUR'];
+                    toLabel = 'BGN';
+                } else {
+                    convertFn = (val) => val * cryptoRates.prices[id][fetchVs];
+                }
+                UNIT_CONVERSIONS[symbol] = {
+                    to: toLabel,
+                    convert: convertFn
+                };
+            }
+        }
+
+        localStorage.setItem('cryptoRates', JSON.stringify(cryptoRates));
+    } catch (error) {
+        cryptoRatesError = 'Could not fetch crypto rates.';
+        const cached = localStorage.getItem('cryptoRates');
+        if (cached) {
+            const parsed = JSON.parse(cached);
+            if (parsed && parsed.prices) {
+                cryptoRates = parsed;
+            }
+        }
+    }
+}
+
+
+// --- Rate limiting for API calls ---
+let apiCallAttempts = 0;
+
 // --- Helper function to fetch exchange rates ---
 async function fetchExchangeRates() {
     // Check if we need to update rates (once per day)
     const now = Date.now();
     if (exchangeRates.lastUpdated &&
-        now - exchangeRates.lastUpdated < 24 * 60 * 60 * 1000) {
+        now - exchangeRates.lastUpdated < CONFIG.CACHE_DURATION) {
         return; // Use cached rates if less than 24 hours old
     }
 
     // Rate limiting check
-    if (apiCallAttempts >= MAX_API_ATTEMPTS) {
+    if (apiCallAttempts >= CONFIG.MAX_API_ATTEMPTS) {
         exchangeRatesError = 'Could not fetch latest rates. Please try again later.';
         return;
     }
@@ -368,28 +443,6 @@ async function fetchExchangeRates() {
         exchangeRates.rates = {};
         const target = preferredCurrency || 'BGN';
 
-        // Map common currency names to ISO codes
-        const currencyNames = {
-            'dollar': 'USD', 'dollars': 'USD',
-            'euro': 'EUR', 'euros': 'EUR',
-            'pound': 'GBP', 'pounds': 'GBP',
-            'yen': 'JPY',
-            'won': 'KRW',
-            'yuan': 'CNY',
-            'ruble': 'RUB', 'rubles': 'RUB',
-            'rupee': 'INR', 'rupees': 'INR',
-            'franc': 'CHF', 'francs': 'CHF',
-            'lira': 'TRY', 'liras': 'TRY',
-            'peso': 'MXN', 'pesos': 'MXN', // Defaulting to Mexican Peso for generic 'peso', could be ambiguous
-            'zloty': 'PLN', 'zlotys': 'PLN',
-            'kroner': 'NOK', // Generic, could be SEK/DKK too but often used for one of them
-            'krone': 'NOK',
-            'shekel': 'ILS', 'shekels': 'ILS',
-            'rand': 'ZAR',
-            'real': 'BRL', 'reais': 'BRL',
-            'lev': 'BGN', 'leva': 'BGN'
-        };
-
         for (const [currency, rate] of Object.entries(data.rates)) {
             if (typeof rate !== 'number' || isNaN(rate)) {
                 continue;
@@ -400,15 +453,15 @@ async function fetchExchangeRates() {
             } else {
                 exchangeRates.rates[currency] = 1; // Correct: base currency rate is always 1
             }
-            // Add currency conversion to unitConversions
+            // Add currency conversion to UNIT_CONVERSIONS
             if (currency !== target) {
-                unitConversions[currency] = {
+                UNIT_CONVERSIONS[currency] = {
                     to: target,
                     convert: (val) => val * exchangeRates.rates[currency]
                 };
                 // Add symbol conversion if available
-                if (currencySymbols[currency]) {
-                    unitConversions[currencySymbols[currency]] = {
+                if (CURRENCY_SYMBOLS[currency]) {
+                    UNIT_CONVERSIONS[CURRENCY_SYMBOLS[currency]] = {
                         to: target,
                         convert: (val) => val * exchangeRates.rates[currency]
                     };
@@ -416,10 +469,10 @@ async function fetchExchangeRates() {
             }
         }
 
-        // Add currency names to unitConversions
-        for (const [name, code] of Object.entries(currencyNames)) {
+        // Add currency names to UNIT_CONVERSIONS
+        for (const [name, code] of Object.entries(CURRENCY_NAMES)) {
             if (exchangeRates.rates[code] && code !== target) {
-                unitConversions[name] = {
+                UNIT_CONVERSIONS[name] = {
                     to: target,
                     convert: (val) => val * exchangeRates.rates[code]
                 };
@@ -433,8 +486,8 @@ async function fetchExchangeRates() {
         }
     } catch (error) {
         // Exponential backoff for retries
-        if (apiCallAttempts < MAX_API_ATTEMPTS) {
-            const retryDelay = BASE_RETRY_DELAY * Math.pow(2, apiCallAttempts - 1);
+        if (apiCallAttempts < CONFIG.MAX_API_ATTEMPTS) {
+            const retryDelay = CONFIG.BASE_RETRY_DELAY * Math.pow(2, apiCallAttempts - 1);
             setTimeout(() => fetchExchangeRates(), retryDelay);
             return; // Exit early to prevent fallback execution during retry attempts
         }
@@ -493,26 +546,8 @@ async function fetchExchangeRates() {
 
 // --- Improved Time Zone Conversion ---
 function convertTimeZone(text, userTimeZone = Intl.DateTimeFormat().resolvedOptions().timeZone) {
-    // Enhanced time zone mappings with more comprehensive coverage
-    const tzAbbrs = {
-        'PST': 'America/Los_Angeles', 'PDT': 'America/Los_Angeles', 'PT': 'America/Los_Angeles',
-        'MST': 'America/Denver', 'MDT': 'America/Denver', 'MT': 'America/Denver',
-        'CST': 'America/Chicago', 'CDT': 'America/Chicago', 'CT': 'America/Chicago',
-        'EST': 'America/New_York', 'EDT': 'America/New_York', 'ET': 'America/New_York',
-        'AKST': 'America/Anchorage', 'AKDT': 'America/Anchorage',
-        'HST': 'Pacific/Honolulu',
-        'GMT': 'Etc/GMT', 'UTC': 'Etc/UTC',
-        'CET': 'Europe/Berlin', 'CEST': 'Europe/Berlin',
-        'EET': 'Europe/Helsinki', 'EEST': 'Europe/Helsinki',
-        'BST': 'Europe/London', 'IST': 'Asia/Kolkata',
-        'JST': 'Asia/Tokyo', 'KST': 'Asia/Seoul',
-        'AEST': 'Australia/Sydney', 'AEDT': 'Australia/Sydney',
-        'ACST': 'Australia/Adelaide', 'ACDT': 'Australia/Adelaide',
-        'AWST': 'Australia/Perth',
-    };
     // 12-hour: 5 PM PST, 11:30 am CET, 10:00pm PT; 24-hour: 14:00 EST
-    const timeZonePattern = /^(\d{1,2})(?::(\d{2}))?\s*(AM|PM|am|pm)?\s*([A-Z]{2,5})$/i;
-    const matchTZ = text.trim().match(timeZonePattern);
+    const matchTZ = text.trim().match(REGEX_PATTERNS.timeZone);
     if (!matchTZ) return null;
     let hour = parseInt(matchTZ[1], 10);
     let minute = matchTZ[2] ? parseInt(matchTZ[2], 10) : 0;
@@ -523,14 +558,14 @@ function convertTimeZone(text, userTimeZone = Intl.DateTimeFormat().resolvedOpti
         if (ampm === 'PM' && hour < 12) hour += 12;
         if (ampm === 'AM' && hour === 12) hour = 0;
     }
-    if (!tzAbbrs[tz]) return null;
+    if (!TIME_ZONE_ABBRS[tz]) return null;
     try {
         // Use today's date for conversion
         const now = new Date();
         // Build a date string in the source time zone
         const dateStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}T${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}:00`;
         // Get the source time zone IANA name
-        const srcTimeZone = tzAbbrs[tz];
+        const srcTimeZone = TIME_ZONE_ABBRS[tz];
         // Convert to UTC from the source time zone
         const srcDate = new Date(new Date(dateStr + getTimeZoneOffsetString(srcTimeZone, dateStr)).toISOString());
         // Format in user's local time zone
@@ -580,9 +615,9 @@ function getTimeZoneOffsetString(timeZone, dateStr) {
 async function detectAndConvertUnit(text) {
     // First, check for crypto
     const upperCaseText = text.toUpperCase();
-    if (cryptoCurrencies[upperCaseText]) {
+    if (CRYPTO_CURRENCIES[upperCaseText]) {
         await fetchCryptoRates();
-        const id = cryptoCurrencies[upperCaseText];
+        const id = CRYPTO_CURRENCIES[upperCaseText];
         let vsCurrency = preferredCryptoCurrency ? preferredCryptoCurrency.toLowerCase() : 'usd';
         let price = null;
         if (vsCurrency === 'bgn' && cryptoRates.prices[id] && cryptoRates.prices[id]['eur'] && exchangeRates.rates && exchangeRates.rates['EUR']) {
@@ -608,13 +643,8 @@ async function detectAndConvertUnit(text) {
     // Allow both comma, period, and space as decimal/thousands separators
     // Allow trailing punctuation like periods, commas, etc.
     // Expanded currency symbols to include ₺, ₽, ₹, ₩, ₪, ₱, ฿, ₣, ₦, ₲, ₵, ₡, ₫, ₭, ₮, ₯, ₠, ₢, ₳, ₴, ₸, ₼, ₾, ₿, and others
-    const currencySymbolPattern = '[a-zA-Z°/€$£¥₺₽₹₩₪₱฿₣₦₲₵₡₫₭₮₯₠₢₳₴₸₼₾₿]';
-    // Updated pattern to better handle multi-word units like "inch", "foot", etc.
-    const valueUnitPattern = new RegExp(`^(-?\\d{1,3}(?:[.,\\s]\\d{3})*(?:[.,]\\d+)?|\\d+/\\d+)\\s*(${currencySymbolPattern}+|[a-zA-Z]+(?:\\s+[a-zA-Z]+)*)[.,;:!?]*$`, 'i');
-    const unitValuePattern = new RegExp(`^(${currencySymbolPattern}+|[a-zA-Z]+(?:\\s+[a-zA-Z]+)*)\\s*(-?\\d{1,3}(?:[.,\\s]\\d{3})*(?:[.,]\\d+)?|\\d+/\\d+)[.,;:!?]*$`, 'i');
-
-    const valueUnitMatch = text.trim().match(valueUnitPattern);
-    const unitValueMatch = text.trim().match(unitValuePattern);
+    const valueUnitMatch = text.trim().match(REGEX_PATTERNS.valueUnit);
+    const unitValueMatch = text.trim().match(REGEX_PATTERNS.unitValue);
 
     if (!valueUnitMatch && !unitValueMatch) return null;
 
@@ -659,7 +689,7 @@ async function detectAndConvertUnit(text) {
         normUnit = 'l/100km';
     } else if (normUnit === 'mpg') {
         normUnit = 'mpg';
-    } for (const [key, conversion] of Object.entries(unitConversions)) {
+    } for (const [key, conversion] of Object.entries(UNIT_CONVERSIONS)) {
         let normKey = key.toLowerCase().replace(/\s+/g, '');
         if (normKey === normUnit) {
             let converted;
@@ -669,7 +699,7 @@ async function detectAndConvertUnit(text) {
                 converted = value * conversion.factor;
             }
             // Round to 2 decimal places for currency, 4 for other units
-            const decimals = key.match(/[€$£]/) || cryptoCurrencies[key.toUpperCase()] ? 2 : 4;
+            const decimals = key.match(/[€$£]/) || CRYPTO_CURRENCIES[key.toUpperCase()] ? 2 : 4;
             converted = Math.round(converted * Math.pow(10, decimals)) / Math.pow(10, decimals);
             return {
                 original: `${value} ${key}`,
@@ -933,7 +963,7 @@ function isEffectivelyTransparent(colorString) {
     if (!colorString) return true;
     const lowerColorString = colorString.toLowerCase();
     if (lowerColorString === 'transparent') return true;
-    const match = lowerColorString.match(/rgba\((\d+),\s*(\d+),\s*(\d+),\s*([\d.]+)\)/);
+    const match = lowerColorString.match(REGEX_PATTERNS.rgba);
     if (match) {
         const alpha = parseFloat(match[4]);
         return alpha <= 0.05;
@@ -973,7 +1003,7 @@ function isColorDark(colorString) {
     let r, g, b;
     const lowerColorString = colorString.toLowerCase();
     if (lowerColorString.startsWith('rgb')) {
-        const match = lowerColorString.match(/rgba?\((\d+),\s*(\d+),\s*(\d+)(?:,\s*[\d.]+)?\)/);
+        const match = lowerColorString.match(REGEX_PATTERNS.rgb);
         if (!match) return false;
         [r, g, b] = [parseInt(match[1]), parseInt(match[2]), parseInt(match[3])];
     } else if (lowerColorString.startsWith('#')) {
@@ -1014,10 +1044,7 @@ function applyThemeAndArrow(isPageDark, isPopupBelowSelection) {
 
 // --- Helper function to detect URLs in text ---
 function detectUrl(text) {
-    // More comprehensive URL pattern
-    const urlPattern = /^(https?:\/\/)?(([a-zA-Z0-9]([a-zA-Z0-9-]*[a-zA-Z0-9])?\.)+[a-zA-Z0-9]([a-zA-Z0-9-]*[a-zA-Z0-9])?)(\/[^\s]*)?$/;
-
-    return urlPattern.test(text);
+    return REGEX_PATTERNS.url.test(text);
 }
 
 // --- Helper function to format URL ---
@@ -1120,7 +1147,7 @@ async function showAndPositionPopup(rect, selectionContextElement) {
     } else {
         // Only show error if selection looks like a currency/crypto value
         const upperCaseText = currentSelectedText.toUpperCase();
-        const isCrypto = cryptoCurrencies[upperCaseText];
+        const isCrypto = CRYPTO_CURRENCIES[upperCaseText];
         const currencyRegex = /[€$£¥₺₽₹₩₪₱฿₣₦₲₵₡₫₭₮₯₠₢₳₴₸₼₾₿]|[A-Z]{3}/;
         if ((isCrypto && cryptoRatesError) || (currencyRegex.test(currentSelectedText) && exchangeRatesError)) {
             errorContainer.textContent = exchangeRatesError || cryptoRatesError;
@@ -1140,8 +1167,8 @@ async function showAndPositionPopup(rect, selectionContextElement) {
 
     const popupHeight = popup.offsetHeight;
     const popupWidth = popup.offsetWidth;
-    const margin = 10; // Margin from viewport edges
-    const arrowGap = 10; // Gap between selection and popup (includes arrow height)
+    const margin = CONFIG.POPUP_MARGIN; // Margin from viewport edges
+    const arrowGap = CONFIG.ARROW_GAP; // Gap between selection and popup (includes arrow height)
 
     const viewportWidth = window.innerWidth;
     const viewportHeight = window.innerHeight;
@@ -1195,7 +1222,6 @@ async function showAndPositionPopup(rect, selectionContextElement) {
 
 // --- Function to hide the popup with fade-out ---
 let hidePopupTimeout;
-const HIDE_DELAY = 3000; // 3 seconds delay before hiding popup
 function hidePopup() {
     popup.style.opacity = '0';
     shadowHost.style.pointerEvents = 'none'; // Disable pointer events when hiding
@@ -1203,7 +1229,7 @@ function hidePopup() {
     hidePopupTimeout = setTimeout(() => {
         popup.style.display = 'none';
         popup.classList.remove('arrow-top', 'arrow-bottom');
-    }, 200);
+    }, CONFIG.FADE_TRANSITION_DURATION);
 }
 
 // --- Global Event Listeners ---
@@ -1222,8 +1248,8 @@ document.addEventListener('mouseup', function (e) {
 
     // Validate selection length
     if (selectedTextTrimmed &&
-        selectedTextTrimmed.length >= MIN_SELECTION_LENGTH &&
-        selectedTextTrimmed.length <= MAX_SELECTION_LENGTH) {
+        selectedTextTrimmed.length >= CONFIG.MIN_SELECTION_LENGTH &&
+        selectedTextTrimmed.length <= CONFIG.MAX_SELECTION_LENGTH) {
         currentSelectedText = selectedTextTrimmed;
         try {
             range = selection.getRangeAt(0);
@@ -1240,7 +1266,7 @@ document.addEventListener('mouseup', function (e) {
                 // Start the hide timer
                 hidePopupTimeout = setTimeout(() => {
                     hidePopup();
-                }, HIDE_DELAY);
+                }, CONFIG.HIDE_DELAY);
             }, 100);
         } else {
             hidePopup();
