@@ -19,34 +19,59 @@ const CONFIG = {
 
 // --- Pre-compiled Regex Patterns ---
 const REGEX_PATTERNS = {
-    // URL detection pattern
+    // URL detection pattern - Pre-compiled for performance
     url: /^(https?:\/\/)?(([a-zA-Z0-9]([a-zA-Z0-9-]*[a-zA-Z0-9])?\.)+[a-zA-Z0-9]([a-zA-Z0-9-]*[a-zA-Z0-9])?)(\/[^\s]*)?$/,
     
-    // Time zone pattern for conversion
+    // Time zone pattern for conversion - Pre-compiled for performance
     timeZone: /^(\d{1,2})(?::(\d{2}))?\s*(AM|PM|am|pm)?\s*([A-Z]{2,5})$/i,
     
-    // Currency symbol pattern for unit detection
+    // Currency symbol pattern for unit detection - Pre-compiled for performance
     currencySymbol: '[a-zA-Z°/€$£¥₺₽₹₩₪₱฿₣₦₲₵₡₫₭₮₯₠₢₳₴₸₼₾₿]',
     
-    // Value-unit pattern (number followed by unit)
-    valueUnit: null, // Will be constructed dynamically
+    // Value-unit pattern (number followed by unit) - Will be constructed once
+    valueUnit: null,
     
-    // Unit-value pattern (unit followed by number)
-    unitValue: null, // Will be constructed dynamically
+    // Unit-value pattern (unit followed by number) - Will be constructed once
+    unitValue: null,
     
-    // RGBA color pattern for transparency detection
+    // RGBA color pattern for transparency detection - Pre-compiled for performance
     rgba: /rgba\((\d+),\s*(\d+),\s*(\d+),\s*([\d.]+)\)/,
     
-    // RGB color pattern for color parsing
+    // RGB color pattern for color parsing - Pre-compiled for performance
     rgb: /rgba?\((\d+),\s*(\d+),\s*(\d+)(?:,\s*[\d.]+)?\)/,
     
-    // Hex color pattern
-    hex: /^#([a-f0-9]{3}|[a-f0-9]{6})$/i
+    // Hex color pattern - Pre-compiled for performance
+    hex: /^#([a-f0-9]{3}|[a-f0-9]{6})$/i,
+    
+    // Number parsing patterns - Pre-compiled for performance
+    thousandsSeparator: /[.\,\s](?=\d{3}(\D|$))/g,
+    decimalComma: /,/g,
+    fraction: /^(\d+)\/(\d+)$/,
+    
+    // Common unit patterns - Pre-compiled for performance
+    temperatureUnit: /^(\d+(?:\.\d+)?)\s*°\s*$/,
+    
+    /**
+     * Initialize dynamic regex patterns that depend on currency symbols
+     * This is called once during initialization for optimal performance
+     */
+    initDynamicPatterns() {
+        // Construct value-unit pattern (number followed by unit)
+        this.valueUnit = new RegExp(
+            `^(-?\\d{1,3}(?:[.,\\s]\\d{3})*(?:[.,]\\d+)?|\\d+/\\d+)\\s*(${this.currencySymbol}+|[a-zA-Z]+(?:\\s+[a-zA-Z]+)*)[.,;:!?]*$`,
+            'i'
+        );
+        
+        // Construct unit-value pattern (unit followed by number)
+        this.unitValue = new RegExp(
+            `^(${this.currencySymbol}+|[a-zA-Z]+(?:\\s+[a-zA-Z]+)*)\\s*(-?\\d{1,3}(?:[.,\\s]\\d{3})*(?:[.,]\\d+)?|\\d+/\\d+)[.,;:!?]*$`,
+            'i'
+        );
+    }
 };
 
 // Construct dynamic regex patterns
-REGEX_PATTERNS.valueUnit = new RegExp(`^(-?\\d{1,3}(?:[.,\\s]\\d{3})*(?:[.,]\\d+)?|\\d+/\\d+)\\s*(${REGEX_PATTERNS.currencySymbol}+|[a-zA-Z]+(?:\\s+[a-zA-Z]+)*)[.,;:!?]*$`, 'i');
-REGEX_PATTERNS.unitValue = new RegExp(`^(${REGEX_PATTERNS.currencySymbol}+|[a-zA-Z]+(?:\\s+[a-zA-Z]+)*)\\s*(-?\\d{1,3}(?:[.,\\s]\\d{3})*(?:[.,]\\d+)?|\\d+/\\d+)[.,;:!?]*$`, 'i');
+REGEX_PATTERNS.initDynamicPatterns();
 
 // --- Currency Symbols Mapping ---
 const CURRENCY_SYMBOLS = {
@@ -292,6 +317,62 @@ const UNIT_CONVERSIONS = {
     'nmi': { to: 'km', factor: 1.852 },
     'nautical mile': { to: 'km', factor: 1.852 },
     'nautical miles': { to: 'km', factor: 1.852 }
+};
+
+// ===== DOM CACHE SYSTEM =====
+
+// --- DOM Caching System for Performance Optimization ---
+const DOMCache = {
+    // Cached DOM elements
+    searchButton: null,
+    copyButton: null,
+    conversionContainer: null,
+    errorContainer: null,
+    convertedValueSpan: null,
+    copyConvertedButton: null,
+    buttonContainer: null,
+    
+    /**
+     * Initialize DOM cache by storing references to frequently accessed elements
+     */
+    init() {
+        // Cache main popup elements
+        this.searchButton = shadowRoot.getElementById('extensionSearchButton');
+        this.copyButton = shadowRoot.getElementById('extensionCopyButton');
+        this.conversionContainer = shadowRoot.getElementById('conversionContainer');
+        this.errorContainer = shadowRoot.getElementById('errorContainer');
+        
+        // Cache nested elements
+        if (this.conversionContainer) {
+            this.convertedValueSpan = this.conversionContainer.querySelector('.converted-value');
+            this.copyConvertedButton = this.conversionContainer.querySelector('.copy-button');
+        }
+        
+        // Cache button container
+        this.buttonContainer = shadowRoot.querySelector('[style*="display: flex"]');
+    },
+    
+    /**
+     * Get cached element or fallback to DOM query
+     * @param {string} elementKey - Key for the cached element
+     * @returns {Element|null} - The cached element or null
+     */
+    get(elementKey) {
+        return this[elementKey] || null;
+    },
+    
+    /**
+     * Clear cache (useful for cleanup or re-initialization)
+     */
+    clear() {
+        this.searchButton = null;
+        this.copyButton = null;
+        this.conversionContainer = null;
+        this.errorContainer = null;
+        this.convertedValueSpan = null;
+        this.copyConvertedButton = null;
+        this.buttonContainer = null;
+    }
 };
 
 // ===== PERFORMANCE UTILITIES =====
@@ -827,23 +908,31 @@ async function detectAndConvertUnit(text) {
         return null;
     }
 
-    // Handle fractions
+    // Handle fractions using pre-compiled pattern
     if (value.includes('/')) {
-        const [numerator, denominator] = value.split('/');
-        value = parseFloat(numerator.replace(',', '.').replace(/\s/g, '')) / parseFloat(denominator.replace(',', '.').replace(/\s/g, ''));
+        const fractionMatch = value.match(REGEX_PATTERNS.fraction);
+        if (fractionMatch) {
+            const numerator = parseFloat(fractionMatch[1].replace(REGEX_PATTERNS.decimalComma, '.').replace(/\s/g, ''));
+            const denominator = parseFloat(fractionMatch[2].replace(REGEX_PATTERNS.decimalComma, '.').replace(/\s/g, ''));
+            value = numerator / denominator;
+        } else {
+            return null; // Invalid fraction format
+        }
     } else {
-        // Normalize value: remove thousands separators (dot, comma, space), replace decimal comma with period
-        value = value.replace(/[.\,\s](?=\d{3}(\D|$))/g, ''); // Remove thousands sep (dot, comma, space)
-        value = value.replace(',', '.'); // Replace decimal comma with period
+        // Normalize value using pre-compiled patterns for better performance
+        value = value.replace(REGEX_PATTERNS.thousandsSeparator, ''); // Remove thousands separators
+        value = value.replace(REGEX_PATTERNS.decimalComma, '.'); // Replace decimal comma with period
         value = parseFloat(value);
     }
 
-    // Special case for temperature without F suffix
-    if (unit === '°') {
+    // Special case for temperature without F suffix using pre-compiled pattern
+    const tempMatch = text.trim().match(REGEX_PATTERNS.temperatureUnit);
+    if (unit === '°' || tempMatch) {
+        const tempValue = tempMatch ? parseFloat(tempMatch[1]) : value;
         return {
-            original: `${value}°`,
-            converted: `${((value - 32) * 5 / 9).toFixed(1)}°C`,
-            value: (value - 32) * 5 / 9
+            original: `${tempValue}°`,
+            converted: `${((tempValue - 32) * 5 / 9).toFixed(1)}°C`,
+            value: (tempValue - 32) * 5 / 9
         };
     }
 
@@ -1124,7 +1213,7 @@ async function handleClipboardFallback(textToCopy) {
     }
 }
 
-// --- Theme and Background Detection Helpers (from previous robust version) ---
+// --- Theme and Background Detection Helpers (Optimized with pre-compiled patterns) ---
 function isEffectivelyTransparent(colorString) {
     if (!colorString) return true;
     const lowerColorString = colorString.toLowerCase();
@@ -1173,9 +1262,10 @@ function isColorDark(colorString) {
         if (!match) return false;
         [r, g, b] = [parseInt(match[1]), parseInt(match[2]), parseInt(match[3])];
     } else if (lowerColorString.startsWith('#')) {
-        let hex = lowerColorString.slice(1);
+        const hexMatch = lowerColorString.match(REGEX_PATTERNS.hex);
+        if (!hexMatch) return false;
+        let hex = hexMatch[1];
         if (hex.length === 3) hex = hex.split('').map(char => char + char).join('');
-        if (hex.length !== 6) return false;
         [r, g, b] = [parseInt(hex.substring(0, 2), 16), parseInt(hex.substring(2, 4), 16), parseInt(hex.substring(4, 6), 16)];
     } else {
         const tempElem = document.createElement('div');
@@ -1184,7 +1274,7 @@ function isColorDark(colorString) {
         const computedColor = window.getComputedStyle(tempElem).color;
         document.body.removeChild(tempElem);
         if (!computedColor.startsWith('rgb')) return false;
-        const match = computedColor.match(/rgb\((\d+),\s*(\d+),\s*(\d+)\)/);
+        const match = computedColor.match(REGEX_PATTERNS.rgb);
         if (!match) return false;
         [r, g, b] = [parseInt(match[1]), parseInt(match[2]), parseInt(match[3])];
     }
@@ -1245,11 +1335,12 @@ function getSearchUrl(query) {
 
 // --- Initialize button event listeners (called once on script load) ---
 function initPopupButtons() {
-    const searchButton = shadowRoot.getElementById('extensionSearchButton');
-    const copyButton = shadowRoot.getElementById('extensionCopyButton');
-    const conversionContainer = shadowRoot.getElementById('conversionContainer');
-    const convertedValueSpan = conversionContainer.querySelector('.converted-value');
-    const copyConvertedButton = conversionContainer.querySelector('.copy-button');
+    // Use cached DOM elements for better performance
+    const searchButton = DOMCache.get('searchButton');
+    const copyButton = DOMCache.get('copyButton');
+    const conversionContainer = DOMCache.get('conversionContainer');
+    const convertedValueSpan = DOMCache.get('convertedValueSpan');
+    const copyConvertedButton = DOMCache.get('copyConvertedButton');
 
     if (searchButton) {
         searchButton.addEventListener('click', () => {
@@ -1300,32 +1391,35 @@ async function showAndPositionPopup(rect, selectionContextElement) {
     popup.style.opacity = '0';
     popup.style.display = 'block';
 
-    const errorContainer = shadowRoot.getElementById('errorContainer');
-    const conversionContainer = shadowRoot.getElementById('conversionContainer');
-    const convertedValueSpan = conversionContainer.querySelector('.converted-value');
+    // Use cached DOM elements for better performance
+    const errorContainer = DOMCache.get('errorContainer');
+    const conversionContainer = DOMCache.get('conversionContainer');
+    const convertedValueSpan = DOMCache.get('convertedValueSpan');
 
     // Check for unit conversion
     convertedValue = await detectAndConvertUnit(currentSelectedText);
     if (convertedValue) {
-        errorContainer.style.display = 'none';
-        conversionContainer.style.display = 'block';
-        convertedValueSpan.textContent = convertedValue.converted;
+        if (errorContainer) errorContainer.style.display = 'none';
+        if (conversionContainer) conversionContainer.style.display = 'block';
+        if (convertedValueSpan) convertedValueSpan.textContent = convertedValue.converted;
     } else {
         // Only show error if selection looks like a currency/crypto value
         const upperCaseText = currentSelectedText.toUpperCase();
         const isCrypto = CRYPTO_CURRENCIES[upperCaseText];
         const currencyRegex = /[€$£¥₺₽₹₩₪₱฿₣₦₲₵₡₫₭₮₯₠₢₳₴₸₼₾₿]|[A-Z]{3}/;
         if ((isCrypto && cryptoRatesError) || (currencyRegex.test(currentSelectedText) && exchangeRatesError)) {
-            errorContainer.textContent = exchangeRatesError || cryptoRatesError;
-            errorContainer.style.display = 'block';
+            if (errorContainer) {
+                errorContainer.textContent = exchangeRatesError || cryptoRatesError;
+                errorContainer.style.display = 'block';
+            }
         } else {
-            errorContainer.style.display = 'none';
+            if (errorContainer) errorContainer.style.display = 'none';
         }
-        conversionContainer.style.display = 'none';
+        if (conversionContainer) conversionContainer.style.display = 'none';
     }
 
-    // Update button text based on URL detection
-    const searchButton = shadowRoot.getElementById('extensionSearchButton');
+    // Update button text based on URL detection using cached element
+    const searchButton = DOMCache.get('searchButton');
     isUrlSelected = detectUrl(currentSelectedText);
     if (searchButton) {
         searchButton.textContent = isUrlSelected ? 'Visit website' : 'Search';
@@ -1399,6 +1493,7 @@ function hidePopup() {
 }
 
 // --- Initialize ---
+DOMCache.init(); // Initialize DOM cache for performance optimization
 initPopupButtons();
 EventManager.init(); // Initialize optimized event management system
 fetchExchangeRates(); // Fetch exchange rates on startup
