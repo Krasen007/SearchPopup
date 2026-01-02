@@ -323,7 +323,12 @@ const unitConversions = {
     'Nm': { to: 'lb ft', factor: 0.737562149 },
     'newtonmeter': { to: 'lb ft', factor: 0.737562149 },
     'newton-meter': { to: 'lb ft', factor: 0.737562149 },
-    'newton metres': { to: 'lb ft', factor: 0.737562149 }
+    'newton metres': { to: 'lb ft', factor: 0.737562149 },
+
+    // Nautical Distance
+    'nmi': { to: 'km', factor: 1.852 },
+    'nautical mile': { to: 'km', factor: 1.852 },
+    'nautical miles': { to: 'km', factor: 1.852 }
 };
 
 // --- Helper function to fetch exchange rates ---
@@ -362,6 +367,29 @@ async function fetchExchangeRates() {
         // Update rates (converting to preferredCurrency)
         exchangeRates.rates = {};
         const target = preferredCurrency || 'BGN';
+
+        // Map common currency names to ISO codes
+        const currencyNames = {
+            'dollar': 'USD', 'dollars': 'USD',
+            'euro': 'EUR', 'euros': 'EUR',
+            'pound': 'GBP', 'pounds': 'GBP',
+            'yen': 'JPY',
+            'won': 'KRW',
+            'yuan': 'CNY',
+            'ruble': 'RUB', 'rubles': 'RUB',
+            'rupee': 'INR', 'rupees': 'INR',
+            'franc': 'CHF', 'francs': 'CHF',
+            'lira': 'TRY', 'liras': 'TRY',
+            'peso': 'MXN', 'pesos': 'MXN', // Defaulting to Mexican Peso for generic 'peso', could be ambiguous
+            'zloty': 'PLN', 'zlotys': 'PLN',
+            'kroner': 'NOK', // Generic, could be SEK/DKK too but often used for one of them
+            'krone': 'NOK',
+            'shekel': 'ILS', 'shekels': 'ILS',
+            'rand': 'ZAR',
+            'real': 'BRL', 'reais': 'BRL',
+            'lev': 'BGN', 'leva': 'BGN'
+        };
+
         for (const [currency, rate] of Object.entries(data.rates)) {
             if (typeof rate !== 'number' || isNaN(rate)) {
                 continue;
@@ -385,6 +413,16 @@ async function fetchExchangeRates() {
                         convert: (val) => val * exchangeRates.rates[currency]
                     };
                 }
+            }
+        }
+
+        // Add currency names to unitConversions
+        for (const [name, code] of Object.entries(currencyNames)) {
+            if (exchangeRates.rates[code] && code !== target) {
+                unitConversions[name] = {
+                    to: target,
+                    convert: (val) => val * exchangeRates.rates[code]
+                };
             }
         }
         exchangeRates.lastUpdated = now;   // store epoch ms
