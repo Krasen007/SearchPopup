@@ -407,19 +407,7 @@ const DOMCache = {
    */
   get(elementKey) {
     const element = this[elementKey];
-    if (element) {
-      MemoryManager.trackOperation("cache-hit");
-
-      // Log cache stats every 10 operations to see performance
-      if (MemoryManager.performanceMetrics.domOperations % 10 === 0) {
-        const stats = MemoryManager.getStats();
-      }
-
-      return element;
-    } else {
-      MemoryManager.trackOperation("cache-miss");
-      return null;
-    }
+    return element || null;
   },
 
   /**
@@ -621,6 +609,7 @@ let isUrlSelected = false;
 let convertedValue = null;
 let exchangeRatesError = null;
 let cryptoRatesError = null;
+let isSelectionComplete = false;
 
 // --- Preferred currency (default to BGN) ---
 let preferredCurrency = "BGN";
@@ -1107,79 +1096,6 @@ shadowHost.style.cssText =
 // Attach shadow root (closed mode prevents external JS from accessing shadow DOM)
 const shadowRoot = shadowHost.attachShadow({ mode: "closed" });
 
-// ===== MEMORY MANAGEMENT SYSTEM =====
-
-// --- Advanced memory management for optimal performance ---
-const MemoryManager = {
-  // Weak references for automatic cleanup
-  elementRefs: new WeakMap(),
-
-  // Performance monitoring
-  performanceMetrics: {
-    domOperations: 0,
-    cacheHits: 0,
-    cacheMisses: 0,
-  },
-
-  /**
-   * Register element for memory tracking
-   * @param {HTMLElement} element - Element to track
-   * @param {string} type - Type of element for categorization
-   */
-  registerElement(element, type) {
-    if (element) {
-      this.elementRefs.set(element, { type, created: Date.now() });
-    }
-  },
-
-  /**
-   * Cleanup unused elements and optimize memory
-   */
-  cleanup() {
-    // Force garbage collection hint (if available)
-    if (window.gc && typeof window.gc === "function") {
-      window.gc();
-    }
-
-    // Clear performance metrics periodically
-    if (this.performanceMetrics.domOperations > 1000) {
-      this.performanceMetrics = {
-        domOperations: 0,
-        cacheHits: 0,
-        cacheMisses: 0,
-      };
-    }
-  },
-
-  /**
-   * Track DOM operation for performance monitoring
-   * @param {string} operation - Type of operation
-   */
-  trackOperation(operation) {
-    this.performanceMetrics.domOperations++;
-    if (operation === "cache-hit") {
-      this.performanceMetrics.cacheHits++;
-    } else if (operation === "cache-miss") {
-      this.performanceMetrics.cacheMisses++;
-    }
-  },
-
-  /**
-   * Get performance statistics
-   * @returns {Object} - Performance metrics
-   */
-  getStats() {
-    return {
-      ...this.performanceMetrics,
-      cacheEfficiency:
-        (this.performanceMetrics.cacheHits /
-          (this.performanceMetrics.cacheHits +
-            this.performanceMetrics.cacheMisses)) *
-        100,
-    };
-  },
-};
-
 // ===== CSS OPTIMIZATION SYSTEM =====
 
 // --- Optimized CSS Generation using array.join() for better performance ---
@@ -1376,7 +1292,6 @@ const DOMOptimizer = {
     // Error container
     const errorContainer = document.createElement("div");
     errorContainer.id = "errorContainer";
-    MemoryManager.registerElement(errorContainer, "error-container");
 
     // Batch style operations to minimize reflows
     Object.assign(errorContainer.style, {
@@ -1390,20 +1305,16 @@ const DOMOptimizer = {
     const conversionContainer = document.createElement("div");
     conversionContainer.id = "conversionContainer";
     conversionContainer.style.display = "none";
-    MemoryManager.registerElement(conversionContainer, "conversion-container");
 
     const conversionResult = document.createElement("div");
     conversionResult.className = "conversion-result";
-    MemoryManager.registerElement(conversionResult, "conversion-result");
 
     const convertedValueSpan = document.createElement("span");
     convertedValueSpan.className = "converted-value";
-    MemoryManager.registerElement(convertedValueSpan, "converted-value");
 
     const copyButton = document.createElement("button");
     copyButton.className = "copy-button";
     copyButton.textContent = "Copy";
-    MemoryManager.registerElement(copyButton, "copy-button");
 
     // Batch append conversion elements
     conversionResult.appendChild(convertedValueSpan);
@@ -1412,7 +1323,6 @@ const DOMOptimizer = {
 
     // Button container
     const buttonContainer = document.createElement("div");
-    MemoryManager.registerElement(buttonContainer, "button-container");
 
     // Batch style operations
     Object.assign(buttonContainer.style, {
@@ -1427,14 +1337,12 @@ const DOMOptimizer = {
     searchButton.id = "extensionSearchButton";
     searchButton.className = "extension-action-button";
     searchButton.textContent = "Search";
-    MemoryManager.registerElement(searchButton, "search-button");
 
     // Copy button
     const copyButton2 = document.createElement("button");
     copyButton2.id = "extensionCopyButton";
     copyButton2.className = "extension-action-button";
     copyButton2.textContent = "Copy";
-    MemoryManager.registerElement(copyButton2, "copy-button-main");
 
     // Batch append buttons
     buttonContainer.appendChild(searchButton);
@@ -1684,18 +1592,18 @@ function initPopupButtons() {
           try {
             const urlObj = new URL(url);
             if (urlObj.protocol === "http:" || urlObj.protocol === "https:") {
-              window.open(url, "_blank");
+              window.open(url, "_blank", "noopener,noreferrer");
             } else {
               const searchUrl = getSearchUrl(currentSelectedText);
-              window.open(searchUrl, "_blank");
+              window.open(searchUrl, "_blank", "noopener,noreferrer");
             }
           } catch (e) {
             const searchUrl = getSearchUrl(currentSelectedText);
-            window.open(searchUrl, "_blank");
+            window.open(searchUrl, "_blank", "noopener,noreferrer");
           }
         } else {
           const searchUrl = getSearchUrl(currentSelectedText);
-          window.open(searchUrl, "_blank");
+          window.open(searchUrl, "_blank", "noopener,noreferrer");
         }
         hidePopup();
       }
@@ -1852,10 +1760,4 @@ EventManager.init(); // Initialize optimized event management system
 fetchExchangeRates(); // Fetch exchange rates on startup
 fetchCryptoRates(); // Fetch crypto rates on startup
 
-// Set up periodic memory cleanup (every 5 minutes)
-setInterval(
-  () => {
-    MemoryManager.cleanup();
-  },
-  5 * 60 * 1000,
-);
+// Memory cleanup handled automatically by browser
