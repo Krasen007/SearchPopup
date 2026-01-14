@@ -494,14 +494,16 @@ const EventManager = {
   createOptimizedHandlers() {
     // Throttle scroll events to maximum 10 times per second (100ms intervals)
     this.throttledScrollHandler = PerformanceUtils.throttle(() => {
-      if (popup.style.opacity === "1") {
+      // Check if popup is visible (display !== "none" and opacity > 0)
+      if (popup.style.display !== "none" && popup.style.opacity !== "0") {
         hidePopup();
       }
     }, 100);
 
     // Debounce resize events to execute once after 250ms of inactivity
     this.debouncedResizeHandler = PerformanceUtils.debounce(() => {
-      if (popup.style.opacity === "1") {
+      // Check if popup is visible (display !== "none" and opacity > 0)
+      if (popup.style.display !== "none" && popup.style.opacity !== "0") {
         hidePopup();
       }
     }, 250);
