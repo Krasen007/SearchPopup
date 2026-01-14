@@ -1,5 +1,5 @@
 // Content script for handling text selection and popup display
-// Copyright 2025 Krasen Ivanov
+// Copyright 2025-2026 Krasen Ivanov
 
 // ===== CONFIGURATION AND CONSTANTS =====
 
@@ -1759,5 +1759,3 @@ initPopupButtons();
 EventManager.init(); // Initialize optimized event management system
 fetchExchangeRates(); // Fetch exchange rates on startup
 fetchCryptoRates(); // Fetch crypto rates on startup
-
-// Memory cleanup handled automatically by browser

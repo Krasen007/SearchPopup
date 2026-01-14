@@ -1,33 +1,37 @@
-# Search Popup Extension for Text Selection
+# Search Popup Extension - Smart Text Selection Assistant
 
-A high-performance browser extension that displays a smart popup menu when you select text on any webpage. Instantly search, copy, or convert selected text — including units and currencies — right from the popup. Features advanced DOM caching, pre-compiled regex patterns, and optimized memory management for lightning-fast performance. The extension adapts its theme to match the page (light/dark) and works on all websites.
+A blazing-fast browser extension that revolutionizes how you interact with text on any webpage. Select any text and instantly get a context-aware popup with smart actions: search, copy, convert units/currencies, visit URLs, and more. Built with cutting-edge performance optimizations including advanced DOM caching, pre-compiled regex patterns, and automatic memory management for zero-lag operation. The extension intelligently adapts its theme (light/dark) to match any website design.
 
 ## Features
 
-- **Contextual Popup:** Appears when you select text on any webpage.
-  - **Search:** Instantly search Google for the selected text or visit a detected website.
-  - **Copy:** Copy the selected text to your clipboard with robust fallback handling.
-  ![Light mode popup](img/light.png)
-  
-- **High-Performance Architecture:**
-  - Advanced DOM caching system
-  - Pre-compiled regex patterns
-  - DocumentFragment batch operations
-  - Automatic memory management with leak prevention
- 
-- **Unit & Currency Conversion:**
-  - Detects and converts common units (kg, lb, mph, km, etc.) and currencies (USD, EUR, GBP, etc.)
-  - Supports both period and comma as decimal separators (e.g., 569,00€ or 569.00€)
+### **Smart Text Actions**
+- **Instant Search:** Select any text and search Google, DuckDuckGo, Bing, or your preferred engine
+- **Quick Copy:** One-click copy to clipboard with intelligent fallback handling
+- **URL Detection:** Automatically detects links and offers to visit them directly
+- **Unit Conversion:** Real-time conversion of weights, temperatures, speeds, distances, and more
+- **Currency & Crypto:** Live exchange rates for 100+ currencies and major cryptocurrencies
+- **Time Zone Conversion:** Convert any time zone to your local time instantly
 
-   ![Dark mode popup](img/unit1.png)
-- **URL Detection:** Recognizes website addresses in your selection and offers to visit them directly.
-- **Time zone conversion:** Converts Time zones to your time.
-- **Adaptive Theming:** Popup automatically switches between light and dark mode based on the underlying page background for optimal readability.
+### **Performance Optimized**
+- **Zero-Lag Operation:** Advanced DOM caching and pre-compiled regex patterns
+- **Memory Efficient:** Automatic cleanup with WeakMap - no memory leaks
+- **Batch DOM Operations:** Uses DocumentFragment for lightning-fast rendering
+- **Smart Caching:** Exchange rates cached daily for instant offline conversions
 
+### **Intelligent Design**
+- **Adaptive Theming:** Automatically switches between light/dark mode based on page background
+- **Smart Positioning:** Popup appears above/below selection with directional arrow
+- **Viewport Aware:** Always stays within screen boundaries
+- **Smooth Animations:** Elegant fade transitions and micro-interactions
+
+### **Privacy & Security**
+- **Local Processing:** All conversions happen locally - no data sent to external servers
+- **Minimal Permissions:** Only requests clipboard write and storage access
+- **Secure Links:** All external links open with `noopener,noreferrer` for security
+
+![Light mode popup](img/light.png)
 ![Dark mode popup](img/dark.png)
-- **Dynamic Positioning:** Popup appears above or below the selection with an arrow, always within the viewport.
-- **Auto-hide on Scroll/Resize:** Disappears smoothly to avoid obstructing content.
-- **Lightweight & Efficient:** Minimal impact on page performance with optimized memory usage.
+![Unit conversion example](img/unit1.png)
 
 ## Supported Conversions
 
@@ -121,11 +125,24 @@ Works on all Chromium-based browsers (Chrome, Vivaldi, Edge, Brave, etc.).
 ---
 
 ## Advanced Features
-- **High-Performance Engine:** DOM caching, pre-compiled regex patterns, and DocumentFragment operations for maximum speed
-- **Memory Management:** Automatic cleanup with WeakMap references and periodic optimization to prevent memory leaks
-- **Clipboard Fallback:** Uses modern Clipboard API with fallback for maximum compatibility
-- **Exchange Rate Caching:** Currency rates are cached and updated daily for fast, offline-friendly conversion
-- **Locale-aware Number Parsing:** Handles both `1,234.56` and `1.234,56` formats
+
+### Performance Engineering
+- **Zero-Lag DOM Operations:** Advanced caching system with pre-compiled regex patterns
+- **Memory Optimization:** Automatic cleanup with WeakMap references - no memory leaks
+- **Batch Rendering:** DocumentFragment operations for lightning-fast UI updates
+- **Smart Throttling:** Event handling optimized to prevent performance bottlenecks
+
+### Security & Privacy
+- **Local Processing:** All conversions happen on your device - no data sent to external servers
+- **Secure External Links:** All `window.open()` calls use `noopener,noreferrer` protection
+- **Minimal Permissions:** Only requests essential permissions (clipboard write, storage)
+- **No Tracking:** No analytics, telemetry, or data collection
+
+### Smart Data Handling
+- **Exchange Rate Caching:** Rates cached daily for instant offline conversions
+- **Locale-Aware Parsing:** Handles both `1,234.56` and `1.234,56` number formats
+- **Robust Clipboard:** Modern Clipboard API with intelligent fallback handling
+- **Error Resilience:** Graceful handling of network failures and API errors
 
 ---
 
