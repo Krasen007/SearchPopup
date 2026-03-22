@@ -1,59 +1,150 @@
+/**
+ * @fileoverview SearchPopup - Smart text selection popup with search, copy, and unit conversion
+ * @author Krasen Ivanov
+ * @version 1.73.5
+ * @license MIT
+ * 
+ * This content script provides intelligent popup functionality when users select text on web pages.
+ * Features include:
+ * - Smart URL detection and search engine integration
+ * - Unit conversion (currency, temperature, weight, distance, etc.)
+ * - Cryptocurrency price conversion
+ * - Time zone conversion
+ * - Clipboard operations with fallback support
+ * - Theme-aware UI that adapts to page styling
+ * - Performance-optimized DOM operations
+ * - Comprehensive error handling and logging
+ * 
+ * Architecture:
+ * - ErrorHandler: Centralized error management with statistics tracking
+ * - PopupManager: Centralized popup state and orchestration
+ * - EventManager: Optimized event handling with throttling/debouncing
+ * - DOMCache: Performance-optimized DOM element caching
+ * - PerformanceUtils: Throttling and debouncing utilities
+ * 
+ * @requires chrome.storage.sync (for preferences)
+ * @requires navigator.clipboard (for clipboard API, with fallback)
+ */
+
 // Content script for handling text selection and popup display
 // Copyright 2025-2026 Krasen Ivanov
 
 // ===== CONFIGURATION AND CONSTANTS =====
 
-// --- Application Configuration ---
+/**
+ * Application configuration constants
+ * @namespace CONFIG
+ * @readonly
+ */
 const CONFIG = {
-  MAX_SELECTION_LENGTH: 7000, // Maximum characters for text selection
-  MIN_SELECTION_LENGTH: 2, // Minimum characters for text selection
-  HIDE_DELAY: 3000, // 3 seconds delay before hiding popup
-  CACHE_DURATION: 24 * 60 * 60 * 1000, // 24 hours in milliseconds
-  CRYPTO_CACHE_DURATION: 24 * 60 * 60 * 1000, // 24 hours in milliseconds (same as exchange rates)
-  MAX_API_ATTEMPTS: 3, // Maximum API retry attempts
-  BASE_RETRY_DELAY: 1000, // 1 second base retry delay
-  POPUP_MARGIN: 10, // Margin from viewport edges
-  ARROW_GAP: 10, // Gap between selection and popup (includes arrow height)
-  FADE_TRANSITION_DURATION: 200, // Fade transition duration in milliseconds
+  /** @type {number} Maximum characters allowed for text selection */
+  MAX_SELECTION_LENGTH: 7000,
+  
+  /** @type {number} Minimum characters required for text selection */
+  MIN_SELECTION_LENGTH: 2,
+  
+  /** @type {number} Delay in milliseconds before automatically hiding popup (3 seconds) */
+  HIDE_DELAY: 3000,
+  
+  /** @type {number} Cache duration for exchange rates in milliseconds (24 hours) */
+  CACHE_DURATION: 24 * 60 * 60 * 1000,
+  
+  /** @type {number} Cache duration for crypto rates in milliseconds (24 hours) */
+  CRYPTO_CACHE_DURATION: 24 * 60 * 60 * 1000,
+  
+  /** @type {number} Maximum number of API retry attempts */
+  MAX_API_ATTEMPTS: 3,
+  
+  /** @type {number} Base delay in milliseconds for API retry exponential backoff */
+  BASE_RETRY_DELAY: 1000,
+  
+  /** @type {number} Margin in pixels from viewport edges for popup positioning */
+  POPUP_MARGIN: 10,
+  
+  /** @type {number} Gap in pixels between selection and popup (includes arrow height) */
+  ARROW_GAP: 10,
+  
+  /** @type {number} Fade transition duration in milliseconds */
+  FADE_TRANSITION_DURATION: 200,
 };
 
-// --- Pre-compiled Regex Patterns ---
+/**
+ * Pre-compiled regex patterns for performance optimization
+ * @namespace REGEX_PATTERNS
+ * @readonly
+ */
 const REGEX_PATTERNS = {
-  // URL detection pattern - Pre-compiled for performance
+  /**
+   * URL detection pattern
+   * @type {RegExp}
+   * @example
+   * REGEX_PATTERNS.url.test('https://example.com') // true
+   * REGEX_PATTERNS.url.test('example.com') // true
+   */
   url: /^(https?:\/\/)?(([a-zA-Z0-9]([a-zA-Z0-9-]*[a-zA-Z0-9])?\.)+[a-zA-Z0-9]([a-zA-Z0-9-]*[a-zA-Z0-9])?)(\/[^\s]*)?$/,
 
-  // Time zone pattern for conversion - Pre-compiled for performance
+  /**
+   * Time zone pattern for conversion
+   * Supports formats: "5 PM PST", "11:30 am CET", "14:00 EST", "10:00pm PT"
+   * @type {RegExp}
+   */
   timeZone: /^(\d{1,2})(?::(\d{2}))?\s*(AM|PM|am|pm)?\s*([A-Z]{2,5})$/i,
 
-  // Currency symbol pattern for unit detection - Pre-compiled for performance
+  /**
+   * Currency symbol pattern for unit detection
+   * @type {string}
+   */
   currencySymbol: "[a-zA-Z°/€$£¥₺₽₹₩₪₱฿₣₦₲₵₡₫₭₮₯₠₢₳₴₸₼₾₿]",
 
-  // Value-unit pattern (number followed by unit) - Will be constructed once
+  /**
+   * Value-unit pattern (number followed by unit)
+   * Dynamically constructed at runtime
+   * @type {RegExp|null}
+   */
   valueUnit: null,
 
-  // Unit-value pattern (unit followed by number) - Will be constructed once
+  /**
+   * Unit-value pattern (unit followed by number)
+   * Dynamically constructed at runtime
+   * @type {RegExp|null}
+   */
   unitValue: null,
 
-  // RGBA color pattern for transparency detection - Pre-compiled for performance
+  /**
+   * RGBA color pattern for transparency detection
+   * @type {RegExp}
+   */
   rgba: /rgba\((\d+),\s*(\d+),\s*(\d+),\s*([\d.]+)\)/,
 
-  // RGB color pattern for color parsing - Pre-compiled for performance
+  /**
+   * RGB color pattern for color parsing
+   * @type {RegExp}
+   */
   rgb: /rgba?\((\d+),\s*(\d+),\s*(\d+)(?:,\s*[\d.]+)?\)/,
 
-  // Hex color pattern - Pre-compiled for performance
+  /**
+   * Hex color pattern
+   * @type {RegExp}
+   */
   hex: /^#([a-f0-9]{3}|[a-f0-9]{6})$/i,
 
-  // Number parsing patterns - Pre-compiled for performance
+  /**
+   * Number parsing patterns
+   */
   thousandsSeparator: /[.\,\s](?=\d{3}(\D|$))/g,
   decimalComma: /,/g,
   fraction: /^(\d+)\/(\d+)$/,
 
-  // Common unit patterns - Pre-compiled for performance
+  /**
+   * Temperature unit pattern
+   * @type {RegExp}
+   */
   temperatureUnit: /^(\d+(?:\.\d+)?)\s*°\s*$/,
 
   /**
    * Initialize dynamic regex patterns that depend on currency symbols
-   * This is called once during initialization for optimal performance
+   * Called once during initialization for optimal performance
+   * @method
    */
   initDynamicPatterns() {
     // Construct value-unit pattern (number followed by unit)
@@ -109,6 +200,18 @@ const CURRENCY_SYMBOLS = {
 };
 
 // --- Utility Functions for Date Formatting ---
+
+/**
+ * Formats a timestamp into a human-readable relative time string
+ * @param {number} timestamp - Unix timestamp in milliseconds
+ * @returns {string} Human-readable time difference (e.g., "today", "yesterday", "3 days ago")
+ * 
+ * @example
+ * formatLastUpdate(Date.now() - 86400000) // "yesterday"
+ * formatLastUpdate(Date.now() - 172800000) // "2 days ago"
+ * formatLastUpdate(Date.now() - 3600000) // "today"
+ * formatLastUpdate(0) // "unknown time"
+ */
 function formatLastUpdate(timestamp) {
   if (!timestamp) return "unknown time";
   
@@ -377,7 +480,390 @@ const UNIT_CONVERSIONS = {
   }, // 1 satoshi = 0.00000001 BTC, then convert to USD
 };
 
-// ===== DOM CACHE SYSTEM =====
+// ===== ERROR HANDLING SYSTEM =====
+
+// --- Centralized error handling for consistent error management ---
+const ErrorHandler = {
+  // Error statistics tracking
+  stats: {
+    total: 0,
+    byContext: {},
+    byLevel: { error: 0, warn: 0, info: 0 },
+    recent: [] // Keep last 10 errors for debugging
+  },
+
+  /**
+   * Log an error with context and appropriate level
+   * @param {Error|string} error - The error to log
+   * @param {string} context - Context where the error occurred
+   * @param {string} level - Log level ('error', 'warn', 'info')
+   */
+  log(error, context, level = 'warn') {
+    const timestamp = new Date().toISOString();
+    const message = error instanceof Error ? error.message : error;
+    const logMessage = `[${timestamp}] [${level.toUpperCase()}] [${context}] ${message}`;
+    
+    // Update statistics
+    this.stats.total++;
+    this.stats.byLevel[level] = (this.stats.byLevel[level] || 0) + 1;
+    this.stats.byContext[context] = (this.stats.byContext[context] || 0) + 1;
+    
+    // Keep recent errors for debugging
+    this.stats.recent.unshift({
+      timestamp,
+      message,
+      context,
+      level,
+      stack: error instanceof Error ? error.stack : null
+    });
+    if (this.stats.recent.length > 10) {
+      this.stats.recent.pop();
+    }
+    
+    // Output to console with appropriate level
+    switch (level) {
+      case 'error':
+        console.error(logMessage);
+        if (error instanceof Error && error.stack) {
+          console.error('Stack trace:', error.stack);
+        }
+        break;
+      case 'warn':
+        console.warn(logMessage);
+        break;
+      case 'info':
+        // console.info(logMessage); // no basic console log in production
+        break;
+      default:
+        // console.log(logMessage); // no basic console log in production
+    }
+  },
+
+  /**
+   * Get error statistics for debugging
+   */
+  getStats() {
+    return { ...this.stats };
+  },
+
+  /**
+   * Clear error statistics
+   */
+  clearStats() {
+    this.stats = {
+      total: 0,
+      byContext: {},
+      byLevel: { error: 0, warn: 0, info: 0 },
+      recent: []
+    };
+  },
+
+  /**
+   * Handle API errors with fallback and retry logic
+   * @param {Error} error - The API error
+   * @param {string} context - API context (e.g., 'exchange-rates', 'crypto-rates')
+   * @param {Function} fallback - Fallback function to execute
+   * @param {Object} options - Additional options
+   */
+  handleApiError(error, context, fallback = null, options = {}) {
+    const { retryCount = 0, maxRetries = 3 } = options;
+    
+    this.log(error, context, 'error');
+    
+    // Determine error type and provide appropriate message
+    let userMessage = 'Service temporarily unavailable';
+    if (error.message.includes('Rate limit')) {
+      userMessage = 'Rate limit exceeded. Please try again later.';
+    } else if (error.message.includes('CORS') || error.message.includes('blocked')) {
+      userMessage = 'Service access blocked. Using cached data.';
+    } else if (error.message.includes('Network') || error.message.includes('ERR_FAILED')) {
+      userMessage = 'Network error. Using cached data.';
+    } else if (error.message.includes('429')) {
+      userMessage = 'Too many requests. Please try again later.';
+    } else if (error.message.includes('403')) {
+      userMessage = 'Access forbidden. Using cached data.';
+    }
+    
+    // Log retry information if applicable
+    if (retryCount > 0) {
+      this.log(`Retry attempt ${retryCount}/${maxRetries}`, `${context}-retry`, 'info');
+    }
+    
+    // Execute fallback if provided
+    if (fallback && typeof fallback === 'function') {
+      try {
+        fallback(userMessage);
+      } catch (fallbackError) {
+        this.log(fallbackError, `${context}-fallback`, 'error');
+      }
+    }
+    
+    return userMessage;
+  },
+
+  /**
+   * Handle DOM errors with appropriate fallback
+   * @param {Error} error - The DOM error
+   * @param {string} context - DOM operation context
+   * @param {boolean} silent - Whether to suppress user-facing messages
+   */
+  handleDomError(error, context, silent = false) {
+    this.log(error, context, silent ? 'info' : 'warn');
+    
+    // For cross-origin iframe errors, handle silently
+    if (error.message.includes('cross-origin') || error.message.includes('SecurityError')) {
+      return null;
+    }
+    
+    // Return error state for UI updates
+    return this.createErrorState('DOM operation failed', context);
+  },
+
+  /**
+   * Create a standardized error state object
+   * @param {string} message - Error message
+   * @param {string} context - Error context
+   * @param {Object} additional - Additional error data
+   */
+  createErrorState(message, context, additional = {}) {
+    return {
+      error: true,
+      message,
+      context,
+      timestamp: Date.now(),
+      ...additional
+    };
+  },
+
+  /**
+   * Wrap a function with error handling
+   * @param {Function} fn - Function to wrap
+   * @param {string} context - Error context
+   * @param {Function} errorHandler - Custom error handler
+   */
+  wrap(fn, context, errorHandler = null) {
+    return (...args) => {
+      try {
+        return fn(...args);
+      } catch (error) {
+        if (errorHandler && typeof errorHandler === 'function') {
+          return errorHandler(error, context);
+        } else {
+          this.handleDomError(error, context);
+          return null;
+        }
+      }
+    };
+  },
+
+  /**
+   * Wrap an async function with error handling
+   * @param {Function} fn - Async function to wrap
+   * @param {string} context - Error context
+   * @param {Function} errorHandler - Custom error handler
+   */
+  wrapAsync(fn, context, errorHandler = null) {
+    return async (...args) => {
+      try {
+        return await fn(...args);
+      } catch (error) {
+        if (errorHandler && typeof errorHandler === 'function') {
+          return errorHandler(error, context);
+        } else {
+          return this.handleApiError(error, context);
+        }
+      }
+    };
+  },
+
+  /**
+   * Log performance metrics
+   * @param {string} operation - Operation name
+   * @param {number} duration - Duration in milliseconds
+   * @param {Object} metadata - Additional metadata
+   */
+  logPerformance(operation, duration, metadata = {}) {
+    const level = duration > 1000 ? 'warn' : duration > 500 ? 'info' : 'info';
+    const message = `Operation "${operation}" took ${duration}ms`;
+    this.log(message, `performance-${operation}`, level);
+    
+    // Log additional metadata if provided
+    if (Object.keys(metadata).length > 0) {
+      this.log(`Metadata: ${JSON.stringify(metadata)}`, `performance-${operation}-metadata`, 'info');
+    }
+  },
+
+  /**
+   * Log user interactions for debugging
+   * @param {string} action - User action
+   * @param {Object} details - Action details
+   */
+  logUserAction(action, details = {}) {
+    const message = `User action: ${action}`;
+    this.log(message, `user-action-${action}`, 'info');
+    
+    if (Object.keys(details).length > 0) {
+      this.log(`Action details: ${JSON.stringify(details)}`, `user-action-${action}-details`, 'info');
+    }
+  }
+};
+
+// ===== PERFORMANCE VALIDATION SYSTEM =====
+
+/**
+ * Performance monitoring and validation system
+ * @namespace PerformanceValidator
+ * @readonly
+ */
+const PerformanceValidator = {
+  // Performance metrics tracking
+  metrics: {
+    popupShowTimes: [],
+    conversionTimes: [],
+    apiCallTimes: [],
+    domOperationTimes: [],
+  },
+
+  /**
+   * Start timing an operation
+   * @param {string} operation - Operation name to track
+   * @returns {number} Start timestamp
+   */
+  startTimer(operation) {
+    return performance.now();
+  },
+
+  /**
+   * End timing an operation and record the result
+   * @param {string} operation - Operation name
+   * @param {number} startTime - Start timestamp from startTimer()
+   * @returns {number} Duration in milliseconds
+   */
+  endTimer(operation, startTime) {
+    const duration = performance.now() - startTime;
+    this.recordMetric(operation, duration);
+    return duration;
+  },
+
+  /**
+   * Record a performance metric
+   * @param {string} operation - Operation name
+   * @param {number} duration - Duration in milliseconds
+   */
+  recordMetric(operation, duration) {
+    if (!this.metrics[operation + 'Times']) {
+      this.metrics[operation + 'Times'] = [];
+    }
+    
+    this.metrics[operation + 'Times'].push({
+      duration,
+      timestamp: Date.now()
+    });
+
+    // Keep only last 50 measurements to prevent memory leaks
+    if (this.metrics[operation + 'Times'].length > 50) {
+      this.metrics[operation + 'Times'].shift();
+    }
+
+    // Log performance warnings for slow operations
+    if (duration > 100) {
+      ErrorHandler.logPerformance(operation, duration, { 
+        warning: 'Slow operation detected',
+        threshold: '100ms'
+      });
+    }
+  },
+
+  /**
+   * Get performance statistics for an operation
+   * @param {string} operation - Operation name
+   * @returns {Object} Performance statistics
+   */
+  getStats(operation) {
+    const times = this.metrics[operation + 'Times'] || [];
+    if (times.length === 0) return null;
+
+    const durations = times.map(t => t.duration);
+    return {
+      count: durations.length,
+      average: durations.reduce((a, b) => a + b, 0) / durations.length,
+      min: Math.min(...durations),
+      max: Math.max(...durations),
+      median: this.calculateMedian(durations),
+      p95: this.calculatePercentile(durations, 95),
+      recent: times.slice(-10) // Last 10 measurements
+    };
+  },
+
+  /**
+   * Calculate median value
+   * @param {number[]} values - Array of values
+   * @returns {number} Median value
+   */
+  calculateMedian(values) {
+    const sorted = [...values].sort((a, b) => a - b);
+    const mid = Math.floor(sorted.length / 2);
+    return sorted.length % 2 === 0 
+      ? (sorted[mid - 1] + sorted[mid]) / 2 
+      : sorted[mid];
+  },
+
+  /**
+   * Calculate percentile value
+   * @param {number[]} values - Array of values
+   * @param {number} percentile - Percentile to calculate (0-100)
+   * @returns {number} Percentile value
+   */
+  calculatePercentile(values, percentile) {
+    const sorted = [...values].sort((a, b) => a - b);
+    const index = Math.ceil((percentile / 100) * sorted.length) - 1;
+    return sorted[Math.max(0, index)];
+  },
+
+  /**
+   * Validate performance against expected thresholds
+   * @returns {Object} Validation results
+   */
+  validatePerformance() {
+    const results = {
+      passed: true,
+      violations: [],
+      summary: {}
+    };
+
+    const thresholds = {
+      popupShow: 50, // ms
+      conversion: 100, // ms
+      apiCall: 2000, // ms
+      domOperation: 20 // ms
+    };
+
+    for (const [operation, threshold] of Object.entries(thresholds)) {
+      const stats = this.getStats(operation);
+      if (stats && stats.p95 > threshold) {
+        results.passed = false;
+        results.violations.push({
+          operation,
+          threshold,
+          actual: stats.p95,
+          severity: stats.p95 > threshold * 2 ? 'high' : 'medium'
+        });
+      }
+      results.summary[operation] = stats;
+    }
+
+    return results;
+  },
+
+  /**
+   * Clear all performance metrics
+   */
+  clearMetrics() {
+    Object.keys(this.metrics).forEach(key => {
+      this.metrics[key] = [];
+    });
+  }
+};
 
 // --- DOM Caching System for Performance Optimization ---
 const DOMCache = {
@@ -494,6 +980,148 @@ const PerformanceUtils = {
   },
 };
 
+// ===== POPUP MANAGEMENT SYSTEM =====
+
+// --- Centralized popup management with simplified orchestration ---
+const PopupManager = {
+  isVisible: false,
+  currentSelection: null,
+  hideTimeout: null,
+
+  /**
+   * Initialize popup manager
+   */
+  init() {
+    this.bindEvents();
+    initPopupButtons();
+  },
+
+  /**
+   * Show popup with optimal positioning
+   */
+  async show(rect, selectionContextElement) {
+    if (this.isVisible) return;
+
+    const startTime = PerformanceValidator.startTimer('popupShow');
+    
+    this.currentSelection = currentSelectedText;
+    this.isVisible = true;
+
+    // Log user action for debugging
+    ErrorHandler.logUserAction('popup-show', { 
+      textLength: this.currentSelection?.length,
+      position: { x: rect.left, y: rect.top }
+    });
+
+    await showAndPositionPopup(rect, selectionContextElement);
+    
+    PerformanceValidator.endTimer('popupShow', startTime);
+  },
+
+  /**
+   * Hide popup with cleanup
+   */
+  hide() {
+    if (!this.isVisible) return;
+
+    this.isVisible = false;
+    this.currentSelection = null;
+    clearTimeout(this.hideTimeout);
+
+    hidePopup();
+
+    // Log user action for debugging
+    ErrorHandler.logUserAction('popup-hide');
+  },
+
+  /**
+   * Schedule auto-hide with delay
+   */
+  scheduleAutoHide() {
+    this.hideTimeout = setTimeout(() => {
+      this.hide();
+    }, CONFIG.HIDE_DELAY);
+  },
+
+  /**
+   * Cancel scheduled auto-hide
+   */
+  cancelAutoHide() {
+    clearTimeout(this.hideTimeout);
+  },
+
+  /**
+   * Check if click target is within popup
+   */
+  isPopupTarget(target) {
+    return shadowHost.contains(target);
+  },
+
+  /**
+   * Handle mouse up events for text selection
+   */
+  handleMouseUp(e) {
+    if (this.isPopupTarget(e.target)) return;
+
+    let selection, selectedTextTrimmed, range, rect;
+    try {
+      selection = window.getSelection();
+      selectedTextTrimmed = selection.toString().trim();
+    } catch (err) {
+      // Handle cross-origin iframe errors silently
+      ErrorHandler.handleDomError(err, 'selection-get', true);
+      return;
+    }
+
+    // Validate selection length
+    if (
+      selectedTextTrimmed &&
+      selectedTextTrimmed.length >= CONFIG.MIN_SELECTION_LENGTH &&
+      selectedTextTrimmed.length <= CONFIG.MAX_SELECTION_LENGTH
+    ) {
+      currentSelectedText = selectedTextTrimmed;
+      try {
+        range = selection.getRangeAt(0);
+        rect = range.getBoundingClientRect();
+      } catch (err) {
+        // Handle cross-origin iframe errors silently
+        ErrorHandler.handleDomError(err, 'selection-range', true);
+        return;
+      }
+      
+      if (rect.width > 0 || rect.height > 0) {
+        this.show(rect, range.commonAncestorContainer);
+        // Schedule auto-hide after short delay
+        setTimeout(() => {
+          this.scheduleAutoHide();
+        }, 100);
+      } else {
+        this.hide();
+      }
+    } else if (!this.isPopupTarget(e.target)) {
+      this.hide();
+    }
+  },
+
+  /**
+   * Handle mouse down events
+   */
+  handleMouseDown(e) {
+    this.cancelAutoHide();
+    if (this.isVisible && !this.isPopupTarget(e.target)) {
+      this.hide();
+    }
+  },
+
+  /**
+   * Bind popup events
+   */
+  bindEvents() {
+    // Events are now handled by EventManager
+    // This method is kept for consistency but doesn't need to bind individual events
+  }
+};
+
 // ===== EVENT MANAGEMENT SYSTEM =====
 
 // --- Centralized event management with performance optimizations ---
@@ -512,17 +1140,15 @@ const EventManager = {
   createOptimizedHandlers() {
     // Throttle scroll events to maximum 10 times per second (100ms intervals)
     this.throttledScrollHandler = PerformanceUtils.throttle(() => {
-      // Check if popup is visible (display !== "none" and opacity > 0)
-      if (popup.style.display !== "none" && popup.style.opacity !== "0") {
-        hidePopup();
+      if (PopupManager.isVisible) {
+        PopupManager.hide();
       }
     }, 100);
 
     // Debounce resize events to execute once after 250ms of inactivity
     this.debouncedResizeHandler = PerformanceUtils.debounce(() => {
-      // Check if popup is visible (display !== "none" and opacity > 0)
-      if (popup.style.display !== "none" && popup.style.opacity !== "0") {
-        hidePopup();
+      if (PopupManager.isVisible) {
+        PopupManager.hide();
       }
     }, 250);
   },
@@ -531,8 +1157,8 @@ const EventManager = {
    * Bind all event listeners with optimized handlers
    */
   bindEvents() {
-    document.addEventListener("mouseup", this.handleMouseUp.bind(this));
-    document.addEventListener("mousedown", this.handleMouseDown.bind(this));
+    document.addEventListener("mouseup", PopupManager.handleMouseUp.bind(PopupManager));
+    document.addEventListener("mousedown", PopupManager.handleMouseDown.bind(PopupManager));
     window.addEventListener("scroll", this.throttledScrollHandler, {
       passive: true,
     });
@@ -549,72 +1175,11 @@ const EventManager = {
   },
 
   /**
-   * Handle mouseup events for text selection
-   * @param {MouseEvent} e - The mouseup event
-   */
-  handleMouseUp(e) {
-    if (shadowHost.contains(e.target)) {
-      return;
-    }
-
-    let selection, selectedTextTrimmed, range, rect;
-    try {
-      selection = window.getSelection();
-      selectedTextTrimmed = selection.toString().trim();
-    } catch (err) {
-      // Likely a cross-origin iframe, do nothing
-      return;
-    }
-
-    // Validate selection length
-    if (
-      selectedTextTrimmed &&
-      selectedTextTrimmed.length >= CONFIG.MIN_SELECTION_LENGTH &&
-      selectedTextTrimmed.length <= CONFIG.MAX_SELECTION_LENGTH
-    ) {
-      currentSelectedText = selectedTextTrimmed;
-      try {
-        range = selection.getRangeAt(0);
-        rect = range.getBoundingClientRect();
-      } catch (err) {
-        // Likely a cross-origin iframe, do nothing
-        return;
-      }
-      if (rect.width > 0 || rect.height > 0) {
-        showAndPositionPopup(rect, range.commonAncestorContainer);
-        // Set selection complete flag after a short delay to allow for mouse movement
-        setTimeout(() => {
-          let isSelectionComplete = false;
-          // Start the hide timer
-          hidePopupTimeout = setTimeout(() => {
-            hidePopup();
-          }, CONFIG.HIDE_DELAY);
-        }, 100);
-      } else {
-        hidePopup();
-      }
-    } else if (!shadowHost.contains(e.target)) {
-      hidePopup();
-    }
-  },
-
-  /**
-   * Handle mousedown events for resetting selection state
-   * @param {MouseEvent} e - The mousedown event
-   */
-  handleMouseDown(e) {
-    isSelectionComplete = false;
-    clearTimeout(hidePopupTimeout); // Clear any existing timer
-    if (popup.style.display === "block" && !shadowHost.contains(e.target)) {
-      hidePopup();
-    }
-  },
-
-  /**
    * Handle global errors
    * @param {ErrorEvent} event - The error event
    */
   handleError(event) {
+    ErrorHandler.handleDomError(event.error || new Error(event.message), 'global-error', true);
     // Prevent error from bubbling up
     event.preventDefault();
     return false;
@@ -625,13 +1190,12 @@ const EventManager = {
    * @param {PromiseRejectionEvent} event - The promise rejection event
    */
   handleUnhandledRejection(event) {
+    ErrorHandler.handleDomError(event.reason || new Error('Unhandled promise rejection'), 'unhandled-promise-rejection', true);
     // Prevent error from bubbling up
     event.preventDefault();
     return false;
   },
 };
-
-// ===== GLOBAL STATE VARIABLES =====
 
 // --- Global variable to store the currently selected text ---
 let currentSelectedText = "";
@@ -703,6 +1267,30 @@ async function fetchCryptoRates() {
   let fetchVs = vsCurrency;
   if (vsCurrency === "bgn") fetchVs = "eur"; // Fetch EUR if BGN is selected
   
+  const handleCryptoError = (errorMessage) => {
+    cryptoRatesError = errorMessage;
+    
+    // Try to load from cache
+    const cached = localStorage.getItem("cryptoRates");
+    if (cached) {
+      try {
+        const parsed = JSON.parse(cached);
+        if (parsed && parsed.prices && parsed.lastUpdated) {
+          cryptoRates = parsed;
+          const lastUpdateFormatted = formatLastUpdate(parsed.lastUpdated);
+          ErrorHandler.log(`Using cached crypto rates from ${lastUpdateFormatted}`, 'crypto-rates-cache', 'info');
+          cryptoRatesError = `Using crypto prices from ${lastUpdateFormatted} (API unavailable)`;
+        }
+      } catch (parseError) {
+        ErrorHandler.log(parseError, 'crypto-rates-cache-parse', 'error');
+        cryptoRatesError = "Crypto data unavailable (cache corrupted)";
+      }
+    } else {
+      ErrorHandler.log("No cached crypto data available", 'crypto-rates-cache', 'warn');
+      cryptoRatesError = "No crypto data available (API and cache unavailable)";
+    }
+  };
+  
   try {
     const response = await fetch(
       `https://api.coingecko.com/api/v3/simple/price?ids=${coinIds}&vs_currencies=${fetchVs}`,
@@ -760,38 +1348,7 @@ async function fetchCryptoRates() {
 
     localStorage.setItem("cryptoRates", JSON.stringify(cryptoRates));
   } catch (error) {
-    console.warn("Crypto API error:", error.message);
-    
-    // More specific error messages based on the error type
-    if (error.message.includes("Rate limit")) {
-      cryptoRatesError = "Crypto API rate limit exceeded. Using cached data.";
-    } else if (error.message.includes("CORS") || error.message.includes("blocked")) {
-      cryptoRatesError = "Crypto API access blocked. Using cached data.";
-    } else if (error.message.includes("Network") || error.message.includes("ERR_FAILED")) {
-      cryptoRatesError = "Network error fetching crypto prices. Using cached data.";
-    } else {
-      cryptoRatesError = "Unable to fetch crypto prices. Using cached data.";
-    }
-    
-    // Try to load from cache
-    const cached = localStorage.getItem("cryptoRates");
-    if (cached) {
-      try {
-        const parsed = JSON.parse(cached);
-        if (parsed && parsed.prices && parsed.lastUpdated) {
-          cryptoRates = parsed;
-          const lastUpdateFormatted = formatLastUpdate(parsed.lastUpdated);
-          console.info(`Using cached crypto rates from ${lastUpdateFormatted}`);
-          cryptoRatesError = `Using crypto prices from ${lastUpdateFormatted} (API unavailable)`;
-        }
-      } catch (parseError) {
-        console.error("Failed to parse cached crypto rates:", parseError);
-        cryptoRatesError = "Crypto data unavailable (cache corrupted)";
-      }
-    } else {
-      console.warn("No cached crypto data available");
-      cryptoRatesError = "No crypto data available (API and cache unavailable)";
-    }
+    ErrorHandler.handleApiError(error, 'crypto-rates', handleCryptoError);
   }
 }
 
@@ -817,6 +1374,80 @@ async function fetchExchangeRates() {
     return;
   }
 
+  const handleExchangeError = (errorMessage) => {
+    exchangeRatesError = errorMessage;
+    
+    // Load from localStorage if available (only when max retries reached)
+    try {
+      const cached = localStorage.getItem("exchangeRates");
+      if (cached) {
+        const parsed = JSON.parse(cached);
+        // Validate cached data structure
+        if (
+          parsed &&
+          typeof parsed === "object" &&
+          parsed.rates &&
+          typeof parsed.rates === "object" &&
+          parsed.lastUpdated &&
+          typeof parsed.lastUpdated === "number"
+        ) {
+          // Validate that the cached data is not too old (more than 7 days)
+          const now = Date.now();
+          const cacheAge = now - parsed.lastUpdated;
+          const maxCacheAge = 7 * 24 * 60 * 60 * 1000; // 7 days in milliseconds
+          if (cacheAge < maxCacheAge) {
+            exchangeRates = parsed;
+            ErrorHandler.log(`Using cached exchange rates from ${formatLastUpdate(parsed.lastUpdated)}`, 'exchange-rates-cache', 'info');
+          } else {
+            // Reset to default rates
+            exchangeRates = {
+              lastUpdated: 0, // Force refresh on next call
+              rates: {
+                EUR: 1.95583,
+                USD: 1.8,
+                GBP: 2.3,
+              },
+            };
+            ErrorHandler.log("Cached exchange rates expired, using defaults", 'exchange-rates-cache', 'warn');
+          }
+        } else {
+          // Reset to default rates
+          exchangeRates = {
+            lastUpdated: 0, // Force refresh on next call
+            rates: {
+              EUR: 1.95583,
+              USD: 1.8,
+              GBP: 2.3,
+            },
+          };
+          ErrorHandler.log("Invalid cached exchange rates structure, using defaults", 'exchange-rates-cache', 'warn');
+        }
+      } else {
+        // Reset to default rates
+        exchangeRates = {
+          lastUpdated: 0, // Force refresh on next call
+          rates: {
+            EUR: 1.95583,
+            USD: 1.8,
+            GBP: 2.3,
+          },
+        };
+        ErrorHandler.log("No cached exchange rates available, using defaults", 'exchange-rates-cache', 'warn');
+      }
+    } catch (parseError) {
+      ErrorHandler.log(parseError, 'exchange-rates-cache-parse', 'error');
+      // Reset to default rates
+      exchangeRates = {
+        lastUpdated: 0, // Force refresh on next call
+        rates: {
+          EUR: 1.95583,
+          USD: 1.8,
+          GBP: 2.3,
+        },
+      };
+    }
+  };
+  
   try {
     apiCallAttempts++;
     const response = await fetch(
@@ -880,71 +1511,19 @@ async function fetchExchangeRates() {
     // Save to localStorage
     try {
       localStorage.setItem("exchangeRates", JSON.stringify(exchangeRates));
-    } catch (storageError) {}
+    } catch (storageError) {
+      ErrorHandler.log(storageError, 'exchange-rates-storage', 'warn');
+    }
   } catch (error) {
     // Exponential backoff for retries
     if (apiCallAttempts < CONFIG.MAX_API_ATTEMPTS) {
       const retryDelay =
         CONFIG.BASE_RETRY_DELAY * Math.pow(2, apiCallAttempts - 1);
+      ErrorHandler.log(`Retrying exchange rates fetch in ${retryDelay}ms`, 'exchange-rates-retry', 'info');
       setTimeout(() => fetchExchangeRates(), retryDelay);
       return; // Exit early to prevent fallback execution during retry attempts
     }
-    exchangeRatesError =
-      "Exchange rates temporarily unavailable. Using cached rates.";
-    // Load from localStorage if available (only when max retries reached)
-    try {
-      const cached = localStorage.getItem("exchangeRates");
-      if (cached) {
-        const parsed = JSON.parse(cached);
-        // Validate cached data structure
-        if (
-          parsed &&
-          typeof parsed === "object" &&
-          parsed.rates &&
-          typeof parsed.rates === "object" &&
-          parsed.lastUpdated &&
-          typeof parsed.lastUpdated === "number"
-        ) {
-          // Validate that the cached data is not too old (more than 7 days)
-          const now = Date.now();
-          const cacheAge = now - parsed.lastUpdated;
-          const maxCacheAge = 7 * 24 * 60 * 60 * 1000; // 7 days in milliseconds
-          if (cacheAge < maxCacheAge) {
-            exchangeRates = parsed;
-          } else {
-            // Reset to default rates
-            exchangeRates = {
-              lastUpdated: 0, // Force refresh on next call
-              rates: {
-                EUR: 1.95583,
-                USD: 1.8,
-                GBP: 2.3,
-              },
-            };
-          }
-        } else {
-          // Reset to default rates
-          exchangeRates = {
-            lastUpdated: 0, // Force refresh on next call
-            rates: {
-              EUR: 1.95583,
-              USD: 1.8,
-              GBP: 2.3,
-            },
-          };
-        }
-      }
-    } catch (parseError) {
-      // Reset to default rates
-      exchangeRates = {
-        lastUpdated: 0, // Force refresh on next call
-        rates: {
-          EUR: 1.95583,
-          USD: 1.8,
-          GBP: 2.3,
-        },
-      };
-    }
+    ErrorHandler.handleApiError(error, 'exchange-rates', handleExchangeError);
   }
 }
 
@@ -1032,53 +1611,55 @@ function getTimeZoneOffsetString(timeZone, dateStr) {
   }
 }
 
-// --- Unit Detection and Conversion ---
-async function detectAndConvertUnit(text) {
-  // First, check for crypto
+// --- Unit Conversion Helpers ---
+/**
+ * Handle cryptocurrency conversion
+ */
+async function handleCryptoConversion(text) {
   const upperCaseText = text.toUpperCase();
-  if (CRYPTO_CURRENCIES[upperCaseText]) {
-    // Show loading state
-    const errorContainer = DOMCache.get("errorContainer");
-    const conversionContainer = DOMCache.get("conversionContainer");
-    const convertedValueSpan = DOMCache.get("convertedValueSpan");
-    
-    if (errorContainer) {
-      errorContainer.textContent = "Loading crypto prices...";
-      errorContainer.style.display = "block";
-    }
-    if (conversionContainer) conversionContainer.style.display = "none";
-    
-    await fetchCryptoRates();
-    const id = CRYPTO_CURRENCIES[upperCaseText];
-    let vsCurrency = preferredCryptoCurrency
-      ? preferredCryptoCurrency.toLowerCase()
-      : "usd";
-    let price = null;
-    if (
-      vsCurrency === "bgn" &&
-      cryptoRates.prices[id] &&
-      cryptoRates.prices[id]["eur"] &&
-      exchangeRates.rates &&
-      exchangeRates.rates["EUR"]
-    ) {
-      price = cryptoRates.prices[id]["eur"] * exchangeRates.rates["EUR"];
-    } else if (cryptoRates.prices[id] && cryptoRates.prices[id][vsCurrency]) {
-      price = cryptoRates.prices[id][vsCurrency];
-    }
-    if (price !== null) {
-      return {
-        original: `1 ${upperCaseText}`,
-        converted: `${price.toFixed(2)} ${preferredCryptoCurrency.toUpperCase()}`,
-        value: price,
-      };
-    }
+  if (!CRYPTO_CURRENCIES[upperCaseText]) return null;
+
+  // Show loading state
+  const errorContainer = DOMCache.get("errorContainer");
+  const conversionContainer = DOMCache.get("conversionContainer");
+  
+  if (errorContainer) {
+    errorContainer.textContent = "Loading crypto prices...";
+    errorContainer.style.display = "block";
   }
+  if (conversionContainer) conversionContainer.style.display = "none";
+  
+  await fetchCryptoRates();
+  const id = CRYPTO_CURRENCIES[upperCaseText];
+  let vsCurrency = preferredCryptoCurrency
+    ? preferredCryptoCurrency.toLowerCase()
+    : "usd";
+  let price = null;
+  if (
+    vsCurrency === "bgn" &&
+    cryptoRates.prices[id] &&
+    cryptoRates.prices[id]["eur"] &&
+    exchangeRates.rates &&
+    exchangeRates.rates["EUR"]
+  ) {
+    price = cryptoRates.prices[id]["eur"] * exchangeRates.rates["EUR"];
+  } else if (cryptoRates.prices[id] && cryptoRates.prices[id][vsCurrency]) {
+    price = cryptoRates.prices[id][vsCurrency];
+  }
+  if (price !== null) {
+    return {
+      original: `1 ${upperCaseText}`,
+      converted: `${price.toFixed(2)} ${preferredCryptoCurrency.toUpperCase()}`,
+      value: price,
+    };
+  }
+  return null;
+}
 
-  // --- Time Zone Conversion ---
-  const tzResult = convertTimeZone(text);
-  if (tzResult) return tzResult;
-
-  // Check if this looks like a currency conversion and show loading state
+/**
+ * Handle currency loading state and refresh
+ */
+function handleCurrencyLoading(text) {
   const currencyRegex = /[€$£¥₺₽₹₩₪₱฿₣₦₲₵₡₫₭₮₯₠₢₳₴₸₼₾₿]|[A-Z]{3}/;
   const isCurrencyLike = currencyRegex.test(text);
   
@@ -1099,12 +1680,12 @@ async function detectAndConvertUnit(text) {
       return detectAndConvertUnit(text);
     });
   }
+}
 
-  // Match pattern: number (including fractions) followed by unit with optional space
-  // Updated pattern to handle currency symbols before or after the number
-  // Allow both comma, period, and space as decimal/thousands separators
-  // Allow trailing punctuation like periods, commas, etc.
-  // Expanded currency symbols to include ₺, ₽, ₹, ₩, ₪, ₱, ฿, ₣, ₦, ₲, ₵, ₡, ₫, ₭, ₮, ₯, ₠, ₢, ₳, ₴, ₸, ₼, ₾, ₿, and others
+/**
+ * Parse value and unit from text using regex patterns
+ */
+function parseValueAndUnit(text) {
   const valueUnitMatch = text.trim().match(REGEX_PATTERNS.valueUnit);
   const unitValueMatch = text.trim().match(REGEX_PATTERNS.unitValue);
 
@@ -1123,9 +1704,16 @@ async function detectAndConvertUnit(text) {
     return null;
   }
 
+  return { value, unit };
+}
+
+/**
+ * Parse numeric value from string, handling fractions and different formats
+ */
+function parseNumericValue(valueStr) {
   // Handle fractions using pre-compiled pattern
-  if (value.includes("/")) {
-    const fractionMatch = value.match(REGEX_PATTERNS.fraction);
+  if (valueStr.includes("/")) {
+    const fractionMatch = valueStr.match(REGEX_PATTERNS.fraction);
     if (fractionMatch) {
       const numerator = parseFloat(
         fractionMatch[1]
@@ -1137,20 +1725,25 @@ async function detectAndConvertUnit(text) {
           .replace(REGEX_PATTERNS.decimalComma, ".")
           .replace(/\s/g, ""),
       );
-      value = numerator / denominator;
+      return numerator / denominator;
     } else {
       return null; // Invalid fraction format
     }
   } else {
     // Normalize value using pre-compiled patterns for better performance
-    value = value.replace(REGEX_PATTERNS.thousandsSeparator, ""); // Remove thousands separators
+    let value = valueStr.replace(REGEX_PATTERNS.thousandsSeparator, ""); // Remove thousands separators
     value = value.replace(REGEX_PATTERNS.decimalComma, "."); // Replace decimal comma with period
-    value = parseFloat(value);
+    return parseFloat(value);
   }
+}
 
+/**
+ * Handle temperature conversion
+ */
+function handleTemperatureConversion(text, value) {
   // Special case for temperature without F suffix using pre-compiled pattern
   const tempMatch = text.trim().match(REGEX_PATTERNS.temperatureUnit);
-  if (unit === "°" || tempMatch) {
+  if (tempMatch || value === null) {
     const tempValue = tempMatch ? parseFloat(tempMatch[1]) : value;
     return {
       original: `${tempValue}°`,
@@ -1158,7 +1751,13 @@ async function detectAndConvertUnit(text) {
       value: ((tempValue - 32) * 5) / 9,
     };
   }
+  return null;
+}
 
+/**
+ * Find and apply unit conversion
+ */
+function applyUnitConversion(value, unit) {
   // Find matching unit conversion
   // Normalize unit: trim, lowercase, remove spaces and handle common variants
   let normUnit = (unit || "").toLowerCase().replace(/\s+/g, "");
@@ -1168,6 +1767,7 @@ async function detectAndConvertUnit(text) {
   } else if (normUnit === "mpg") {
     normUnit = "mpg";
   }
+  
   for (const [key, conversion] of Object.entries(UNIT_CONVERSIONS)) {
     let normKey = key.toLowerCase().replace(/\s+/g, "");
     if (normKey === normUnit) {
@@ -1191,6 +1791,56 @@ async function detectAndConvertUnit(text) {
   }
 
   return null;
+}
+
+// --- Unit Detection and Conversion ---
+async function detectAndConvertUnit(text) {
+  const startTime = PerformanceValidator.startTimer('conversion');
+  
+  // First, check for crypto
+  const cryptoResult = await handleCryptoConversion(text);
+  if (cryptoResult) {
+    PerformanceValidator.endTimer('conversion', startTime);
+    return cryptoResult;
+  }
+
+  // Time Zone Conversion
+  const tzResult = convertTimeZone(text);
+  if (tzResult) {
+    PerformanceValidator.endTimer('conversion', startTime);
+    return tzResult;
+  }
+
+  // Handle currency loading
+  handleCurrencyLoading(text);
+
+  // Parse value and unit
+  const parsed = parseValueAndUnit(text);
+  if (!parsed) {
+    PerformanceValidator.endTimer('conversion', startTime);
+    return null;
+  }
+
+  const { value: valueStr, unit } = parsed;
+  
+  // Parse numeric value
+  const value = parseNumericValue(valueStr);
+  if (value === null) {
+    PerformanceValidator.endTimer('conversion', startTime);
+    return null;
+  }
+
+  // Handle temperature conversion
+  const tempResult = handleTemperatureConversion(text, value);
+  if (tempResult) {
+    PerformanceValidator.endTimer('conversion', startTime);
+    return tempResult;
+  }
+
+  // Apply unit conversion
+  const result = applyUnitConversion(value, unit);
+  PerformanceValidator.endTimer('conversion', startTime);
+  return result;
 }
 
 // --- Create shadow host and attach shadow root ---
@@ -1543,8 +2193,8 @@ async function handleClipboardFallback(textToCopy) {
       
       hidePopup();
     } catch (fallbackError) {
-      // Silent fail - clipboard operation not supported
-      console.warn("Clipboard operation failed:", fallbackError);
+      // Handle clipboard fallback errors with proper logging
+      ErrorHandler.handleDomError(fallbackError, 'clipboard-fallback', true);
     } finally {
       // Clean up with optimized removal
       DOMOptimizer.cleanupElement(textArea);
@@ -1687,74 +2337,110 @@ function getSearchUrl(query) {
   }
 }
 
+// --- Button Event Handlers ---
+/**
+ * Handle search button click - opens URL or performs search
+ */
+function handleSearchClick() {
+  if (!currentSelectedText) return;
+  
+  if (isUrlSelected) {
+    openUrlOrSearch(currentSelectedText);
+  } else {
+    const searchUrl = getSearchUrl(currentSelectedText);
+    window.open(searchUrl, "_blank", "noopener,noreferrer");
+  }
+  hidePopup();
+}
+
+/**
+ * Open URL if valid, otherwise perform search
+ */
+function openUrlOrSearch(text) {
+  const url = formatUrl(text);
+  try {
+    const urlObj = new URL(url);
+    if (urlObj.protocol === "http:" || urlObj.protocol === "https:") {
+      window.open(url, "_blank", "noopener,noreferrer");
+    } else {
+      const searchUrl = getSearchUrl(text);
+      window.open(searchUrl, "_blank", "noopener,noreferrer");
+    }
+  } catch (e) {
+    const searchUrl = getSearchUrl(text);
+    window.open(searchUrl, "_blank", "noopener,noreferrer");
+  }
+}
+
+/**
+ * Handle copy button click - copies selected text
+ */
+function handleCopyClick() {
+  if (currentSelectedText) {
+    handleClipboardFallback(currentSelectedText);
+  }
+}
+
+/**
+ * Handle copy converted button click - copies converted value
+ */
+function handleCopyConvertedClick(e) {
+  e.stopPropagation();
+  if (convertedValue) {
+    handleClipboardFallback(convertedValue.converted);
+  }
+}
+
+/**
+ * Initialize search button event listener
+ */
+function initSearchButton(searchButton) {
+  if (searchButton) {
+    searchButton.addEventListener("click", handleSearchClick);
+  }
+}
+
+/**
+ * Initialize copy button event listener
+ */
+function initCopyButton(copyButton) {
+  if (copyButton) {
+    copyButton.addEventListener("click", handleCopyClick);
+  }
+}
+
+/**
+ * Initialize copy converted button event listener
+ */
+function initCopyConvertedButton(copyConvertedButton) {
+  if (copyConvertedButton) {
+    copyConvertedButton.addEventListener("click", handleCopyConvertedClick);
+  }
+}
+
 // --- Event Handlers and User Interactions ---
 function initPopupButtons() {
   // Use cached DOM elements for better performance
   const searchButton = DOMCache.get("searchButton");
   const copyButton = DOMCache.get("copyButton");
-  const conversionContainer = DOMCache.get("conversionContainer");
-  const convertedValueSpan = DOMCache.get("convertedValueSpan");
   const copyConvertedButton = DOMCache.get("copyConvertedButton");
 
-  if (searchButton) {
-    searchButton.addEventListener("click", () => {
-      if (currentSelectedText) {
-        if (isUrlSelected) {
-          const url = formatUrl(currentSelectedText);
-          try {
-            const urlObj = new URL(url);
-            if (urlObj.protocol === "http:" || urlObj.protocol === "https:") {
-              window.open(url, "_blank", "noopener,noreferrer");
-            } else {
-              const searchUrl = getSearchUrl(currentSelectedText);
-              window.open(searchUrl, "_blank", "noopener,noreferrer");
-            }
-          } catch (e) {
-            const searchUrl = getSearchUrl(currentSelectedText);
-            window.open(searchUrl, "_blank", "noopener,noreferrer");
-          }
-        } else {
-          const searchUrl = getSearchUrl(currentSelectedText);
-          window.open(searchUrl, "_blank", "noopener,noreferrer");
-        }
-        hidePopup();
-      }
-    });
-  }
-
-  if (copyButton) {
-    copyButton.addEventListener("click", () => {
-      if (currentSelectedText) {
-        handleClipboardFallback(currentSelectedText);
-      }
-    });
-  }
-
-  if (copyConvertedButton) {
-    copyConvertedButton.addEventListener("click", (e) => {
-      e.stopPropagation();
-      if (convertedValue) {
-        handleClipboardFallback(convertedValue.converted);
-      }
-    });
-  }
+  // Initialize each button separately for single responsibility
+  initSearchButton(searchButton);
+  initCopyButton(copyButton);
+  initCopyConvertedButton(copyConvertedButton);
 }
 
-// --- Optimized popup positioning with minimal reflows ---
-async function showAndPositionPopup(rect, selectionContextElement) {
-  // Batch initial style changes to minimize reflows
-  DOMOptimizer.applyStylesBatch(popup, {
-    opacity: "0",
-    display: "block",
-  });
-
-  // Use cached DOM elements for better performance
+// --- Popup Content Management ---
+/**
+ * Update popup content based on unit conversion results
+ */
+function updatePopupContent() {
   const errorContainer = DOMCache.get("errorContainer");
   const conversionContainer = DOMCache.get("conversionContainer");
   const convertedValueSpan = DOMCache.get("convertedValueSpan");
 
   // Check for unit conversion
-  convertedValue = await detectAndConvertUnit(currentSelectedText);
   if (convertedValue) {
     if (errorContainer) errorContainer.style.display = "none";
     if (conversionContainer) conversionContainer.style.display = "block";
@@ -1778,23 +2464,29 @@ async function showAndPositionPopup(rect, selectionContextElement) {
     }
     if (conversionContainer) conversionContainer.style.display = "none";
   }
+}
 
-  // Update button text based on URL detection using cached element
+/**
+ * Update button text based on URL detection
+ */
+function updateButtonText() {
   const searchButton = DOMCache.get("searchButton");
   isUrlSelected = detectUrl(currentSelectedText);
   if (searchButton) {
     searchButton.textContent = isUrlSelected ? "Visit website" : "Search";
   }
+}
 
-  // Get dimensions in a single batch to minimize layout thrashing
-  const popupRect = popup.getBoundingClientRect();
+/**
+ * Calculate optimal popup position relative to selection
+ */
+function calculatePopupPosition(rect, popupRect) {
+  const viewportWidth = window.innerWidth;
+  const viewportHeight = window.innerHeight;
   const popupHeight = popupRect.height;
   const popupWidth = popupRect.width;
   const margin = CONFIG.POPUP_MARGIN;
   const arrowGap = CONFIG.ARROW_GAP;
-
-  const viewportWidth = window.innerWidth;
-  const viewportHeight = window.innerHeight;
   const selectionCenterX = rect.left + rect.width / 2;
 
   let top, left;
@@ -1817,10 +2509,15 @@ async function showAndPositionPopup(rect, selectionContextElement) {
   if (!isPopupBelow && top > rect.bottom) isPopupBelow = true;
   if (isPopupBelow && top < rect.top - popupHeight) isPopupBelow = false;
 
+  return { top, left, isPopupBelow };
+}
+
+/**
+ * Apply popup positioning and theme styling
+ */
+function applyPopupStyling(left, top, isPopupBelow, selectionContextElement) {
   // Determine background and apply theme/arrow
-  const pageBackgroundColor = getEffectiveBackgroundColor(
-    selectionContextElement,
-  );
+  const pageBackgroundColor = getEffectiveBackgroundColor(selectionContextElement);
   const isPageDark = isColorDark(pageBackgroundColor);
 
   // Batch all final style changes to minimize reflows
@@ -1846,8 +2543,28 @@ async function showAndPositionPopup(rect, selectionContextElement) {
   });
 }
 
+// --- Optimized popup positioning with minimal reflows ---
+async function showAndPositionPopup(rect, selectionContextElement) {
+  // Batch initial style changes to minimize reflows
+  DOMOptimizer.applyStylesBatch(popup, {
+    opacity: "0",
+    display: "block",
+  });
+
+  // Update popup content
+  convertedValue = await detectAndConvertUnit(currentSelectedText);
+  updatePopupContent();
+  updateButtonText();
+
+  // Get dimensions in a single batch to minimize layout thrashing
+  const popupRect = popup.getBoundingClientRect();
+  const { top, left, isPopupBelow } = calculatePopupPosition(rect, popupRect);
+
+  // Apply positioning and theme
+  applyPopupStyling(left, top, isPopupBelow, selectionContextElement);
+}
+
 // --- Optimized popup hiding with minimal reflows ---
-let hidePopupTimeout;
 function hidePopup() {
   // Batch style changes for optimal performance
   DOMOptimizer.applyStylesBatch(popup, {
@@ -1855,9 +2572,9 @@ function hidePopup() {
   });
 
   shadowHost.style.pointerEvents = "none";
-  clearTimeout(hidePopupTimeout);
+  PopupManager.cancelAutoHide();
 
-  hidePopupTimeout = setTimeout(() => {
+  setTimeout(() => {
     DOMOptimizer.applyStylesBatch(popup, {
       display: "none",
     });
@@ -1867,7 +2584,7 @@ function hidePopup() {
 
 // ===== INITIALIZATION AND STARTUP =====
 DOMCache.init(); // Initialize DOM cache for performance optimization
-initPopupButtons();
-EventManager.init(); // Initialize optimized event management system
+EventManager.init(); // Initialize event management system
+PopupManager.init(); // Initialize popup management system
 fetchExchangeRates(); // Fetch exchange rates on startup
 fetchCryptoRates(); // Fetch crypto rates on startup
