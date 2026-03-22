@@ -1,10 +1,7 @@
 # Search Popup Extension - Smart Text Selection Assistant
 
-A blazing-fast browser extension that revolutionizes how you interact with text on any webpage. Select any text and instantly get a context-aware popup with smart actions: search, copy, convert units/currencies, visit URLs, and more. **Version 1.73.5** features a comprehensive refactoring with improved error handling, modular architecture, and enhanced performance monitoring. Built with cutting-edge performance optimizations including advanced DOM caching, pre-compiled regex patterns, and automatic memory management for zero-lag operation. The extension intelligently adapts its theme (light/dark) to match any website design.
+A blazing-fast browser extension that revolutionizes how you interact with text on any webpage. Select any text and instantly get a context-aware popup with smart actions: search, copy, convert units/currencies, visit URLs, and more. It features a comprehensive refactoring with improved error handling, modular architecture, enhanced performance monitoring, and production optimizations. Built with cutting-edge performance optimizations including advanced DOM caching, pre-compiled regex patterns, and automatic memory management for zero-lag operation. The extension intelligently adapts its theme (light/dark) to match any website design.
 
-## What's New in v1.73.5
-
-### **Major Refactoring & Architecture Improvements**
 - **Centralized Error Handling:** Consistent error management with comprehensive logging and statistics
 - **Modular Architecture:** Clean separation of concerns with dedicated managers (PopupManager, EventManager, ErrorHandler)
 - **Single Responsibility Functions:** All functions follow focused, single-purpose design principles
