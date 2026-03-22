@@ -9,7 +9,7 @@ const CONFIG = {
   MIN_SELECTION_LENGTH: 2, // Minimum characters for text selection
   HIDE_DELAY: 3000, // 3 seconds delay before hiding popup
   CACHE_DURATION: 24 * 60 * 60 * 1000, // 24 hours in milliseconds
-  CRYPTO_CACHE_DURATION: 5 * 60 * 1000, // 5 minutes in milliseconds
+  CRYPTO_CACHE_DURATION: 24 * 60 * 60 * 1000, // 24 hours in milliseconds (same as exchange rates)
   MAX_API_ATTEMPTS: 3, // Maximum API retry attempts
   BASE_RETRY_DELAY: 1000, // 1 second base retry delay
   POPUP_MARGIN: 10, // Margin from viewport edges
@@ -107,6 +107,26 @@ const CURRENCY_SYMBOLS = {
   MYR: "RM",
   BGN: "лв",
 };
+
+// --- Utility Functions for Date Formatting ---
+function formatLastUpdate(timestamp) {
+  if (!timestamp) return "unknown time";
+  
+  const now = new Date();
+  const lastUpdate = new Date(timestamp);
+  const diffMs = now - lastUpdate;
+  const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+  
+  if (diffDays === 0) {
+    return "today";
+  } else if (diffDays === 1) {
+    return "yesterday";
+  } else if (diffDays < 7) {
+    return `${diffDays} days ago`;
+  } else {
+    return lastUpdate.toLocaleDateString();
+  }
+}
 
 // --- Cryptocurrency Data ---
 const CRYPTO_CURRENCIES = {
@@ -345,6 +365,16 @@ const UNIT_CONVERSIONS = {
   nmi: { to: "km", factor: 1.852 },
   "nautical mile": { to: "km", factor: 1.852 },
   "nautical miles": { to: "km", factor: 1.852 },
+  
+  // Bitcoin Subunits (only works when crypto API is available)
+  BITS: { 
+    to: "USD", 
+    convert: (val) => val * 0.000001 * (cryptoRates.prices?.bitcoin?.usd || 0) 
+  }, // 1 bit = 0.000001 BTC, then convert to USD
+  SATS: { 
+    to: "USD", 
+    convert: (val) => val * 0.00000001 * (cryptoRates.prices?.bitcoin?.usd || 0) 
+  }, // 1 satoshi = 0.00000001 BTC, then convert to USD
 };
 
 // ===== DOM CACHE SYSTEM =====
@@ -672,13 +702,29 @@ async function fetchCryptoRates() {
     : "usd";
   let fetchVs = vsCurrency;
   if (vsCurrency === "bgn") fetchVs = "eur"; // Fetch EUR if BGN is selected
+  
   try {
     const response = await fetch(
       `https://api.coingecko.com/api/v3/simple/price?ids=${coinIds}&vs_currencies=${fetchVs}`,
+      {
+        method: 'GET',
+        headers: {
+          'Accept': 'application/json',
+        },
+        mode: 'cors'
+      }
     );
+    
     if (!response.ok) {
-      throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+      if (response.status === 429) {
+        throw new Error("Rate limit exceeded. Please try again later.");
+      } else if (response.status === 403) {
+        throw new Error("API access forbidden. Using cached data.");
+      } else {
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+      }
     }
+    
     const data = await response.json();
     if (!data) {
       throw new Error("Invalid response format from CoinGecko API");
@@ -714,21 +760,46 @@ async function fetchCryptoRates() {
 
     localStorage.setItem("cryptoRates", JSON.stringify(cryptoRates));
   } catch (error) {
-    cryptoRatesError = "Could not fetch crypto rates.";
+    console.warn("Crypto API error:", error.message);
+    
+    // More specific error messages based on the error type
+    if (error.message.includes("Rate limit")) {
+      cryptoRatesError = "Crypto API rate limit exceeded. Using cached data.";
+    } else if (error.message.includes("CORS") || error.message.includes("blocked")) {
+      cryptoRatesError = "Crypto API access blocked. Using cached data.";
+    } else if (error.message.includes("Network") || error.message.includes("ERR_FAILED")) {
+      cryptoRatesError = "Network error fetching crypto prices. Using cached data.";
+    } else {
+      cryptoRatesError = "Unable to fetch crypto prices. Using cached data.";
+    }
+    
+    // Try to load from cache
     const cached = localStorage.getItem("cryptoRates");
     if (cached) {
-      const parsed = JSON.parse(cached);
-      if (parsed && parsed.prices) {
-        cryptoRates = parsed;
+      try {
+        const parsed = JSON.parse(cached);
+        if (parsed && parsed.prices && parsed.lastUpdated) {
+          cryptoRates = parsed;
+          const lastUpdateFormatted = formatLastUpdate(parsed.lastUpdated);
+          console.info(`Using cached crypto rates from ${lastUpdateFormatted}`);
+          cryptoRatesError = `Using crypto prices from ${lastUpdateFormatted} (API unavailable)`;
+        }
+      } catch (parseError) {
+        console.error("Failed to parse cached crypto rates:", parseError);
+        cryptoRatesError = "Crypto data unavailable (cache corrupted)";
       }
+    } else {
+      console.warn("No cached crypto data available");
+      cryptoRatesError = "No crypto data available (API and cache unavailable)";
     }
   }
 }
 
+// ===== DATA SERVICES =====
+
 // --- Rate limiting for API calls ---
 let apiCallAttempts = 0;
-
-// --- Helper function to fetch exchange rates ---
+// --- Exchange Rate API Service ---
 async function fetchExchangeRates() {
   // Check if we need to update rates (once per day)
   const now = Date.now();
@@ -742,7 +813,7 @@ async function fetchExchangeRates() {
   // Rate limiting check
   if (apiCallAttempts >= CONFIG.MAX_API_ATTEMPTS) {
     exchangeRatesError =
-      "Could not fetch latest rates. Please try again later.";
+      "Exchange rates temporarily unavailable. Using cached rates.";
     return;
   }
 
@@ -819,7 +890,7 @@ async function fetchExchangeRates() {
       return; // Exit early to prevent fallback execution during retry attempts
     }
     exchangeRatesError =
-      "Could not fetch latest rates. Please try again later.";
+      "Exchange rates temporarily unavailable. Using cached rates.";
     // Load from localStorage if available (only when max retries reached)
     try {
       const cached = localStorage.getItem("exchangeRates");
@@ -877,7 +948,9 @@ async function fetchExchangeRates() {
   }
 }
 
-// --- Improved Time Zone Conversion ---
+// ===== CONVERSION ENGINE =====
+
+// --- Time Zone Conversion ---
 function convertTimeZone(
   text,
   userTimeZone = Intl.DateTimeFormat().resolvedOptions().timeZone,
@@ -959,11 +1032,22 @@ function getTimeZoneOffsetString(timeZone, dateStr) {
   }
 }
 
-// --- Helper function to detect and convert units ---
+// --- Unit Detection and Conversion ---
 async function detectAndConvertUnit(text) {
   // First, check for crypto
   const upperCaseText = text.toUpperCase();
   if (CRYPTO_CURRENCIES[upperCaseText]) {
+    // Show loading state
+    const errorContainer = DOMCache.get("errorContainer");
+    const conversionContainer = DOMCache.get("conversionContainer");
+    const convertedValueSpan = DOMCache.get("convertedValueSpan");
+    
+    if (errorContainer) {
+      errorContainer.textContent = "Loading crypto prices...";
+      errorContainer.style.display = "block";
+    }
+    if (conversionContainer) conversionContainer.style.display = "none";
+    
     await fetchCryptoRates();
     const id = CRYPTO_CURRENCIES[upperCaseText];
     let vsCurrency = preferredCryptoCurrency
@@ -993,6 +1077,28 @@ async function detectAndConvertUnit(text) {
   // --- Time Zone Conversion ---
   const tzResult = convertTimeZone(text);
   if (tzResult) return tzResult;
+
+  // Check if this looks like a currency conversion and show loading state
+  const currencyRegex = /[€$£¥₺₽₹₩₪₱฿₣₦₲₵₡₫₭₮₯₠₢₳₴₸₼₾₿]|[A-Z]{3}/;
+  const isCurrencyLike = currencyRegex.test(text);
+  
+  if (isCurrencyLike && exchangeRatesError) {
+    // Show loading state for currency rates
+    const errorContainer = DOMCache.get("errorContainer");
+    const conversionContainer = DOMCache.get("conversionContainer");
+    
+    if (errorContainer) {
+      errorContainer.textContent = "Loading exchange rates...";
+      errorContainer.style.display = "block";
+    }
+    if (conversionContainer) conversionContainer.style.display = "none";
+    
+    // Trigger a refresh of exchange rates
+    fetchExchangeRates().then(() => {
+      // Retry conversion after rates are loaded
+      return detectAndConvertUnit(text);
+    });
+  }
 
   // Match pattern: number (including fractions) followed by unit with optional space
   // Updated pattern to handle currency symbols before or after the number
@@ -1397,9 +1503,16 @@ const popupElements = popupStructure.elements;
 shadowRoot.appendChild(popupStructure.fragment);
 document.body.appendChild(shadowHost);
 
-// --- Optimized clipboard fallback with minimal DOM manipulation ---
+// ===== UI COMPONENTS AND POPUP MANAGEMENT =====
+
+// --- Clipboard Operations ---
 async function handleClipboardFallback(textToCopy) {
   try {
+    // Check if clipboard API is available
+    if (!navigator.clipboard) {
+      throw new Error("Clipboard API not available");
+    }
+    
     // Try using the modern Clipboard API first
     await navigator.clipboard.writeText(textToCopy);
     hidePopup();
@@ -1416,23 +1529,22 @@ async function handleClipboardFallback(textToCopy) {
       pointerEvents: "none",
     });
 
-    textArea.value = textToCopy;
-
-    // Single DOM insertion
-    document.body.appendChild(textArea);
-    textArea.focus();
-    textArea.select();
-
     try {
-      // Try using the modern Clipboard API with the selected text
-      await navigator.clipboard.writeText(textArea.value);
-    } catch (err) {
-      // Fallback to execCommand if available
-      try {
-        document.execCommand("copy");
-      } catch (execErr) {
-        // Silent fail - clipboard operation not supported
+      // Handle potential errors in text assignment
+      textArea.value = textToCopy || "";
+      document.body.appendChild(textArea);
+      textArea.select();
+      textArea.setSelectionRange(0, 99999); // For mobile devices
+
+      const successful = document.execCommand("copy");
+      if (!successful) {
+        throw new Error("Failed to copy text");
       }
+      
+      hidePopup();
+    } catch (fallbackError) {
+      // Silent fail - clipboard operation not supported
+      console.warn("Clipboard operation failed:", fallbackError);
     } finally {
       // Clean up with optimized removal
       DOMOptimizer.cleanupElement(textArea);
@@ -1441,7 +1553,7 @@ async function handleClipboardFallback(textToCopy) {
   }
 }
 
-// --- Theme and Background Detection Helpers (Optimized with pre-compiled patterns) ---
+// --- Theme Detection and Styling ---
 function isEffectivelyTransparent(colorString) {
   if (!colorString) return true;
   const lowerColorString = colorString.toLowerCase();
@@ -1540,7 +1652,7 @@ function applyThemeAndArrow(isPageDark, isPopupBelowSelection) {
   }
 }
 
-// --- Helper function to detect URLs in text ---
+// --- URL Detection and Search ---
 function detectUrl(text) {
   return REGEX_PATTERNS.url.test(text);
 }
@@ -1575,7 +1687,7 @@ function getSearchUrl(query) {
   }
 }
 
-// --- Initialize button event listeners (called once on script load) ---
+// --- Event Handlers and User Interactions ---
 function initPopupButtons() {
   // Use cached DOM elements for better performance
   const searchButton = DOMCache.get("searchButton");
@@ -1753,7 +1865,7 @@ function hidePopup() {
   }, CONFIG.FADE_TRANSITION_DURATION);
 }
 
-// --- Initialize ---
+// ===== INITIALIZATION AND STARTUP =====
 DOMCache.init(); // Initialize DOM cache for performance optimization
 initPopupButtons();
 EventManager.init(); // Initialize optimized event management system

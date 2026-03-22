@@ -97,9 +97,10 @@ All cryptocurrency conversions are fetched from the CoinGecko API and converted 
 | `2.1 BCH` | Bitcoin Cash | `30.05 DOT` | Polkadot |
 | `50 LINK` | Chainlink | `1000 XLM` | Stellar |
 | `5 BNB` | Binance Coin | `200 EOS` | EOS |
-| `0.5 YFI` | Yearn.finance | `13 XAG` | `1,44 XAU` |
-| `20 BITS` | `250 SATS` | | |
+| `0.5 YFI` | Yearn.finance | `20 BITS` | Bitcoin Bits |
+| `250 SATS` | Bitcoin Satoshis | | |
 
+**Note:** Bitcoin subunits (BITS, SATS) require API connectivity and will show USD values based on current Bitcoin prices.
 
 ## Installation
 
