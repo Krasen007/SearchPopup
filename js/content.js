@@ -2586,5 +2586,3 @@ function hidePopup() {
 DOMCache.init(); // Initialize DOM cache for performance optimization
 EventManager.init(); // Initialize event management system
 PopupManager.init(); // Initialize popup management system
-fetchExchangeRates(); // Fetch exchange rates on startup
-fetchCryptoRates(); // Fetch crypto rates on startup
