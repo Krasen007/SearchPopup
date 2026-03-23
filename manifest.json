@@ -1,7 +1,7 @@
 {
 	"manifest_version": 3,
 	"name": "Search Popup",
-	"version": "1.73.7",
+	"version": "1.74.1",
 	"description": "Displays a smart popup when you select text on any webpage: search, copy, convert, copy to clipboard, open URLs.",
 	"icons": {
 		"128": "img/icon.png"
@@ -15,7 +15,7 @@
 	],
 	"author": "Krasen Ivanov",
 	"content_security_policy": {
-		"extension_pages": "script-src 'self'; object-src 'self'"
+		"extension_pages": "script-src 'self'; object-src 'self'; connect-src 'self' https://api.exchangerate-api.com https://api.coingecko.com; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self'; default-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'; upgrade-insecure-requests;"
 	},
 	"content_scripts": [
 		{
