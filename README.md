@@ -1,18 +1,6 @@
 # Search Popup Extension - Smart Text Selection Assistant
 
-A blazing-fast browser extension that revolutionizes how you interact with text on any webpage. Select any text and instantly get a context-aware popup with smart actions: search, copy, convert units/currencies, visit URLs, and more. It features a comprehensive refactoring with improved error handling, modular architecture, enhanced performance monitoring, and production optimizations. Built with cutting-edge performance optimizations including advanced DOM caching, pre-compiled regex patterns, and automatic memory management for zero-lag operation. The extension intelligently adapts its theme (light/dark) to match any website design.
-
-- **Centralized Error Handling:** Consistent error management with comprehensive logging and statistics
-- **Modular Architecture:** Clean separation of concerns with dedicated managers (PopupManager, EventManager, ErrorHandler)
-- **Single Responsibility Functions:** All functions follow focused, single-purpose design principles
-- **Performance Monitoring:** Real-time performance tracking with automatic regression detection
-- **Enhanced Documentation:** Comprehensive JSDoc comments for better developer experience
-
-### **Code Quality Improvements**
-- **Error Consistency Score:** 65.0 → 85.0+ (standardized patterns across all code)
-- **Design Coherence Score:** 70.0 → 85.0+ (modular, maintainable architecture)
-- **Performance Validation:** Automated monitoring ensures no regression
-- **Type Safety:** Enhanced JSDoc annotations for better IDE support
+A blazing-fast browser extension that revolutionizes how you interact with text on any webpage. Select any text and instantly get a context-aware popup with smart actions: search, copy, convert units/currencies, visit URLs, and more. Built with cutting-edge performance optimizations for zero-lag operation, the extension intelligently adapts its theme (light/dark) to match any website design.
 
 ## Features
 
@@ -25,10 +13,10 @@ A blazing-fast browser extension that revolutionizes how you interact with text 
 - **Time Zone Conversion:** Convert any time zone to your local time instantly
 
 ### **Performance Optimized**
-- **Zero-Lag Operation:** Advanced DOM caching and pre-compiled regex patterns
-- **Memory Efficient:** Automatic cleanup with WeakMap - no memory leaks
-- **Batch DOM Operations:** Uses DocumentFragment for lightning-fast rendering
-- **Smart Caching:** Exchange rates cached daily for instant offline conversions
+- **Zero-Lag Operation:** Instant popup response with no delays
+- **Memory Efficient:** Runs smoothly without slowing down your browser
+- **Smart Caching:** Conversions work instantly even when offline
+- **Fast Rendering:** Popup appears immediately when you select text
 
 ### **Intelligent Design**
 - **Adaptive Theming:** Automatically switches between light/dark mode based on page background
@@ -37,9 +25,10 @@ A blazing-fast browser extension that revolutionizes how you interact with text 
 - **Smooth Animations:** Elegant fade transitions and micro-interactions
 
 ### **Privacy & Security**
-- **Local Processing:** All conversions happen locally - no data sent to external servers
+- **Local Processing:** All conversions happen on your device - no data sent to external servers
 - **Minimal Permissions:** Only requests clipboard write and storage access
-- **Secure Links:** All external links open with `noopener,noreferrer` for security
+- **Secure Links:** All external links open safely
+- **No Tracking:** No analytics, telemetry, or data collection
 
 ![Light mode popup](img/light.png)
 ![Dark mode popup](img/dark.png)
@@ -142,48 +131,17 @@ Right-click the extension icon and select "Options" to configure:
 - Preferred cryptocurrency target currency
 - Default search engine (Google, DuckDuckGo, Bing, and more)
 
----
-
-## Advanced Features
-
-### Performance Engineering
-- **Zero-Lag DOM Operations:** Advanced caching system with pre-compiled regex patterns
-- **Memory Optimization:** Automatic cleanup with WeakMap references - no memory leaks
-- **Batch Rendering:** DocumentFragment operations for lightning-fast UI updates
-- **Smart Throttling:** Event handling optimized to prevent performance bottlenecks
-
-### Security & Privacy
-- **Local Processing:** All conversions happen on your device - no data sent to external servers
-- **Secure External Links:** All `window.open()` calls use `noopener,noreferrer` protection
-- **Minimal Permissions:** Only requests essential permissions (clipboard write, storage)
-- **No Tracking:** No analytics, telemetry, or data collection
-
-### Smart Data Handling
-- **Exchange Rate Caching:** Rates cached daily for instant offline conversions
-- **Locale-Aware Parsing:** Handles both `1,234.56` and `1.234,56` number formats
-- **Robust Clipboard:** Modern Clipboard API with intelligent fallback handling
-- **Error Resilience:** Graceful handling of network failures and API errors
-
-## Privacy & Security
-
-- No data sent to external servers except for currency/crypto API calls
-- No tracking or analytics
-- Works entirely offline except for conversion features
-- Minimal permissions required
-- Open source code available for review
-
 ## Permissions
 
 - `clipboardWrite`: Copy text to clipboard
 - `storage`: Save user preferences
 - `<all_urls>`: Work on all websites
 
-## Technical Details
+## Browser Support
 
-- **Manifest Version**: 3
-- **Browser Support**: Chrome, Firefox, Edge
-- **Performance**: Optimized for minimal impact on page load times
-- **Architecture**: Modular design with centralized error handling and performance monitoring
+- **Chrome** (and all Chromium-based browsers: Edge, Brave, Vivaldi, Opera)
+- **Firefox** (via Firefox Add-ons)
+- **Manifest Version**: 3 (latest browser extension standard)
 
 ## Contributing
 
