@@ -1,90 +1,60 @@
-# Chrome Web Store Listing
+# Search Popup - Chrome Web Store Listing
 
 ## Store Title
-Search Popup - Smart Text Selection Assistant
+Search Popup - Smart Text Actions
 
-## Short Description (80 chars)
-Smart popup for text selection: search, copy, convert units & currencies instantly.
+## Short Description (80 characters)
+Smart popup for text selection: search, convert, copy, and open URLs instantly.
 
 ## Detailed Description
-Transform how you interact with text on any webpage! Search Popup is a blazing-fast extension that appears instantly when you select text, giving you smart contextual actions.
 
-**Lightning Fast Performance**
-- Zero-lag operation with advanced DOM caching
-- Pre-compiled regex patterns for instant text parsing
-- Memory-efficient design with automatic cleanup
+Transform how you interact with web content with Search Popup - the intelligent text selection assistant that appears exactly when you need it.
 
-**Smart Text Actions**
-- **Instant Search**: Search Google, DuckDuckGo, Bing, or your preferred engine
-- **Quick Copy**: One-click clipboard copy with intelligent fallback
-- **URL Detection**: Automatically detects links and offers to visit them
-- **Unit Conversion**: Convert weights, temperatures, speeds, distances, and more
-- **Currency & Crypto**: Live rates for 100+ currencies and major cryptocurrencies
-- **Time Zone Conversion**: Convert any time zone to your local time
+Simply select any text on any webpage and get instant, context-aware actions. No more copying, opening new tabs, or switching between applications.
 
-**Intelligent Design**
-- Adaptive theming that matches any website (light/dark mode)
-- Smart positioning with directional arrows
-- Smooth animations and micro-interactions
-- Always stays within screen boundaries
+**Key Features:**
+- Instant search with your preferred search engine
+- Automatic URL detection and opening
+- Real-time currency conversion (50+ currencies)
+- Live cryptocurrency prices (30+ coins)
+- Unit conversions for temperature, weight, distance, and more
+- Time zone conversion between major cities
+- One-click clipboard operations
+- Smart theme adaptation (light/dark mode)
+- Optimized performance with minimal page impact
 
-**Privacy & Security**
-- All processing happens locally - no data sent to external servers
-- Minimal permissions (clipboard write, storage only)
-- Secure external links with protection
-- No tracking, analytics, or data collection
+**How It Works:**
+1. Select any text - words, numbers, URLs, or phrases
+2. A smart popup appears automatically near your selection
+3. Choose from relevant actions based on your content
+4. Complete your task without leaving the current page
 
-## Tags
-text selection, search, conversion, currency, unit converter, productivity, tools, popup, assistant, smart search
+**Perfect For:**
+- Researchers and students who need quick searches
+- International users dealing with different currencies and units
+- Developers working with code and technical data
+- Anyone who wants faster web browsing without tab switching
+
+**Privacy First:**
+- No tracking or analytics
+- Minimal permissions required
+- Works offline except for conversion features
+- Open source and transparent
+
+Join thousands of users who've made their web browsing more efficient. Install Search Popup today and experience the power of intelligent text interaction.
 
 ## Screenshots Description
-1. Light mode popup showing search and copy options
-2. Dark mode popup with unit conversion example
-3. Settings page with search engine preferences
-4. Currency conversion showing live exchange rates
-5. Time zone conversion example
 
-## Key Features Highlight
-- Instant text selection popup
-- Multiple search engines support
-- 100+ currency conversions
-- Cryptocurrency support (BTC, ETH, etc.)
-- Unit conversions (weight, temperature, speed, distance)
-- Time zone conversion
-- URL detection and visit
-- Adaptive light/dark themes
-- Privacy-focused design
-- Zero performance impact
-- Works on all websites
+1. **Main Feature**: Show the popup appearing next to selected text with search, copy, and conversion options
+2. **Currency Conversion**: Demonstrate real-time currency conversion with selected amount
+3. **Unit Conversion**: Show temperature, weight, or distance conversion in action
+4. **Settings Page**: Display the clean settings interface for configuring preferences
+5. **URL Detection**: Show automatic URL detection and opening feature
+6. **Dark Mode**: Demonstrate theme adaptation on a dark website
 
-## Target Audience
-Students, researchers, developers, professionals, and anyone who frequently works with text, needs quick conversions, or wants to boost their browsing productivity.
+## Categories
+Productivity
+Tools
 
-## Use Cases
-- **Students**: Quickly convert units while studying research papers
-- **Professionals**: Instant currency conversion for international business
-- **Developers**: Fast search for code snippets and documentation
-- **Researchers**: Quick copy and search for academic work
-- **Travelers**: Time zone and currency conversion on the go
-- **Shoppers**: Price comparison and unit conversion
-
-## Technical Highlights
-- Built with cutting-edge performance optimizations
-- Advanced DOM caching system
-- Pre-compiled regex patterns
-- Memory-efficient WeakMap usage
-- Secure clipboard handling
-- Local-first processing approach
-
-## Performance Metrics
-- <1ms popup appearance time
-- Zero memory leaks
-- Minimal CPU usage
-- Offline currency conversions
-- Smart caching for instant results
-
-## Localization Ready
-Supports multiple number formats (1,234.56 and 1.234,56) and works seamlessly across different locales and regions.
-
-## Updates & Support
-Regular updates with new features, improved performance, and additional conversion types. Responsive support for user feedback and suggestions.
+## Tags
+search, productivity, text-selection, conversion, currency, tools, popup, browser-extension

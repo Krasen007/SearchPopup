@@ -135,6 +135,13 @@ https://chromewebstore.google.com/detail/search-popup/plaekmbmccfiagpfodadmohfmm
 
 Works on all Chromium-based browsers (Chrome, Vivaldi, Edge, Brave, etc.).
 
+## Configuration
+
+Right-click the extension icon and select "Options" to configure:
+- Preferred currency for conversions
+- Preferred cryptocurrency target currency
+- Default search engine (Google, DuckDuckGo, Bing, and more)
+
 ---
 
 ## Advanced Features
@@ -157,11 +164,44 @@ Works on all Chromium-based browsers (Chrome, Vivaldi, Edge, Brave, etc.).
 - **Robust Clipboard:** Modern Clipboard API with intelligent fallback handling
 - **Error Resilience:** Graceful handling of network failures and API errors
 
----
+## Privacy & Security
 
-*Portions of this app were created using various AI tools!*
+- No data sent to external servers except for currency/crypto API calls
+- No tracking or analytics
+- Works entirely offline except for conversion features
+- Minimal permissions required
+- Open source code available for review
+
+## Permissions
+
+- `clipboardWrite`: Copy text to clipboard
+- `storage`: Save user preferences
+- `<all_urls>`: Work on all websites
+
+## Technical Details
+
+- **Manifest Version**: 3
+- **Browser Support**: Chrome, Firefox, Edge
+- **Performance**: Optimized for minimal impact on page load times
+- **Architecture**: Modular design with centralized error handling and performance monitoring
+
+## Contributing
+
+Issues and pull requests are welcome on GitHub.
+
+## License
+
+GNU General Public License v3 - see LICENSE file for details
+
+## Support
+
+Report issues or request features on the GitHub repository.
 
 ## Developed and tested on
 - Vivaldi Browser
 
 Other Chromium browsers should work as well.
+
+---
+
+*Portions of this app were created using various AI tools!*
