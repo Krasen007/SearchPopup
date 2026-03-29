@@ -568,7 +568,18 @@ const ErrorHandler = {
   handleApiError(error, context, fallback = null, options = {}) {
     const { retryCount = 0, maxRetries = 3 } = options;
     
-    this.log(error, context, 'error');
+    // Enhanced error logging with more details
+    const errorDetails = {
+      message: error.message,
+      name: error.name,
+      context: context,
+      timestamp: new Date().toISOString(),
+      retryCount,
+      userAgent: navigator.userAgent,
+      url: this.getLastApiUrl(context)
+    };
+    
+    this.log(`API Error Details: ${JSON.stringify(errorDetails, null, 2)}`, context, 'error');
     
     // Determine error type and provide appropriate message
     let userMessage = 'Service temporarily unavailable';
@@ -578,6 +589,8 @@ const ErrorHandler = {
       userMessage = 'Service access blocked. Using cached data.';
     } else if (error.message.includes('Network') || error.message.includes('ERR_FAILED')) {
       userMessage = 'Network error. Using cached data.';
+    } else if (error.message.includes('Failed to fetch')) {
+      userMessage = 'Fetch failed - possible network interception or DNS issue.';
     } else if (error.message.includes('429')) {
       userMessage = 'Too many requests. Please try again later.';
     } else if (error.message.includes('403')) {
@@ -599,6 +612,28 @@ const ErrorHandler = {
     }
     
     return userMessage;
+  },
+
+  /**
+   * Store last API URL for debugging
+   */
+  lastApiUrls: {
+    'crypto-rates': null,
+    'exchange-rates': null
+  },
+
+  /**
+   * Get last API URL for error context
+   */
+  getLastApiUrl(context) {
+    return this.lastApiUrls[context] || 'unknown';
+  },
+
+  /**
+   * Set last API URL for error context
+   */
+  setLastApiUrl(context, url) {
+    this.lastApiUrls[context] = url;
   },
 
   /**
@@ -987,6 +1022,10 @@ const PopupManager = {
   isVisible: false,
   currentSelection: null,
   hideTimeout: null,
+  lastSelection: null,
+  showDebounceTimeout: null,
+  isShowing: false,
+  mouseDownTimeout: null,
 
   /**
    * Initialize popup manager
@@ -1000,10 +1039,27 @@ const PopupManager = {
    * Show popup with optimal positioning
    */
   async show(rect, selectionContextElement) {
-    if (this.isVisible) return;
+    // Clear any existing show debounce timeout
+    if (this.showDebounceTimeout) {
+      clearTimeout(this.showDebounceTimeout);
+      this.showDebounceTimeout = null;
+    }
+
+    // Check if selection has changed
+    if (this.lastSelection === currentSelectedText && this.isVisible) {
+      return; // Same selection already showing, don't redraw
+    }
+
+    // Prevent rapid successive shows
+    if (this.isShowing) {
+      return;
+    }
+
+    this.isShowing = true;
 
     const startTime = PerformanceValidator.startTimer('popupShow');
     
+    this.lastSelection = currentSelectedText;
     this.currentSelection = currentSelectedText;
     this.isVisible = true;
 
@@ -1013,7 +1069,11 @@ const PopupManager = {
       position: { x: rect.left, y: rect.top }
     });
 
-    await showAndPositionPopup(rect, selectionContextElement);
+    try {
+      await showAndPositionPopup(rect, selectionContextElement);
+    } finally {
+      this.isShowing = false;
+    }
     
     PerformanceValidator.endTimer('popupShow', startTime);
   },
@@ -1027,6 +1087,8 @@ const PopupManager = {
     this.isVisible = false;
     this.currentSelection = null;
     clearTimeout(this.hideTimeout);
+    clearTimeout(this.mouseDownTimeout);
+    clearTimeout(this.showDebounceTimeout);
 
     hidePopup();
 
@@ -1063,6 +1125,12 @@ const PopupManager = {
   handleMouseUp(e) {
     if (this.isPopupTarget(e.target)) return;
 
+    // Clear any pending mouse down timeout to prevent race conditions
+    if (this.mouseDownTimeout) {
+      clearTimeout(this.mouseDownTimeout);
+      this.mouseDownTimeout = null;
+    }
+
     let selection, selectedTextTrimmed, range, rect;
     try {
       selection = window.getSelection();
@@ -1090,11 +1158,14 @@ const PopupManager = {
       }
       
       if (rect.width > 0 || rect.height > 0) {
-        this.show(rect, range.commonAncestorContainer);
-        // Schedule auto-hide after short delay
-        setTimeout(() => {
-          this.scheduleAutoHide();
-        }, 100);
+        // Debounce the show operation to handle rapid double-clicks
+        this.showDebounceTimeout = setTimeout(() => {
+          this.show(rect, range.commonAncestorContainer);
+          // Schedule auto-hide after short delay
+          setTimeout(() => {
+            this.scheduleAutoHide();
+          }, 100);
+        }, 50); // Small delay to handle double-click scenarios
       } else {
         this.hide();
       }
@@ -1108,8 +1179,13 @@ const PopupManager = {
    */
   handleMouseDown(e) {
     this.cancelAutoHide();
+    
+    // Debounce hide operation to prevent race with mouse up
     if (this.isVisible && !this.isPopupTarget(e.target)) {
-      this.hide();
+      // Use a timeout to check if this is part of a double-click
+      this.mouseDownTimeout = setTimeout(() => {
+        this.hide();
+      }, 100); // Wait to see if mouse up follows quickly (double-click)
     }
   },
 
@@ -1267,6 +1343,10 @@ async function fetchCryptoRates() {
   let fetchVs = vsCurrency;
   if (vsCurrency === "bgn") fetchVs = "eur"; // Fetch EUR if BGN is selected
   
+  // Store the API URL for debugging
+  const apiUrl = `https://api.coingecko.com/api/v3/simple/price?ids=${coinIds}&vs_currencies=${fetchVs}`;
+  ErrorHandler.setLastApiUrl('crypto-rates', apiUrl);
+  
   const handleCryptoError = (errorMessage) => {
     cryptoRatesError = errorMessage;
     
@@ -1292,10 +1372,8 @@ async function fetchCryptoRates() {
   };
   
   try {
-    const response = await fetch(
-      `https://api.coingecko.com/api/v3/simple/price?ids=${coinIds}&vs_currencies=${fetchVs}`,
-      {
-        method: 'GET',
+    const response = await fetch(apiUrl, {
+      method: 'GET',
         headers: {
           'Accept': 'application/json',
         },
@@ -1352,9 +1430,7 @@ async function fetchCryptoRates() {
   }
 }
 
-// ===== DATA SERVICES =====
-
-// --- Rate limiting for API calls ---
+// ... (rest of the code remains the same)
 let apiCallAttempts = 0;
 // --- Exchange Rate API Service ---
 async function fetchExchangeRates() {
@@ -1374,6 +1450,10 @@ async function fetchExchangeRates() {
     return;
   }
 
+  // Store the API URL for debugging
+  const apiUrl = "https://api.exchangerate-api.com/v4/latest/EUR";
+  ErrorHandler.setLastApiUrl('exchange-rates', apiUrl);
+
   const handleExchangeError = (errorMessage) => {
     exchangeRatesError = errorMessage;
     
@@ -1391,7 +1471,7 @@ async function fetchExchangeRates() {
           parsed.lastUpdated &&
           typeof parsed.lastUpdated === "number"
         ) {
-          // Validate that the cached data is not too old (more than 7 days)
+          // Validate that cached data is not too old (more than 7 days)
           const now = Date.now();
           const cacheAge = now - parsed.lastUpdated;
           const maxCacheAge = 7 * 24 * 60 * 60 * 1000; // 7 days in milliseconds
@@ -1450,16 +1530,14 @@ async function fetchExchangeRates() {
   
   try {
     apiCallAttempts++;
-    const response = await fetch(
-      "https://api.exchangerate-api.com/v4/latest/EUR",
-    );
+    const response = await fetch(apiUrl);
     if (!response.ok) {
       throw new Error(`HTTP ${response.status}: ${response.statusText}`);
     }
 
     const data = await response.json();
 
-    // Validate the response data structure
+    // Validate response data structure
     if (!data || !data.rates || typeof data.rates !== "object") {
       throw new Error("Invalid response format from exchange rate API");
     }
