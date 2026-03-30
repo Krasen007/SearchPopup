@@ -80,8 +80,10 @@ const REGEX_PATTERNS = {
    * @example
    * REGEX_PATTERNS.url.test('https://example.com') // true
    * REGEX_PATTERNS.url.test('example.com') // true
+  * REGEX_PATTERNS.url.test('http://localhost:3000') // true
+  * REGEX_PATTERNS.url.test('127.0.0.1:5173') // true
    */
-  url: /^(https?:\/\/)?(([a-zA-Z0-9]([a-zA-Z0-9-]*[a-zA-Z0-9])?\.)+[a-zA-Z0-9]([a-zA-Z0-9-]*[a-zA-Z0-9])?)(\/[^\s]*)?$/,
+  url: /^(https?:\/\/)?((localhost|(\d{1,3}\.){3}\d{1,3})|(([a-zA-Z0-9]([a-zA-Z0-9-]*[a-zA-Z0-9])?\.)+[a-zA-Z0-9]([a-zA-Z0-9-]*[a-zA-Z0-9])?))(:\d{1,5})?(\/[^\s]*)?$/,
 
   /**
    * Time zone pattern for conversion
@@ -1369,7 +1371,7 @@ async function fetchCryptoRates() {
       if (typeof quotePrice !== "number") continue;
 
       let convertFn;
-      let toLabel = preferredCryptoCurrency;
+      let toLabel = (vsCurrencyLocal || "").toUpperCase();
 
       if (
         vsCurrencyLocal === "bgn" &&
@@ -1377,7 +1379,8 @@ async function fetchCryptoRates() {
         typeof exchangeRates.rates["EUR"] === "number"
       ) {
         // Convert EUR price to BGN
-        convertFn = (val) => val * quotePrice * exchangeRates.rates["EUR"];
+        const eurRate = exchangeRates.rates["EUR"];
+        convertFn = (val) => val * quotePrice * eurRate;
         toLabel = "BGN";
       } else {
         convertFn = (val) => val * quotePrice;
@@ -1390,44 +1393,77 @@ async function fetchCryptoRates() {
     }
   };
 
+  /**
+   * Validate and load cached crypto rates from localStorage.
+   * Ensures cached quote currency matches requested fetchVsLocal.
+   * @param {string} fetchVsLocal - CoinGecko quote currency ("usd" | "eur" | ...)
+   * @returns {{valid: boolean, parsed: any, corrupted: boolean}} cache result
+   */
+  const validateAndLoadCryptoCache = (fetchVsLocal) => {
+    const cached = localStorage.getItem("cryptoRates");
+    if (!cached) {
+      return { valid: false, parsed: null, corrupted: false };
+    }
+
+    try {
+      const parsed = JSON.parse(cached);
+
+      // Require cache object shape
+      if (
+        !parsed ||
+        typeof parsed.lastUpdated !== "number" ||
+        !parsed.prices
+      ) {
+        return { valid: false, parsed: null, corrupted: false };
+      }
+
+      const cacheAge = now - (parsed?.lastUpdated || 0);
+      const isFresh =
+        cacheAge >= 0 && cacheAge < CONFIG.CRYPTO_CACHE_DURATION;
+      if (!isFresh) {
+        return { valid: false, parsed: null, corrupted: false };
+      }
+
+      // Explicitly ensure cache quote currency matches requested fetchVsLocal
+      if (parsed.vsCurrency !== fetchVsLocal) {
+        return { valid: false, parsed: null, corrupted: false };
+      }
+
+      const hasQuoteField = Object.values(CRYPTO_CURRENCIES).some((id) => {
+        const coinPrices = parsed?.prices?.[id];
+        return coinPrices && typeof coinPrices[fetchVsLocal] === "number";
+      });
+
+      if (!hasQuoteField) {
+        return { valid: false, parsed: null, corrupted: false };
+      }
+
+      return { valid: true, parsed, corrupted: false };
+    } catch (parseError) {
+      ErrorHandler.log(parseError, "crypto-rates-cache-parse", "error");
+      return { valid: false, parsed: null, corrupted: true };
+    }
+  };
+
   // Store the API URL for debugging
   const apiUrl = `https://api.coingecko.com/api/v3/simple/price?ids=${coinIds}&vs_currencies=${fetchVs}`;
   ErrorHandler.setLastApiUrl('crypto-rates', apiUrl);
 
   // Try to use cached data immediately (prevents CORS failures from being noisy)
-  try {
-    const cached = localStorage.getItem("cryptoRates");
-    if (cached) {
-      const parsed = JSON.parse(cached);
-      const cacheAge = now - (parsed?.lastUpdated || 0);
-      const hasQuoteField = Object.values(CRYPTO_CURRENCIES).some((id) => {
-        const coinPrices = parsed?.prices?.[id];
-        return coinPrices && typeof coinPrices[fetchVs] === "number";
-      });
-
-      if (
-        parsed &&
-        typeof parsed.lastUpdated === "number" &&
-        parsed.prices &&
-        cacheAge >= 0 &&
-        cacheAge < CONFIG.CRYPTO_CACHE_DURATION &&
-        hasQuoteField
-      ) {
-        cryptoRates = parsed;
-        applyCryptoRatesToUnitConversions(fetchVs, vsCurrency);
-        cryptoRatesError = null;
-        const lastUpdateFormatted = formatLastUpdate(parsed.lastUpdated);
-        ErrorHandler.log(
-          `Using cached crypto rates from ${lastUpdateFormatted}`,
-          "crypto-rates-cache",
-          "info"
-        );
-        return;
-      }
-    }
-  } catch (cacheError) {
-    // Non-fatal: we still attempt the API call below.
-    ErrorHandler.log(cacheError, 'crypto-rates-cache-parse', 'error');
+  const earlyCacheResult = validateAndLoadCryptoCache(fetchVs);
+  if (earlyCacheResult.valid) {
+    cryptoRates = earlyCacheResult.parsed;
+    applyCryptoRatesToUnitConversions(fetchVs, vsCurrency);
+    cryptoRatesError = null;
+    const lastUpdateFormatted = formatLastUpdate(
+      earlyCacheResult.parsed.lastUpdated
+    );
+    ErrorHandler.log(
+      `Using cached crypto rates from ${lastUpdateFormatted}`,
+      "crypto-rates-cache",
+      "info"
+    );
+    return;
   }
   
   const handleCryptoError = (errorMessage) => {
@@ -1435,36 +1471,28 @@ async function fetchCryptoRates() {
     
     // Try to load from cache
     const cached = localStorage.getItem("cryptoRates");
-    if (cached) {
-      try {
-        const parsed = JSON.parse(cached);
-        const cacheAge = now - (parsed?.lastUpdated || 0);
-        const hasQuoteField = Object.values(CRYPTO_CURRENCIES).some((id) => {
-          const coinPrices = parsed?.prices?.[id];
-          return coinPrices && typeof coinPrices[fetchVs] === "number";
-        });
-
-        if (
-          parsed &&
-          typeof parsed.lastUpdated === "number" &&
-          parsed.prices &&
-          cacheAge >= 0 &&
-          cacheAge < CONFIG.CRYPTO_CACHE_DURATION &&
-          hasQuoteField
-        ) {
-          cryptoRates = parsed;
-          const lastUpdateFormatted = formatLastUpdate(parsed.lastUpdated);
-          ErrorHandler.log(`Using cached crypto rates from ${lastUpdateFormatted}`, 'crypto-rates-cache', 'info');
-          cryptoRatesError = `Using crypto prices from ${lastUpdateFormatted} (API unavailable)`;
-          applyCryptoRatesToUnitConversions(fetchVs, vsCurrency);
-        }
-      } catch (parseError) {
-        ErrorHandler.log(parseError, 'crypto-rates-cache-parse', 'error');
-        cryptoRatesError = "Crypto data unavailable (cache corrupted)";
-      }
-    } else {
+    if (!cached) {
       ErrorHandler.log("No cached crypto data available", 'crypto-rates-cache', 'warn');
       cryptoRatesError = "No crypto data available (API and cache unavailable)";
+      return;
+    }
+
+    const cacheResult = validateAndLoadCryptoCache(fetchVs);
+    if (cacheResult.valid) {
+      cryptoRates = cacheResult.parsed;
+      const lastUpdateFormatted = formatLastUpdate(cacheResult.parsed.lastUpdated);
+      ErrorHandler.log(
+        `Using cached crypto rates from ${lastUpdateFormatted}`,
+        'crypto-rates-cache',
+        'info'
+      );
+      cryptoRatesError = `Using crypto prices from ${lastUpdateFormatted} (API unavailable)`;
+      applyCryptoRatesToUnitConversions(fetchVs, vsCurrency);
+      return;
+    }
+
+    if (cacheResult.corrupted) {
+      cryptoRatesError = "Crypto data unavailable (cache corrupted)";
     }
   };
   
@@ -2478,6 +2506,9 @@ function detectUrl(text) {
 // --- Helper function to format URL ---
 function formatUrl(text) {
   if (!text.startsWith("http://") && !text.startsWith("https://")) {
+    if (/^(localhost|(\d{1,3}\.){3}\d{1,3})(:\d{1,5})?(\/|$)/i.test(text)) {
+      return "http://" + text
+    }
     return "https://" + text;
   }
   return text;
