@@ -1304,10 +1304,7 @@ let exchangeRates = {
   // Store as Unix epoch (ms) to survive JSON serialisation
   lastUpdated: 0,
   rates: {
-    // Default rates will be populated from API
-    EUR: 1.95583, // Default EUR to BGN rate
-    USD: 1.8, // Default USD to BGN rate
-    GBP: 2.3, // Default GBP to BGN rate
+    // Intentionally empty until API or cache provides values
   },
 };
 
@@ -1356,9 +1353,82 @@ async function fetchCryptoRates() {
   let fetchVs = vsCurrency;
   if (vsCurrency === "bgn") fetchVs = "eur"; // Fetch EUR if BGN is selected
   
+  /**
+   * Apply crypto quote prices to UNIT_CONVERSIONS.
+   * This must run for both API success and cached fallback.
+   * @param {string} fetchVsLocal - CoinGecko quote currency (e.g. "usd" or "eur")
+   * @param {string} vsCurrencyLocal - Preferred crypto currency (e.g. "usd" or "bgn")
+   */
+  const applyCryptoRatesToUnitConversions = (
+    fetchVsLocal,
+    vsCurrencyLocal
+  ) => {
+    for (const [symbol, id] of Object.entries(CRYPTO_CURRENCIES)) {
+      const coinPrices = cryptoRates.prices?.[id];
+      const quotePrice = coinPrices?.[fetchVsLocal];
+      if (typeof quotePrice !== "number") continue;
+
+      let convertFn;
+      let toLabel = preferredCryptoCurrency;
+
+      if (
+        vsCurrencyLocal === "bgn" &&
+        exchangeRates.rates &&
+        typeof exchangeRates.rates["EUR"] === "number"
+      ) {
+        // Convert EUR price to BGN
+        convertFn = (val) => val * quotePrice * exchangeRates.rates["EUR"];
+        toLabel = "BGN";
+      } else {
+        convertFn = (val) => val * quotePrice;
+      }
+
+      UNIT_CONVERSIONS[symbol] = {
+        to: toLabel,
+        convert: convertFn,
+      };
+    }
+  };
+
   // Store the API URL for debugging
   const apiUrl = `https://api.coingecko.com/api/v3/simple/price?ids=${coinIds}&vs_currencies=${fetchVs}`;
   ErrorHandler.setLastApiUrl('crypto-rates', apiUrl);
+
+  // Try to use cached data immediately (prevents CORS failures from being noisy)
+  try {
+    const cached = localStorage.getItem("cryptoRates");
+    if (cached) {
+      const parsed = JSON.parse(cached);
+      const cacheAge = now - (parsed?.lastUpdated || 0);
+      const hasQuoteField = Object.values(CRYPTO_CURRENCIES).some((id) => {
+        const coinPrices = parsed?.prices?.[id];
+        return coinPrices && typeof coinPrices[fetchVs] === "number";
+      });
+
+      if (
+        parsed &&
+        typeof parsed.lastUpdated === "number" &&
+        parsed.prices &&
+        cacheAge >= 0 &&
+        cacheAge < CONFIG.CRYPTO_CACHE_DURATION &&
+        hasQuoteField
+      ) {
+        cryptoRates = parsed;
+        applyCryptoRatesToUnitConversions(fetchVs, vsCurrency);
+        cryptoRatesError = null;
+        const lastUpdateFormatted = formatLastUpdate(parsed.lastUpdated);
+        ErrorHandler.log(
+          `Using cached crypto rates from ${lastUpdateFormatted}`,
+          "crypto-rates-cache",
+          "info"
+        );
+        return;
+      }
+    }
+  } catch (cacheError) {
+    // Non-fatal: we still attempt the API call below.
+    ErrorHandler.log(cacheError, 'crypto-rates-cache-parse', 'error');
+  }
   
   const handleCryptoError = (errorMessage) => {
     cryptoRatesError = errorMessage;
@@ -1368,11 +1438,25 @@ async function fetchCryptoRates() {
     if (cached) {
       try {
         const parsed = JSON.parse(cached);
-        if (parsed && parsed.prices && parsed.lastUpdated) {
+        const cacheAge = now - (parsed?.lastUpdated || 0);
+        const hasQuoteField = Object.values(CRYPTO_CURRENCIES).some((id) => {
+          const coinPrices = parsed?.prices?.[id];
+          return coinPrices && typeof coinPrices[fetchVs] === "number";
+        });
+
+        if (
+          parsed &&
+          typeof parsed.lastUpdated === "number" &&
+          parsed.prices &&
+          cacheAge >= 0 &&
+          cacheAge < CONFIG.CRYPTO_CACHE_DURATION &&
+          hasQuoteField
+        ) {
           cryptoRates = parsed;
           const lastUpdateFormatted = formatLastUpdate(parsed.lastUpdated);
           ErrorHandler.log(`Using cached crypto rates from ${lastUpdateFormatted}`, 'crypto-rates-cache', 'info');
           cryptoRatesError = `Using crypto prices from ${lastUpdateFormatted} (API unavailable)`;
+          applyCryptoRatesToUnitConversions(fetchVs, vsCurrency);
         }
       } catch (parseError) {
         ErrorHandler.log(parseError, 'crypto-rates-cache-parse', 'error');
@@ -1411,31 +1495,9 @@ async function fetchCryptoRates() {
 
     cryptoRates.prices = data;
     cryptoRates.lastUpdated = now;
+    cryptoRates.vsCurrency = fetchVs;
     cryptoRatesError = null; // Clear error on success
-
-    // Add to UNIT_CONVERSIONS
-    for (const [symbol, id] of Object.entries(CRYPTO_CURRENCIES)) {
-      if (cryptoRates.prices[id] && cryptoRates.prices[id][fetchVs]) {
-        let convertFn;
-        let toLabel = preferredCryptoCurrency;
-        if (
-          vsCurrency === "bgn" &&
-          exchangeRates.rates &&
-          exchangeRates.rates["EUR"]
-        ) {
-          // Convert EUR price to BGN
-          convertFn = (val) =>
-            val * cryptoRates.prices[id]["eur"] * exchangeRates.rates["EUR"];
-          toLabel = "BGN";
-        } else {
-          convertFn = (val) => val * cryptoRates.prices[id][fetchVs];
-        }
-        UNIT_CONVERSIONS[symbol] = {
-          to: toLabel,
-          convert: convertFn,
-        };
-      }
-    }
+    applyCryptoRatesToUnitConversions(fetchVs, vsCurrency);
 
     localStorage.setItem("cryptoRates", JSON.stringify(cryptoRates));
   } catch (error) {
@@ -1495,48 +1557,32 @@ async function fetchExchangeRates() {
             // Reset to default rates
             exchangeRates = {
               lastUpdated: 0, // Force refresh on next call
-              rates: {
-                EUR: 1.95583,
-                USD: 1.8,
-                GBP: 2.3,
-              },
+              rates: {},
             };
-            ErrorHandler.log("Cached exchange rates expired, using defaults", 'exchange-rates-cache', 'warn');
+            ErrorHandler.log("Cached exchange rates expired; rates cleared", 'exchange-rates-cache', 'warn');
           }
         } else {
           // Reset to default rates
           exchangeRates = {
             lastUpdated: 0, // Force refresh on next call
-            rates: {
-              EUR: 1.95583,
-              USD: 1.8,
-              GBP: 2.3,
-            },
+            rates: {},
           };
-          ErrorHandler.log("Invalid cached exchange rates structure, using defaults", 'exchange-rates-cache', 'warn');
+          ErrorHandler.log("Invalid cached exchange rates structure; rates cleared", 'exchange-rates-cache', 'warn');
         }
       } else {
         // Reset to default rates
         exchangeRates = {
           lastUpdated: 0, // Force refresh on next call
-          rates: {
-            EUR: 1.95583,
-            USD: 1.8,
-            GBP: 2.3,
-          },
+          rates: {},
         };
-        ErrorHandler.log("No cached exchange rates available, using defaults", 'exchange-rates-cache', 'warn');
+        ErrorHandler.log("No cached exchange rates available; rates cleared", 'exchange-rates-cache', 'warn');
       }
     } catch (parseError) {
       ErrorHandler.log(parseError, 'exchange-rates-cache-parse', 'error');
       // Reset to default rates
       exchangeRates = {
         lastUpdated: 0, // Force refresh on next call
-        rates: {
-          EUR: 1.95583,
-          USD: 1.8,
-          GBP: 2.3,
-        },
+        rates: {},
       };
     }
   };
@@ -1868,6 +1914,9 @@ function applyUnitConversion(value, unit) {
       } else {
         converted = value * conversion.factor;
       }
+      // If rates are missing (e.g., API/cache unavailable), conversions can produce NaN.
+      // Treat that as "conversion not available" instead of rendering "NaN".
+      if (!Number.isFinite(converted)) return null;
       // Round to 2 decimal places for currency, 4 for other units
       const decimals =
         key.match(/[€$£]/) || CRYPTO_CURRENCIES[key.toUpperCase()] ? 2 : 4;
