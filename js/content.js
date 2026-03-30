@@ -1086,6 +1086,7 @@ const PopupManager = {
 
     this.isVisible = false;
     this.currentSelection = null;
+    this.lastSelection = null; // Allow re-showing popup for the same text
     clearTimeout(this.hideTimeout);
     clearTimeout(this.mouseDownTimeout);
     clearTimeout(this.showDebounceTimeout);
@@ -1131,7 +1132,7 @@ const PopupManager = {
       this.mouseDownTimeout = null;
     }
 
-    let selection, selectedTextTrimmed, range, rect;
+    let selection, selectedTextTrimmed;
     try {
       selection = window.getSelection();
       selectedTextTrimmed = selection.toString().trim();
@@ -1148,27 +1149,35 @@ const PopupManager = {
       selectedTextTrimmed.length <= CONFIG.MAX_SELECTION_LENGTH
     ) {
       currentSelectedText = selectedTextTrimmed;
-      try {
-        range = selection.getRangeAt(0);
-        rect = range.getBoundingClientRect();
-      } catch (err) {
-        // Handle cross-origin iframe errors silently
-        ErrorHandler.handleDomError(err, 'selection-range', true);
-        return;
+      // Debounce the show operation to handle rapid double-clicks
+      // Re-query selection geometry inside the timeout to avoid stale rects
+      if (this.showDebounceTimeout) {
+        clearTimeout(this.showDebounceTimeout);
       }
-      
-      if (rect.width > 0 || rect.height > 0) {
-        // Debounce the show operation to handle rapid double-clicks
-        this.showDebounceTimeout = setTimeout(() => {
-          this.show(rect, range.commonAncestorContainer);
-          // Schedule auto-hide after short delay
-          setTimeout(() => {
-            this.scheduleAutoHide();
-          }, 100);
-        }, 50); // Small delay to handle double-click scenarios
-      } else {
-        this.hide();
-      }
+      this.showDebounceTimeout = setTimeout(() => {
+        try {
+          const freshSelection = window.getSelection();
+          const freshText = freshSelection.toString().trim();
+          if (
+            !freshText ||
+            freshText.length < CONFIG.MIN_SELECTION_LENGTH ||
+            freshText.length > CONFIG.MAX_SELECTION_LENGTH
+          ) {
+            return;
+          }
+          currentSelectedText = freshText;
+          const range = freshSelection.getRangeAt(0);
+          const rect = range.getBoundingClientRect();
+          if (rect.width > 0 || rect.height > 0) {
+            this.show(rect, range.commonAncestorContainer);
+            setTimeout(() => {
+              this.scheduleAutoHide();
+            }, 100);
+          }
+        } catch (err) {
+          ErrorHandler.handleDomError(err, 'selection-range-deferred', true);
+        }
+      }, 80); // Slightly longer delay to let double-click selection stabilise
     } else if (!this.isPopupTarget(e.target)) {
       this.hide();
     }
@@ -1179,13 +1188,17 @@ const PopupManager = {
    */
   handleMouseDown(e) {
     this.cancelAutoHide();
-    
-    // Debounce hide operation to prevent race with mouse up
+
+    // Clear any pending show debounce to prevent showing a stale popup
+    if (this.showDebounceTimeout) {
+      clearTimeout(this.showDebounceTimeout);
+      this.showDebounceTimeout = null;
+    }
+
+    // Hide immediately — the re-query approach in mouseUp makes this safe
+    // for double-click scenarios (the 80ms debounce re-queries fresh selection)
     if (this.isVisible && !this.isPopupTarget(e.target)) {
-      // Use a timeout to check if this is part of a double-click
-      this.mouseDownTimeout = setTimeout(() => {
-        this.hide();
-      }, 100); // Wait to see if mouse up follows quickly (double-click)
+      this.hide();
     }
   },
 
@@ -2229,7 +2242,35 @@ const popupElements = popupStructure.elements;
 
 // Append the optimized structure to shadow root in a single operation
 shadowRoot.appendChild(popupStructure.fragment);
-document.body.appendChild(shadowHost);
+
+// Track the hide transition timeout to prevent show/hide race conditions
+let hideTransitionTimeout = null;
+
+// Guard against missing body or restricted iframe contexts
+function appendPopupToDocument() {
+  try {
+    if (document.body) {
+      document.body.appendChild(shadowHost);
+    } else {
+      // Body not ready yet — wait for it
+      if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', () => {
+          try {
+            if (document.body) {
+              document.body.appendChild(shadowHost);
+            }
+          } catch (e) {
+            ErrorHandler.handleDomError(e, 'iframe-append-deferred', true);
+          }
+        }, { once: true });
+      }
+    }
+  } catch (e) {
+    // Sandboxed or CSP-restricted iframe — silently skip
+    ErrorHandler.handleDomError(e, 'iframe-append', true);
+  }
+}
+appendPopupToDocument();
 
 // ===== UI COMPONENTS AND POPUP MANAGEMENT =====
 
@@ -2623,6 +2664,12 @@ function applyPopupStyling(left, top, isPopupBelow, selectionContextElement) {
 
 // --- Optimized popup positioning with minimal reflows ---
 async function showAndPositionPopup(rect, selectionContextElement) {
+  // Cancel any pending hide transition to prevent it from hiding this new popup
+  if (hideTransitionTimeout) {
+    clearTimeout(hideTransitionTimeout);
+    hideTransitionTimeout = null;
+  }
+
   // Batch initial style changes to minimize reflows
   DOMOptimizer.applyStylesBatch(popup, {
     opacity: "0",
@@ -2652,7 +2699,12 @@ function hidePopup() {
   shadowHost.style.pointerEvents = "none";
   PopupManager.cancelAutoHide();
 
-  setTimeout(() => {
+  // Clear any previous hide timeout to prevent stacking
+  if (hideTransitionTimeout) {
+    clearTimeout(hideTransitionTimeout);
+  }
+  hideTransitionTimeout = setTimeout(() => {
+    hideTransitionTimeout = null;
     DOMOptimizer.applyStylesBatch(popup, {
       display: "none",
     });
