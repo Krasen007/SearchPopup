@@ -1,0 +1,16 @@
+1. bump @package.json version with +0.01.0 (or to the next major version, e.g. 1.35 do not use 3 signs) reminder: +0.1 not +0.10!
+
+2. run cd "C:\Users\krase\repos\SearchPopup" && .\gitlog.bat
+
+3. bump @gitlog.bat with +0.0.1
+
+4. read @changelog.txt and update it for github changelog page, 
+summarize it in few notes but reword it so it's more easily understood, 
+don't try to create changelog.txt because it already exists, 
+update the changelog.txt file itself.
+
+5. Update @readme.md with the new features from the changelog.txt, in the readme do not add a what's new section, just update the readme itself to contain the features
+
+6. WAIT for commit bump with message "bump version %VERSION%"
+
+7. WAIT for confirmation before you push all changes to remote repository
