@@ -3,7 +3,7 @@
  * @author Krasen Ivanov
  * @version 1.73.5
  * @license MIT
- * 
+ *
  * This content script provides intelligent popup functionality when users select text on web pages.
  * Features include:
  * - Smart URL detection and search engine integration
@@ -14,14 +14,14 @@
  * - Theme-aware UI that adapts to page styling
  * - Performance-optimized DOM operations
  * - Comprehensive error handling and logging
- * 
+ *
  * Architecture:
  * - ErrorHandler: Centralized error management with statistics tracking
  * - PopupManager: Centralized popup state and orchestration
  * - EventManager: Optimized event handling with throttling/debouncing
  * - DOMCache: Performance-optimized DOM element caching
  * - PerformanceUtils: Throttling and debouncing utilities
- * 
+ *
  * @requires chrome.storage.sync (for preferences)
  * @requires navigator.clipboard (for clipboard API, with fallback)
  */
@@ -39,31 +39,31 @@
 const CONFIG = {
   /** @type {number} Maximum characters allowed for text selection */
   MAX_SELECTION_LENGTH: 7000,
-  
+
   /** @type {number} Minimum characters required for text selection */
   MIN_SELECTION_LENGTH: 2,
-  
+
   /** @type {number} Delay in milliseconds before automatically hiding popup (3 seconds) */
   HIDE_DELAY: 3000,
-  
+
   /** @type {number} Cache duration for exchange rates in milliseconds (24 hours) */
   CACHE_DURATION: 24 * 60 * 60 * 1000,
-  
+
   /** @type {number} Cache duration for crypto rates in milliseconds (24 hours) */
   CRYPTO_CACHE_DURATION: 24 * 60 * 60 * 1000,
-  
+
   /** @type {number} Maximum number of API retry attempts */
   MAX_API_ATTEMPTS: 3,
-  
+
   /** @type {number} Base delay in milliseconds for API retry exponential backoff */
   BASE_RETRY_DELAY: 1000,
-  
+
   /** @type {number} Margin in pixels from viewport edges for popup positioning */
   POPUP_MARGIN: 10,
-  
+
   /** @type {number} Gap in pixels between selection and popup (includes arrow height) */
   ARROW_GAP: 10,
-  
+
   /** @type {number} Fade transition duration in milliseconds */
   FADE_TRANSITION_DURATION: 200,
 };
@@ -80,17 +80,18 @@ const REGEX_PATTERNS = {
    * @example
    * REGEX_PATTERNS.url.test('https://example.com') // true
    * REGEX_PATTERNS.url.test('example.com') // true
-  * REGEX_PATTERNS.url.test('http://localhost:3000') // true
-  * REGEX_PATTERNS.url.test('127.0.0.1:5173') // true
+   * REGEX_PATTERNS.url.test('http://localhost:3000') // true
+   * REGEX_PATTERNS.url.test('127.0.0.1:5173') // true
    */
   url: /^(https?:\/\/)?((localhost|(\d{1,3}\.){3}\d{1,3})|(([a-zA-Z0-9]([a-zA-Z0-9-]*[a-zA-Z0-9])?\.)+[a-zA-Z0-9]([a-zA-Z0-9-]*[a-zA-Z0-9])?))(:\d{1,5})?(\/[^\s]*)?$/,
 
   /**
    * Time zone pattern for conversion
-   * Supports formats: "5 PM PST", "11:30 am CET", "14:00 EST", "10:00pm PT"
+   * Supports formats: "5 PM PST", "11:30 am CET", "14:00 EST", "10:00pm PT", "6 PM Pacific Time"
    * @type {RegExp}
    */
-  timeZone: /^(\d{1,2})(?::(\d{2}))?\s*(AM|PM|am|pm)?\s*([A-Z]{2,5})$/i,
+  timeZone:
+    /^(\d{1,2})(?::(\d{2}))?\s*(AM|PM|am|pm)?\s*([A-Z]{2,5}|[A-Za-z\s]+)$/i,
 
   /**
    * Currency symbol pattern for unit detection
@@ -207,7 +208,7 @@ const CURRENCY_SYMBOLS = {
  * Formats a timestamp into a human-readable relative time string
  * @param {number} timestamp - Unix timestamp in milliseconds
  * @returns {string} Human-readable time difference (e.g., "today", "yesterday", "3 days ago")
- * 
+ *
  * @example
  * formatLastUpdate(Date.now() - 86400000) // "yesterday"
  * formatLastUpdate(Date.now() - 172800000) // "2 days ago"
@@ -216,12 +217,12 @@ const CURRENCY_SYMBOLS = {
  */
 function formatLastUpdate(timestamp) {
   if (!timestamp) return "unknown time";
-  
+
   const now = new Date();
   const lastUpdate = new Date(timestamp);
   const diffMs = now - lastUpdate;
   const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
-  
+
   if (diffDays === 0) {
     return "today";
   } else if (diffDays === 1) {
@@ -276,33 +277,60 @@ const TIME_ZONE_ABBRS = {
   PST: "America/Los_Angeles",
   PDT: "America/Los_Angeles",
   PT: "America/Los_Angeles",
+  "Pacific Time": "America/Los_Angeles",
+  "Pacific Standard Time": "America/Los_Angeles",
+  "Pacific Daylight Time": "America/Los_Angeles",
   MST: "America/Denver",
   MDT: "America/Denver",
   MT: "America/Denver",
+  "Mountain Time": "America/Denver",
+  "Mountain Standard Time": "America/Denver",
+  "Mountain Daylight Time": "America/Denver",
   CST: "America/Chicago",
   CDT: "America/Chicago",
   CT: "America/Chicago",
+  "Central Time": "America/Chicago",
+  "Central Standard Time": "America/Chicago",
+  "Central Daylight Time": "America/Chicago",
   EST: "America/New_York",
   EDT: "America/New_York",
   ET: "America/New_York",
+  "Eastern Time": "America/New_York",
+  "Eastern Standard Time": "America/New_York",
+  "Eastern Daylight Time": "America/New_York",
   AKST: "America/Anchorage",
   AKDT: "America/Anchorage",
+  "Alaska Time": "America/Anchorage",
   HST: "Pacific/Honolulu",
+  "Hawaii Time": "Pacific/Honolulu",
   GMT: "Etc/GMT",
   UTC: "Etc/UTC",
   CET: "Europe/Berlin",
   CEST: "Europe/Berlin",
+  "Central European Time": "Europe/Berlin",
+  "Central European Summer Time": "Europe/Berlin",
   EET: "Europe/Helsinki",
   EEST: "Europe/Helsinki",
+  "Eastern European Time": "Europe/Helsinki",
+  "Eastern European Summer Time": "Europe/Helsinki",
   BST: "Europe/London",
+  "British Summer Time": "Europe/London",
   IST: "Asia/Kolkata",
+  "Indian Standard Time": "Asia/Kolkata",
   JST: "Asia/Tokyo",
+  "Japan Standard Time": "Asia/Tokyo",
   KST: "Asia/Seoul",
+  "Korea Standard Time": "Asia/Seoul",
   AEST: "Australia/Sydney",
   AEDT: "Australia/Sydney",
+  "Australian Eastern Standard Time": "Australia/Sydney",
+  "Australian Eastern Daylight Time": "Australia/Sydney",
   ACST: "Australia/Adelaide",
   ACDT: "Australia/Adelaide",
+  "Australian Central Standard Time": "Australia/Adelaide",
+  "Australian Central Daylight Time": "Australia/Adelaide",
   AWST: "Australia/Perth",
+  "Australian Western Standard Time": "Australia/Perth",
 };
 
 // --- Currency Names to ISO Codes Mapping ---
@@ -470,15 +498,16 @@ const UNIT_CONVERSIONS = {
   nmi: { to: "km", factor: 1.852 },
   "nautical mile": { to: "km", factor: 1.852 },
   "nautical miles": { to: "km", factor: 1.852 },
-  
+
   // Bitcoin Subunits (only works when crypto API is available)
-  BITS: { 
-    to: "USD", 
-    convert: (val) => val * 0.000001 * (cryptoRates.prices?.bitcoin?.usd || 0) 
+  BITS: {
+    to: "USD",
+    convert: (val) => val * 0.000001 * (cryptoRates.prices?.bitcoin?.usd || 0),
   }, // 1 bit = 0.000001 BTC, then convert to USD
-  SATS: { 
-    to: "USD", 
-    convert: (val) => val * 0.00000001 * (cryptoRates.prices?.bitcoin?.usd || 0) 
+  SATS: {
+    to: "USD",
+    convert: (val) =>
+      val * 0.00000001 * (cryptoRates.prices?.bitcoin?.usd || 0),
   }, // 1 satoshi = 0.00000001 BTC, then convert to USD
 };
 
@@ -491,7 +520,7 @@ const ErrorHandler = {
     total: 0,
     byContext: {},
     byLevel: { error: 0, warn: 0, info: 0 },
-    recent: [] // Keep last 10 errors for debugging
+    recent: [], // Keep last 10 errors for debugging
   },
 
   /**
@@ -500,44 +529,44 @@ const ErrorHandler = {
    * @param {string} context - Context where the error occurred
    * @param {string} level - Log level ('error', 'warn', 'info')
    */
-  log(error, context, level = 'warn') {
+  log(error, context, level = "warn") {
     const timestamp = new Date().toISOString();
     const message = error instanceof Error ? error.message : error;
     const logMessage = `[${timestamp}] [${level.toUpperCase()}] [${context}] ${message}`;
-    
+
     // Update statistics
     this.stats.total++;
     this.stats.byLevel[level] = (this.stats.byLevel[level] || 0) + 1;
     this.stats.byContext[context] = (this.stats.byContext[context] || 0) + 1;
-    
+
     // Keep recent errors for debugging
     this.stats.recent.unshift({
       timestamp,
       message,
       context,
       level,
-      stack: error instanceof Error ? error.stack : null
+      stack: error instanceof Error ? error.stack : null,
     });
     if (this.stats.recent.length > 10) {
       this.stats.recent.pop();
     }
-    
+
     // Output to console with appropriate level
     switch (level) {
-      case 'error':
+      case "error":
         console.error(logMessage);
         if (error instanceof Error && error.stack) {
-          console.error('Stack trace:', error.stack);
+          console.error("Stack trace:", error.stack);
         }
         break;
-      case 'warn':
+      case "warn":
         console.warn(logMessage);
         break;
-      case 'info':
+      case "info":
         // console.info(logMessage); // no basic console log in production
         break;
       default:
-        // console.log(logMessage); // no basic console log in production
+      // console.log(logMessage); // no basic console log in production
     }
   },
 
@@ -556,7 +585,7 @@ const ErrorHandler = {
       total: 0,
       byContext: {},
       byLevel: { error: 0, warn: 0, info: 0 },
-      recent: []
+      recent: [],
     };
   },
 
@@ -569,7 +598,7 @@ const ErrorHandler = {
    */
   handleApiError(error, context, fallback = null, options = {}) {
     const { retryCount = 0, maxRetries = 3 } = options;
-    
+
     // Enhanced error logging with more details
     const errorDetails = {
       message: error.message,
@@ -578,41 +607,56 @@ const ErrorHandler = {
       timestamp: new Date().toISOString(),
       retryCount,
       userAgent: navigator.userAgent,
-      url: this.getLastApiUrl(context)
+      url: this.getLastApiUrl(context),
     };
-    
-    this.log(`API Error Details: ${JSON.stringify(errorDetails, null, 2)}`, context, 'error');
-    
+
+    this.log(
+      `API Error Details: ${JSON.stringify(errorDetails, null, 2)}`,
+      context,
+      "error",
+    );
+
     // Determine error type and provide appropriate message
-    let userMessage = 'Service temporarily unavailable';
-    if (error.message.includes('Rate limit')) {
-      userMessage = 'Rate limit exceeded. Please try again later.';
-    } else if (error.message.includes('CORS') || error.message.includes('blocked')) {
-      userMessage = 'Service access blocked. Using cached data.';
-    } else if (error.message.includes('Network') || error.message.includes('ERR_FAILED')) {
-      userMessage = 'Network error. Using cached data.';
-    } else if (error.message.includes('Failed to fetch')) {
-      userMessage = 'Fetch failed - possible network interception or DNS issue.';
-    } else if (error.message.includes('429')) {
-      userMessage = 'Too many requests. Please try again later.';
-    } else if (error.message.includes('403')) {
-      userMessage = 'Access forbidden. Using cached data.';
+    let userMessage = "Service temporarily unavailable";
+    if (error.message.includes("Rate limit")) {
+      userMessage = "Rate limit exceeded. Please try again later.";
+    } else if (
+      error.message.includes("CORS") ||
+      error.message.includes("blocked")
+    ) {
+      userMessage = "Service access blocked. Using cached data.";
+    } else if (
+      error.message.includes("Network") ||
+      error.message.includes("ERR_FAILED")
+    ) {
+      userMessage = "Network error. Using cached data.";
+    } else if (error.message.includes("Failed to fetch")) {
+      userMessage =
+        "Fetch failed - possible network interception or DNS issue.";
+    } else if (error.message.includes("429")) {
+      userMessage = "Too many requests. Please try again later.";
+    } else if (error.message.includes("403")) {
+      userMessage = "Access forbidden. Using cached data.";
     }
-    
+
     // Log retry information if applicable
     if (retryCount > 0) {
-      this.log(`Retry attempt ${retryCount}/${maxRetries}`, `${context}-retry`, 'info');
+      this.log(
+        `Retry attempt ${retryCount}/${maxRetries}`,
+        `${context}-retry`,
+        "info",
+      );
     }
-    
+
     // Execute fallback if provided
-    if (fallback && typeof fallback === 'function') {
+    if (fallback && typeof fallback === "function") {
       try {
         fallback(userMessage);
       } catch (fallbackError) {
-        this.log(fallbackError, `${context}-fallback`, 'error');
+        this.log(fallbackError, `${context}-fallback`, "error");
       }
     }
-    
+
     return userMessage;
   },
 
@@ -620,15 +664,15 @@ const ErrorHandler = {
    * Store last API URL for debugging
    */
   lastApiUrls: {
-    'crypto-rates': null,
-    'exchange-rates': null
+    "crypto-rates": null,
+    "exchange-rates": null,
   },
 
   /**
    * Get last API URL for error context
    */
   getLastApiUrl(context) {
-    return this.lastApiUrls[context] || 'unknown';
+    return this.lastApiUrls[context] || "unknown";
   },
 
   /**
@@ -645,15 +689,18 @@ const ErrorHandler = {
    * @param {boolean} silent - Whether to suppress user-facing messages
    */
   handleDomError(error, context, silent = false) {
-    this.log(error, context, silent ? 'info' : 'warn');
-    
+    this.log(error, context, silent ? "info" : "warn");
+
     // For cross-origin iframe errors, handle silently
-    if (error.message.includes('cross-origin') || error.message.includes('SecurityError')) {
+    if (
+      error.message.includes("cross-origin") ||
+      error.message.includes("SecurityError")
+    ) {
       return null;
     }
-    
+
     // Return error state for UI updates
-    return this.createErrorState('DOM operation failed', context);
+    return this.createErrorState("DOM operation failed", context);
   },
 
   /**
@@ -668,7 +715,7 @@ const ErrorHandler = {
       message,
       context,
       timestamp: Date.now(),
-      ...additional
+      ...additional,
     };
   },
 
@@ -683,7 +730,7 @@ const ErrorHandler = {
       try {
         return fn(...args);
       } catch (error) {
-        if (errorHandler && typeof errorHandler === 'function') {
+        if (errorHandler && typeof errorHandler === "function") {
           return errorHandler(error, context);
         } else {
           this.handleDomError(error, context);
@@ -704,7 +751,7 @@ const ErrorHandler = {
       try {
         return await fn(...args);
       } catch (error) {
-        if (errorHandler && typeof errorHandler === 'function') {
+        if (errorHandler && typeof errorHandler === "function") {
           return errorHandler(error, context);
         } else {
           return this.handleApiError(error, context);
@@ -720,13 +767,17 @@ const ErrorHandler = {
    * @param {Object} metadata - Additional metadata
    */
   logPerformance(operation, duration, metadata = {}) {
-    const level = duration > 1000 ? 'warn' : duration > 500 ? 'info' : 'info';
+    const level = duration > 1000 ? "warn" : duration > 500 ? "info" : "info";
     const message = `Operation "${operation}" took ${duration}ms`;
     this.log(message, `performance-${operation}`, level);
-    
+
     // Log additional metadata if provided
     if (Object.keys(metadata).length > 0) {
-      this.log(`Metadata: ${JSON.stringify(metadata)}`, `performance-${operation}-metadata`, 'info');
+      this.log(
+        `Metadata: ${JSON.stringify(metadata)}`,
+        `performance-${operation}-metadata`,
+        "info",
+      );
     }
   },
 
@@ -737,12 +788,16 @@ const ErrorHandler = {
    */
   logUserAction(action, details = {}) {
     const message = `User action: ${action}`;
-    this.log(message, `user-action-${action}`, 'info');
-    
+    this.log(message, `user-action-${action}`, "info");
+
     if (Object.keys(details).length > 0) {
-      this.log(`Action details: ${JSON.stringify(details)}`, `user-action-${action}-details`, 'info');
+      this.log(
+        `Action details: ${JSON.stringify(details)}`,
+        `user-action-${action}-details`,
+        "info",
+      );
     }
-  }
+  },
 };
 
 // ===== PERFORMANCE VALIDATION SYSTEM =====
@@ -788,25 +843,25 @@ const PerformanceValidator = {
    * @param {number} duration - Duration in milliseconds
    */
   recordMetric(operation, duration) {
-    if (!this.metrics[operation + 'Times']) {
-      this.metrics[operation + 'Times'] = [];
+    if (!this.metrics[operation + "Times"]) {
+      this.metrics[operation + "Times"] = [];
     }
-    
-    this.metrics[operation + 'Times'].push({
+
+    this.metrics[operation + "Times"].push({
       duration,
-      timestamp: Date.now()
+      timestamp: Date.now(),
     });
 
     // Keep only last 50 measurements to prevent memory leaks
-    if (this.metrics[operation + 'Times'].length > 50) {
-      this.metrics[operation + 'Times'].shift();
+    if (this.metrics[operation + "Times"].length > 50) {
+      this.metrics[operation + "Times"].shift();
     }
 
     // Log performance warnings for slow operations
     if (duration > 100) {
-      ErrorHandler.logPerformance(operation, duration, { 
-        warning: 'Slow operation detected',
-        threshold: '100ms'
+      ErrorHandler.logPerformance(operation, duration, {
+        warning: "Slow operation detected",
+        threshold: "100ms",
       });
     }
   },
@@ -817,10 +872,10 @@ const PerformanceValidator = {
    * @returns {Object} Performance statistics
    */
   getStats(operation) {
-    const times = this.metrics[operation + 'Times'] || [];
+    const times = this.metrics[operation + "Times"] || [];
     if (times.length === 0) return null;
 
-    const durations = times.map(t => t.duration);
+    const durations = times.map((t) => t.duration);
     return {
       count: durations.length,
       average: durations.reduce((a, b) => a + b, 0) / durations.length,
@@ -828,7 +883,7 @@ const PerformanceValidator = {
       max: Math.max(...durations),
       median: this.calculateMedian(durations),
       p95: this.calculatePercentile(durations, 95),
-      recent: times.slice(-10) // Last 10 measurements
+      recent: times.slice(-10), // Last 10 measurements
     };
   },
 
@@ -840,8 +895,8 @@ const PerformanceValidator = {
   calculateMedian(values) {
     const sorted = [...values].sort((a, b) => a - b);
     const mid = Math.floor(sorted.length / 2);
-    return sorted.length % 2 === 0 
-      ? (sorted[mid - 1] + sorted[mid]) / 2 
+    return sorted.length % 2 === 0
+      ? (sorted[mid - 1] + sorted[mid]) / 2
       : sorted[mid];
   },
 
@@ -865,14 +920,14 @@ const PerformanceValidator = {
     const results = {
       passed: true,
       violations: [],
-      summary: {}
+      summary: {},
     };
 
     const thresholds = {
       popupShow: 50, // ms
       conversion: 100, // ms
       apiCall: 2000, // ms
-      domOperation: 20 // ms
+      domOperation: 20, // ms
     };
 
     for (const [operation, threshold] of Object.entries(thresholds)) {
@@ -883,7 +938,7 @@ const PerformanceValidator = {
           operation,
           threshold,
           actual: stats.p95,
-          severity: stats.p95 > threshold * 2 ? 'high' : 'medium'
+          severity: stats.p95 > threshold * 2 ? "high" : "medium",
         });
       }
       results.summary[operation] = stats;
@@ -896,10 +951,10 @@ const PerformanceValidator = {
    * Clear all performance metrics
    */
   clearMetrics() {
-    Object.keys(this.metrics).forEach(key => {
+    Object.keys(this.metrics).forEach((key) => {
       this.metrics[key] = [];
     });
-  }
+  },
 };
 
 // --- DOM Caching System for Performance Optimization ---
@@ -1059,16 +1114,16 @@ const PopupManager = {
 
     this.isShowing = true;
 
-    const startTime = PerformanceValidator.startTimer('popupShow');
-    
+    const startTime = PerformanceValidator.startTimer("popupShow");
+
     this.lastSelection = currentSelectedText;
     this.currentSelection = currentSelectedText;
     this.isVisible = true;
 
     // Log user action for debugging
-    ErrorHandler.logUserAction('popup-show', { 
+    ErrorHandler.logUserAction("popup-show", {
       textLength: this.currentSelection?.length,
-      position: { x: rect.left, y: rect.top }
+      position: { x: rect.left, y: rect.top },
     });
 
     try {
@@ -1076,8 +1131,8 @@ const PopupManager = {
     } finally {
       this.isShowing = false;
     }
-    
-    PerformanceValidator.endTimer('popupShow', startTime);
+
+    PerformanceValidator.endTimer("popupShow", startTime);
   },
 
   /**
@@ -1096,7 +1151,7 @@ const PopupManager = {
     hidePopup();
 
     // Log user action for debugging
-    ErrorHandler.logUserAction('popup-hide');
+    ErrorHandler.logUserAction("popup-hide");
   },
 
   /**
@@ -1140,7 +1195,7 @@ const PopupManager = {
       selectedTextTrimmed = selection.toString().trim();
     } catch (err) {
       // Handle cross-origin iframe errors silently
-      ErrorHandler.handleDomError(err, 'selection-get', true);
+      ErrorHandler.handleDomError(err, "selection-get", true);
       return;
     }
 
@@ -1177,7 +1232,7 @@ const PopupManager = {
             }, 100);
           }
         } catch (err) {
-          ErrorHandler.handleDomError(err, 'selection-range-deferred', true);
+          ErrorHandler.handleDomError(err, "selection-range-deferred", true);
         }
       }, 80); // Slightly longer delay to let double-click selection stabilise
     } else if (!this.isPopupTarget(e.target)) {
@@ -1210,7 +1265,7 @@ const PopupManager = {
   bindEvents() {
     // Events are now handled by EventManager
     // This method is kept for consistency but doesn't need to bind individual events
-  }
+  },
 };
 
 // ===== EVENT MANAGEMENT SYSTEM =====
@@ -1248,8 +1303,14 @@ const EventManager = {
    * Bind all event listeners with optimized handlers
    */
   bindEvents() {
-    document.addEventListener("mouseup", PopupManager.handleMouseUp.bind(PopupManager));
-    document.addEventListener("mousedown", PopupManager.handleMouseDown.bind(PopupManager));
+    document.addEventListener(
+      "mouseup",
+      PopupManager.handleMouseUp.bind(PopupManager),
+    );
+    document.addEventListener(
+      "mousedown",
+      PopupManager.handleMouseDown.bind(PopupManager),
+    );
     window.addEventListener("scroll", this.throttledScrollHandler, {
       passive: true,
     });
@@ -1270,7 +1331,11 @@ const EventManager = {
    * @param {ErrorEvent} event - The error event
    */
   handleError(event) {
-    ErrorHandler.handleDomError(event.error || new Error(event.message), 'global-error', true);
+    ErrorHandler.handleDomError(
+      event.error || new Error(event.message),
+      "global-error",
+      true,
+    );
     // Prevent error from bubbling up
     event.preventDefault();
     return false;
@@ -1281,7 +1346,11 @@ const EventManager = {
    * @param {PromiseRejectionEvent} event - The promise rejection event
    */
   handleUnhandledRejection(event) {
-    ErrorHandler.handleDomError(event.reason || new Error('Unhandled promise rejection'), 'unhandled-promise-rejection', true);
+    ErrorHandler.handleDomError(
+      event.reason || new Error("Unhandled promise rejection"),
+      "unhandled-promise-rejection",
+      true,
+    );
     // Prevent error from bubbling up
     event.preventDefault();
     return false;
@@ -1354,17 +1423,14 @@ async function fetchCryptoRates() {
     : "usd";
   let fetchVs = vsCurrency;
   if (vsCurrency === "bgn") fetchVs = "eur"; // Fetch EUR if BGN is selected
-  
+
   /**
    * Apply crypto quote prices to UNIT_CONVERSIONS.
    * This must run for both API success and cached fallback.
    * @param {string} fetchVsLocal - CoinGecko quote currency (e.g. "usd" or "eur")
    * @param {string} vsCurrencyLocal - Preferred crypto currency (e.g. "usd" or "bgn")
    */
-  const applyCryptoRatesToUnitConversions = (
-    fetchVsLocal,
-    vsCurrencyLocal
-  ) => {
+  const applyCryptoRatesToUnitConversions = (fetchVsLocal, vsCurrencyLocal) => {
     for (const [symbol, id] of Object.entries(CRYPTO_CURRENCIES)) {
       const coinPrices = cryptoRates.prices?.[id];
       const quotePrice = coinPrices?.[fetchVsLocal];
@@ -1409,17 +1475,12 @@ async function fetchCryptoRates() {
       const parsed = JSON.parse(cached);
 
       // Require cache object shape
-      if (
-        !parsed ||
-        typeof parsed.lastUpdated !== "number" ||
-        !parsed.prices
-      ) {
+      if (!parsed || typeof parsed.lastUpdated !== "number" || !parsed.prices) {
         return { valid: false, parsed: null, corrupted: false };
       }
 
       const cacheAge = now - (parsed?.lastUpdated || 0);
-      const isFresh =
-        cacheAge >= 0 && cacheAge < CONFIG.CRYPTO_CACHE_DURATION;
+      const isFresh = cacheAge >= 0 && cacheAge < CONFIG.CRYPTO_CACHE_DURATION;
       if (!isFresh) {
         return { valid: false, parsed: null, corrupted: false };
       }
@@ -1447,7 +1508,7 @@ async function fetchCryptoRates() {
 
   // Store the API URL for debugging
   const apiUrl = `https://api.coingecko.com/api/v3/simple/price?ids=${coinIds}&vs_currencies=${fetchVs}`;
-  ErrorHandler.setLastApiUrl('crypto-rates', apiUrl);
+  ErrorHandler.setLastApiUrl("crypto-rates", apiUrl);
 
   // Try to use cached data immediately (prevents CORS failures from being noisy)
   const earlyCacheResult = validateAndLoadCryptoCache(fetchVs);
@@ -1456,23 +1517,27 @@ async function fetchCryptoRates() {
     applyCryptoRatesToUnitConversions(fetchVs, vsCurrency);
     cryptoRatesError = null;
     const lastUpdateFormatted = formatLastUpdate(
-      earlyCacheResult.parsed.lastUpdated
+      earlyCacheResult.parsed.lastUpdated,
     );
     ErrorHandler.log(
       `Using cached crypto rates from ${lastUpdateFormatted}`,
       "crypto-rates-cache",
-      "info"
+      "info",
     );
     return;
   }
-  
+
   const handleCryptoError = (errorMessage) => {
     cryptoRatesError = errorMessage;
-    
+
     // Try to load from cache
     const cached = localStorage.getItem("cryptoRates");
     if (!cached) {
-      ErrorHandler.log("No cached crypto data available", 'crypto-rates-cache', 'warn');
+      ErrorHandler.log(
+        "No cached crypto data available",
+        "crypto-rates-cache",
+        "warn",
+      );
       cryptoRatesError = "No crypto data available (API and cache unavailable)";
       return;
     }
@@ -1480,11 +1545,13 @@ async function fetchCryptoRates() {
     const cacheResult = validateAndLoadCryptoCache(fetchVs);
     if (cacheResult.valid) {
       cryptoRates = cacheResult.parsed;
-      const lastUpdateFormatted = formatLastUpdate(cacheResult.parsed.lastUpdated);
+      const lastUpdateFormatted = formatLastUpdate(
+        cacheResult.parsed.lastUpdated,
+      );
       ErrorHandler.log(
         `Using cached crypto rates from ${lastUpdateFormatted}`,
-        'crypto-rates-cache',
-        'info'
+        "crypto-rates-cache",
+        "info",
       );
       cryptoRatesError = `Using crypto prices from ${lastUpdateFormatted} (API unavailable)`;
       applyCryptoRatesToUnitConversions(fetchVs, vsCurrency);
@@ -1495,17 +1562,16 @@ async function fetchCryptoRates() {
       cryptoRatesError = "Crypto data unavailable (cache corrupted)";
     }
   };
-  
+
   try {
     const response = await fetch(apiUrl, {
-      method: 'GET',
-        headers: {
-          'Accept': 'application/json',
-        },
-        mode: 'cors'
-      }
-    );
-    
+      method: "GET",
+      headers: {
+        Accept: "application/json",
+      },
+      mode: "cors",
+    });
+
     if (!response.ok) {
       if (response.status === 429) {
         throw new Error("Rate limit exceeded. Please try again later.");
@@ -1515,7 +1581,7 @@ async function fetchCryptoRates() {
         throw new Error(`HTTP ${response.status}: ${response.statusText}`);
       }
     }
-    
+
     const data = await response.json();
     if (!data) {
       throw new Error("Invalid response format from CoinGecko API");
@@ -1529,7 +1595,7 @@ async function fetchCryptoRates() {
 
     localStorage.setItem("cryptoRates", JSON.stringify(cryptoRates));
   } catch (error) {
-    ErrorHandler.handleApiError(error, 'crypto-rates', handleCryptoError);
+    ErrorHandler.handleApiError(error, "crypto-rates", handleCryptoError);
   }
 }
 
@@ -1555,11 +1621,11 @@ async function fetchExchangeRates() {
 
   // Store the API URL for debugging
   const apiUrl = "https://api.exchangerate-api.com/v4/latest/EUR";
-  ErrorHandler.setLastApiUrl('exchange-rates', apiUrl);
+  ErrorHandler.setLastApiUrl("exchange-rates", apiUrl);
 
   const handleExchangeError = (errorMessage) => {
     exchangeRatesError = errorMessage;
-    
+
     // Load from localStorage if available (only when max retries reached)
     try {
       const cached = localStorage.getItem("exchangeRates");
@@ -1580,14 +1646,22 @@ async function fetchExchangeRates() {
           const maxCacheAge = 7 * 24 * 60 * 60 * 1000; // 7 days in milliseconds
           if (cacheAge < maxCacheAge) {
             exchangeRates = parsed;
-            ErrorHandler.log(`Using cached exchange rates from ${formatLastUpdate(parsed.lastUpdated)}`, 'exchange-rates-cache', 'info');
+            ErrorHandler.log(
+              `Using cached exchange rates from ${formatLastUpdate(parsed.lastUpdated)}`,
+              "exchange-rates-cache",
+              "info",
+            );
           } else {
             // Reset to default rates
             exchangeRates = {
               lastUpdated: 0, // Force refresh on next call
               rates: {},
             };
-            ErrorHandler.log("Cached exchange rates expired; rates cleared", 'exchange-rates-cache', 'warn');
+            ErrorHandler.log(
+              "Cached exchange rates expired; rates cleared",
+              "exchange-rates-cache",
+              "warn",
+            );
           }
         } else {
           // Reset to default rates
@@ -1595,7 +1669,11 @@ async function fetchExchangeRates() {
             lastUpdated: 0, // Force refresh on next call
             rates: {},
           };
-          ErrorHandler.log("Invalid cached exchange rates structure; rates cleared", 'exchange-rates-cache', 'warn');
+          ErrorHandler.log(
+            "Invalid cached exchange rates structure; rates cleared",
+            "exchange-rates-cache",
+            "warn",
+          );
         }
       } else {
         // Reset to default rates
@@ -1603,10 +1681,14 @@ async function fetchExchangeRates() {
           lastUpdated: 0, // Force refresh on next call
           rates: {},
         };
-        ErrorHandler.log("No cached exchange rates available; rates cleared", 'exchange-rates-cache', 'warn');
+        ErrorHandler.log(
+          "No cached exchange rates available; rates cleared",
+          "exchange-rates-cache",
+          "warn",
+        );
       }
     } catch (parseError) {
-      ErrorHandler.log(parseError, 'exchange-rates-cache-parse', 'error');
+      ErrorHandler.log(parseError, "exchange-rates-cache-parse", "error");
       // Reset to default rates
       exchangeRates = {
         lastUpdated: 0, // Force refresh on next call
@@ -1614,7 +1696,7 @@ async function fetchExchangeRates() {
       };
     }
   };
-  
+
   try {
     apiCallAttempts++;
     const response = await fetch(apiUrl);
@@ -1677,18 +1759,22 @@ async function fetchExchangeRates() {
     try {
       localStorage.setItem("exchangeRates", JSON.stringify(exchangeRates));
     } catch (storageError) {
-      ErrorHandler.log(storageError, 'exchange-rates-storage', 'warn');
+      ErrorHandler.log(storageError, "exchange-rates-storage", "warn");
     }
   } catch (error) {
     // Exponential backoff for retries
     if (apiCallAttempts < CONFIG.MAX_API_ATTEMPTS) {
       const retryDelay =
         CONFIG.BASE_RETRY_DELAY * Math.pow(2, apiCallAttempts - 1);
-      ErrorHandler.log(`Retrying exchange rates fetch in ${retryDelay}ms`, 'exchange-rates-retry', 'info');
+      ErrorHandler.log(
+        `Retrying exchange rates fetch in ${retryDelay}ms`,
+        "exchange-rates-retry",
+        "info",
+      );
       setTimeout(() => fetchExchangeRates(), retryDelay);
       return; // Exit early to prevent fallback execution during retry attempts
     }
-    ErrorHandler.handleApiError(error, 'exchange-rates', handleExchangeError);
+    ErrorHandler.handleApiError(error, "exchange-rates", handleExchangeError);
   }
 }
 
@@ -1705,7 +1791,7 @@ function convertTimeZone(
   let hour = parseInt(matchTZ[1], 10);
   let minute = matchTZ[2] ? parseInt(matchTZ[2], 10) : 0;
   let ampm = matchTZ[3] ? matchTZ[3].toUpperCase() : null;
-  let tz = matchTZ[4].toUpperCase();
+  let tz = matchTZ[4];
   if (isNaN(hour) || hour < 0 || hour > 23 || minute < 0 || minute > 59)
     return null;
   if (ampm) {
@@ -1787,13 +1873,13 @@ async function handleCryptoConversion(text) {
   // Show loading state
   const errorContainer = DOMCache.get("errorContainer");
   const conversionContainer = DOMCache.get("conversionContainer");
-  
+
   if (errorContainer) {
     errorContainer.textContent = "Loading crypto prices...";
     errorContainer.style.display = "block";
   }
   if (conversionContainer) conversionContainer.style.display = "none";
-  
+
   await fetchCryptoRates();
   const id = CRYPTO_CURRENCIES[upperCaseText];
   let vsCurrency = preferredCryptoCurrency
@@ -1827,18 +1913,18 @@ async function handleCryptoConversion(text) {
 function handleCurrencyLoading(text) {
   const currencyRegex = /[€$£¥₺₽₹₩₪₱฿₣₦₲₵₡₫₭₮₯₠₢₳₴₸₼₾₿]|[A-Z]{3}/;
   const isCurrencyLike = currencyRegex.test(text);
-  
+
   if (isCurrencyLike && exchangeRatesError) {
     // Show loading state for currency rates
     const errorContainer = DOMCache.get("errorContainer");
     const conversionContainer = DOMCache.get("conversionContainer");
-    
+
     if (errorContainer) {
       errorContainer.textContent = "Loading exchange rates...";
       errorContainer.style.display = "block";
     }
     if (conversionContainer) conversionContainer.style.display = "none";
-    
+
     // Trigger a refresh of exchange rates
     fetchExchangeRates().then(() => {
       // Retry conversion after rates are loaded
@@ -1932,7 +2018,7 @@ function applyUnitConversion(value, unit) {
   } else if (normUnit === "mpg") {
     normUnit = "mpg";
   }
-  
+
   for (const [key, conversion] of Object.entries(UNIT_CONVERSIONS)) {
     let normKey = key.toLowerCase().replace(/\s+/g, "");
     if (normKey === normUnit) {
@@ -1963,19 +2049,19 @@ function applyUnitConversion(value, unit) {
 
 // --- Unit Detection and Conversion ---
 async function detectAndConvertUnit(text) {
-  const startTime = PerformanceValidator.startTimer('conversion');
-  
+  const startTime = PerformanceValidator.startTimer("conversion");
+
   // First, check for crypto
   const cryptoResult = await handleCryptoConversion(text);
   if (cryptoResult) {
-    PerformanceValidator.endTimer('conversion', startTime);
+    PerformanceValidator.endTimer("conversion", startTime);
     return cryptoResult;
   }
 
   // Time Zone Conversion
   const tzResult = convertTimeZone(text);
   if (tzResult) {
-    PerformanceValidator.endTimer('conversion', startTime);
+    PerformanceValidator.endTimer("conversion", startTime);
     return tzResult;
   }
 
@@ -1985,29 +2071,29 @@ async function detectAndConvertUnit(text) {
   // Parse value and unit
   const parsed = parseValueAndUnit(text);
   if (!parsed) {
-    PerformanceValidator.endTimer('conversion', startTime);
+    PerformanceValidator.endTimer("conversion", startTime);
     return null;
   }
 
   const { value: valueStr, unit } = parsed;
-  
+
   // Parse numeric value
   const value = parseNumericValue(valueStr);
   if (value === null) {
-    PerformanceValidator.endTimer('conversion', startTime);
+    PerformanceValidator.endTimer("conversion", startTime);
     return null;
   }
 
   // Handle temperature conversion
   const tempResult = handleTemperatureConversion(text, value);
   if (tempResult) {
-    PerformanceValidator.endTimer('conversion', startTime);
+    PerformanceValidator.endTimer("conversion", startTime);
     return tempResult;
   }
 
   // Apply unit conversion
   const result = applyUnitConversion(value, unit);
-  PerformanceValidator.endTimer('conversion', startTime);
+  PerformanceValidator.endTimer("conversion", startTime);
   return result;
 }
 
@@ -2330,21 +2416,25 @@ function appendPopupToDocument() {
       document.body.appendChild(shadowHost);
     } else {
       // Body not ready yet — wait for it
-      if (document.readyState === 'loading') {
-        document.addEventListener('DOMContentLoaded', () => {
-          try {
-            if (document.body) {
-              document.body.appendChild(shadowHost);
+      if (document.readyState === "loading") {
+        document.addEventListener(
+          "DOMContentLoaded",
+          () => {
+            try {
+              if (document.body) {
+                document.body.appendChild(shadowHost);
+              }
+            } catch (e) {
+              ErrorHandler.handleDomError(e, "iframe-append-deferred", true);
             }
-          } catch (e) {
-            ErrorHandler.handleDomError(e, 'iframe-append-deferred', true);
-          }
-        }, { once: true });
+          },
+          { once: true },
+        );
       }
     }
   } catch (e) {
     // Sandboxed or CSP-restricted iframe — silently skip
-    ErrorHandler.handleDomError(e, 'iframe-append', true);
+    ErrorHandler.handleDomError(e, "iframe-append", true);
   }
 }
 appendPopupToDocument();
@@ -2358,7 +2448,7 @@ async function handleClipboardFallback(textToCopy) {
     if (!navigator.clipboard) {
       throw new Error("Clipboard API not available");
     }
-    
+
     // Try using the modern Clipboard API first
     await navigator.clipboard.writeText(textToCopy);
     hidePopup();
@@ -2386,11 +2476,11 @@ async function handleClipboardFallback(textToCopy) {
       if (!successful) {
         throw new Error("Failed to copy text");
       }
-      
+
       hidePopup();
     } catch (fallbackError) {
       // Handle clipboard fallback errors with proper logging
-      ErrorHandler.handleDomError(fallbackError, 'clipboard-fallback', true);
+      ErrorHandler.handleDomError(fallbackError, "clipboard-fallback", true);
     } finally {
       // Clean up with optimized removal
       DOMOptimizer.cleanupElement(textArea);
@@ -2507,7 +2597,7 @@ function detectUrl(text) {
 function formatUrl(text) {
   if (!text.startsWith("http://") && !text.startsWith("https://")) {
     if (/^(localhost|(\d{1,3}\.){3}\d{1,3})(:\d{1,5})?(\/|$)/i.test(text)) {
-      return "http://" + text
+      return "http://" + text;
     }
     return "https://" + text;
   }
@@ -2542,7 +2632,7 @@ function getSearchUrl(query) {
  */
 function handleSearchClick() {
   if (!currentSelectedText) return;
-  
+
   if (isUrlSelected) {
     openUrlOrSearch(currentSelectedText);
   } else {
@@ -2716,7 +2806,9 @@ function calculatePopupPosition(rect, popupRect) {
  */
 function applyPopupStyling(left, top, isPopupBelow, selectionContextElement) {
   // Determine background and apply theme/arrow
-  const pageBackgroundColor = getEffectiveBackgroundColor(selectionContextElement);
+  const pageBackgroundColor = getEffectiveBackgroundColor(
+    selectionContextElement,
+  );
   const isPageDark = isColorDark(pageBackgroundColor);
 
   // Batch all final style changes to minimize reflows
