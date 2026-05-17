@@ -1410,11 +1410,6 @@ if (typeof chrome !== "undefined" && chrome.storage && chrome.storage.sync) {
 
 async function fetchCryptoRates() {
   const now = Date.now();
-  // #region agent log
-  const _dbgIsTop = window === window.top;
-  const _dbgHost = (() => { try { return location.hostname } catch { return "unknown" } })();
-  fetch('http://127.0.0.1:7555/ingest/81dfcc79-c165-4ba3-8cef-0406745bafe2',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'8c25d6'},body:JSON.stringify({sessionId:'8c25d6',location:'content.js:fetchCryptoRates:entry',message:'fetchCryptoRates called',data:{isTopFrame:_dbgIsTop,host:_dbgHost,hasMemoryCache:!!(cryptoRates.lastUpdated&&now-cryptoRates.lastUpdated<CONFIG.CRYPTO_CACHE_DURATION),hasLocalCache:!!localStorage.getItem('cryptoRates')},timestamp:Date.now(),hypothesisId:'H1-H5',runId:'pre-fix'})}).catch(()=>{});
-  // #endregion
   if (
     cryptoRates.lastUpdated &&
     now - cryptoRates.lastUpdated < CONFIG.CRYPTO_CACHE_DURATION
@@ -1529,9 +1524,6 @@ async function fetchCryptoRates() {
       "crypto-rates-cache",
       "info",
     );
-    // #region agent log
-    fetch('http://127.0.0.1:7555/ingest/81dfcc79-c165-4ba3-8cef-0406745bafe2',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'8c25d6'},body:JSON.stringify({sessionId:'8c25d6',location:'content.js:fetchCryptoRates:earlyCache',message:'early cache hit, skipping API',data:{isTopFrame:_dbgIsTop,host:_dbgHost,fetchVs},timestamp:Date.now(),hypothesisId:'H5',runId:'pre-fix'})}).catch(()=>{});
-    // #endregion
     return;
   }
 
@@ -1572,9 +1564,6 @@ async function fetchCryptoRates() {
   };
 
   try {
-    // #region agent log
-    fetch('http://127.0.0.1:7555/ingest/81dfcc79-c165-4ba3-8cef-0406745bafe2',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'8c25d6'},body:JSON.stringify({sessionId:'8c25d6',location:'content.js:fetchCryptoRates:preFetch',message:'about to fetch CoinGecko',data:{isTopFrame:_dbgIsTop,host:_dbgHost,fetchVs,urlLength:apiUrl.length,coinCount:coinIds.split(',').length},timestamp:Date.now(),hypothesisId:'H1-H3',runId:'pre-fix'})}).catch(()=>{});
-    // #endregion
     const response = await fetch(apiUrl, {
       method: "GET",
       headers: {
@@ -1582,9 +1571,6 @@ async function fetchCryptoRates() {
       },
       mode: "cors",
     });
-    // #region agent log
-    fetch('http://127.0.0.1:7555/ingest/81dfcc79-c165-4ba3-8cef-0406745bafe2',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'8c25d6'},body:JSON.stringify({sessionId:'8c25d6',location:'content.js:fetchCryptoRates:postFetch',message:'fetch returned',data:{isTopFrame:_dbgIsTop,host:_dbgHost,ok:response.ok,status:response.status},timestamp:Date.now(),hypothesisId:'H3',runId:'pre-fix'})}).catch(()=>{});
-    // #endregion
 
     if (!response.ok) {
       if (response.status === 429) {
@@ -1608,13 +1594,7 @@ async function fetchCryptoRates() {
     applyCryptoRatesToUnitConversions(fetchVs, vsCurrency);
 
     localStorage.setItem("cryptoRates", JSON.stringify(cryptoRates));
-    // #region agent log
-    fetch('http://127.0.0.1:7555/ingest/81dfcc79-c165-4ba3-8cef-0406745bafe2',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'8c25d6'},body:JSON.stringify({sessionId:'8c25d6',location:'content.js:fetchCryptoRates:success',message:'crypto rates stored',data:{isTopFrame:_dbgIsTop,host:_dbgHost,priceKeys:Object.keys(data).length},timestamp:Date.now(),hypothesisId:'H3',runId:'pre-fix'})}).catch(()=>{});
-    // #endregion
   } catch (error) {
-    // #region agent log
-    fetch('http://127.0.0.1:7555/ingest/81dfcc79-c165-4ba3-8cef-0406745bafe2',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'8c25d6'},body:JSON.stringify({sessionId:'8c25d6',location:'content.js:fetchCryptoRates:catch',message:'fetch failed',data:{isTopFrame:_dbgIsTop,host:_dbgHost,errorName:error?.name,errorMessage:error?.message,fetchVs},timestamp:Date.now(),hypothesisId:'H1-H4',runId:'pre-fix'})}).catch(()=>{});
-    // #endregion
     ErrorHandler.handleApiError(error, "crypto-rates", handleCryptoError);
   }
 }
