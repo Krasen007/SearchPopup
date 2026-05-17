@@ -152,13 +152,13 @@ const REGEX_PATTERNS = {
   initDynamicPatterns() {
     // Construct value-unit pattern (number followed by unit)
     this.valueUnit = new RegExp(
-      `^(-?\\d{1,3}(?:[.,\\s]\\d{3})*(?:[.,]\\d+)?|\\d+/\\d+)\\s*(${this.currencySymbol}+|[a-zA-Z]+(?:\\s+[a-zA-Z]+)*)[.,;:!?]*$`,
+      `^(-?\\d{1,}(?:[.,\\s]\\d{3})*(?:[.,]\\d+)?|\\d+/\\d+)\\s*(${this.currencySymbol}+|[a-zA-Z]+(?:\\s+[a-zA-Z]+)*)[.,;:!?]*$`,
       "i",
     );
 
     // Construct unit-value pattern (unit followed by number)
     this.unitValue = new RegExp(
-      `^(${this.currencySymbol}+|[a-zA-Z]+(?:\\s+[a-zA-Z]+)*)\\s*(-?\\d{1,3}(?:[.,\\s]\\d{3})*(?:[.,]\\d+)?|\\d+/\\d+)[.,;:!?]*$`,
+      `^(${this.currencySymbol}+|[a-zA-Z]+(?:\\s+[a-zA-Z]+)*)\\s*(-?\\d{1,}(?:[.,\\s]\\d{3})*(?:[.,]\\d+)?|\\d+/\\d+)[.,;:!?]*$`,
       "i",
     );
   },
