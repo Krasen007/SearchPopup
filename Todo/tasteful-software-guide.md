@@ -67,7 +67,7 @@ Taste is the ability to make good decisions about what to include and what to ex
 - **DON'T** rely on stated preferences alone - users can't describe what doesn't exist yet
 - **DON'T** optimize for local maxima through A/B testing without a coherent vision
 - **DON'T** make decisions based solely on available data points
-- **DON'T** backward-looking - don't just compress the past, imagine a better future
+- **DON'T** be backward-looking - don't just compress the past, imagine a better future
 - **DON'T** defer taste decisions to "later" - every default and omission is a taste decision
 - **DON'T** separate aesthetics from function - taste is not a coat of paint
 - **DON'T** build without a point of view about how the product should work

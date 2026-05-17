@@ -9,8 +9,8 @@ A blazing-fast browser extension that revolutionizes how you interact with text 
 - **Quick Copy:** One-click copy to clipboard with intelligent fallback handling
 - **URL Detection:** Automatically detects links and offers to visit them directly
 - **Unit Conversion:** Real-time conversion of weights, temperatures, speeds, distances, and more
-- **Currency & Crypto:** Live exchange rates for 100+ currencies and major cryptocurrencies
-- **Time Zone Conversion:** Convert any time zone to your local time instantly
+- **Currency & Crypto:** Live exchange rates for 100+ currencies and major cryptocurrencies, including large amounts (e.g. `2351.06 EUR`)
+- **Time Zone Conversion:** Convert times using abbreviations (PST, CET, GMT) or full zone names (Pacific Time, Eastern Standard Time, Central European Time) to your local time instantly
 
 ### **Performance Optimized**
 - **Zero-Lag Operation:** Instant popup response with no delays
@@ -36,7 +36,7 @@ A blazing-fast browser extension that revolutionizes how you interact with text 
 
 ## Supported Conversions
 
-The extension supports a wide range of unit and currency conversions. Simply select the text (e.g., `10 lbs` or `0.5 BTC`) to see the result.
+The extension supports a wide range of unit and currency conversions. Simply select the text (e.g., `10 lbs`, `2351.06 EUR`, or `0.5 BTC`) to see the result.
 
 ### General Units
 
@@ -66,6 +66,7 @@ The extension supports a wide range of unit and currency conversions. Simply sel
 | `23:15 GMT`    | 24-hour Greenwich Mean Time        | `01:15 (your time)`     |
 | `8:00 UTC`     | 24-hour Coordinated Universal Time | `11:00 (your time)`     |
 | `10:00pm PT`     | 12-hour America/Los_Angeles | `08:00 (your time)`     |
+| `6 PM Pacific Time` | 12-hour with full US zone name | `04:00 (your time)`     |
 
 ### Fiat Currency Examples
 
@@ -85,6 +86,7 @@ The extension supports a wide range of unit and currency conversions. Simply sel
 | `€5.00,000`       | Euro with comma and dot         |
 | `10 USD`          | US Dollar plain                    |
 | `20 EUR`          | Euro plain                         |
+| `2351.06 EUR`     | Euro with a large whole-number part |
 | `50 GBP`          | British Pound plain                |
 
 ### Cryptocurrencies

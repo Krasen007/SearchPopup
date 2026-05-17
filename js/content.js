@@ -767,7 +767,7 @@ const ErrorHandler = {
    * @param {Object} metadata - Additional metadata
    */
   logPerformance(operation, duration, metadata = {}) {
-    const level = duration > 1000 ? "warn" : duration > 500 ? "info" : "info";
+    const level = duration > 1000 ? "warn" : "info";
     const message = `Operation "${operation}" took ${duration}ms`;
     this.log(message, `performance-${operation}`, level);
 

@@ -1,0 +1,8 @@
+# Search Popup — Release notes
+
+## 1.76.1
+
+- **Time zones:** Full zone names work in selections, not only short codes — for example, `6 PM Pacific Time` converts the same way as `6 PM PST` or `6 PM PT`.
+- **Currency and units:** Fixed parsing for larger numbers (four or more digits before the decimal). Amounts like `2351.06 EUR` now convert correctly.
+- **Settings page:** Removed a redundant framing rule from the options page HTML so the browser no longer shows a harmless console warning. Framing protection is still enforced by the extension manifest.
+- **Internal:** Removed leftover debug logging.
