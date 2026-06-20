@@ -988,9 +988,6 @@ const DOMCache = {
         this.conversionContainer.querySelector(".copy-button");
     }
 
-    // Cache button container - use popupElements reference instead of fragile style query
-    this.buttonContainer = popupElements?.buttonContainer || null;
-
     // Store references to optimized elements if available
     if (typeof popupElements !== "undefined") {
       this.searchButton = this.searchButton || popupElements.searchButton;
@@ -1003,6 +1000,8 @@ const DOMCache = {
       this.copyConvertedButton =
         this.copyConvertedButton || popupElements.copyButton;
       this.buttonContainer = popupElements.buttonContainer;
+    } else {
+      this.buttonContainer = null;
     }
   },
 
@@ -1775,8 +1774,6 @@ async function fetchExchangeRates() {
         "exchange-rates-fallback",
         "info",
       );
-      // Reset attempt counter so fallback gets a full try
-      apiCallAttempts--;
       try {
         const fallbackResponse = await fetch(fallbackApiUrl);
         if (fallbackResponse.ok) {
@@ -2607,7 +2604,7 @@ function getEffectiveBackgroundColor(element) {
 }
 
 function isColorDark(colorString) {
-  // named-color resolution without appending to document.body
+  // named-color resolution via temporary hidden element (appended then immediately removed)
   function resolveNamedColor(name) {
     const testEl = document.createElement("div");
     testEl.setAttribute("style", `display:none;position:absolute;color:${name}`);
@@ -2616,7 +2613,6 @@ function isColorDark(colorString) {
     document.body.removeChild(testEl);
     return computed;
   }
-
   if (isEffectivelyTransparent(colorString)) return false;
   let r, g, b;
   const lowerColorString = colorString.toLowerCase();
