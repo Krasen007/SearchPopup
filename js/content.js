@@ -1561,6 +1561,10 @@ async function fetchCryptoRates() {
     }
   };
 
+  // Add jittered delay (0-3s) to stagger requests from concurrent frames
+  // Prevents hitting CoinGecko rate limits when multiple iframes load simultaneously
+  await new Promise((resolve) => setTimeout(resolve, Math.random() * 3000));
+
   try {
     const response = await fetch(apiUrl, {
       method: "GET",
