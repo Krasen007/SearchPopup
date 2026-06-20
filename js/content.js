@@ -1,8 +1,6 @@
 /**
  * @fileoverview SearchPopup - Smart text selection popup with search, copy, and unit conversion
  * @author Krasen Ivanov
- * @version 1.73.5
- * @license MIT
  *
  * This content script provides intelligent popup functionality when users select text on web pages.
  * Features include:
@@ -83,7 +81,8 @@ const REGEX_PATTERNS = {
    * REGEX_PATTERNS.url.test('http://localhost:3000') // true
    * REGEX_PATTERNS.url.test('127.0.0.1:5173') // true
    */
-  url: /^(https?:\/\/)?((localhost|(\d{1,3}\.){3}\d{1,3})|(([a-zA-Z0-9]([a-zA-Z0-9-]*[a-zA-Z0-9])?\.)+[a-zA-Z0-9]([a-zA-Z0-9-]*[a-zA-Z0-9])?))(:\d{1,5})?(\/[^\s]*)?$/,
+  // Requires a registered TLD (2+ letters) so bare words like "example" don't match as URLs
+  url: /^(https?:\/\/)?((localhost|(\d{1,3}\.){3}\d{1,3})|(([a-zA-Z0-9]([a-zA-Z0-9-]*[a-zA-Z0-9])?\.)+[a-zA-Z]{2,}))(:\d{1,5})?(\/[^\s]*)?$/,
 
   /**
    * Time zone pattern for conversion
@@ -151,14 +150,16 @@ const REGEX_PATTERNS = {
    */
   initDynamicPatterns() {
     // Construct value-unit pattern (number followed by unit)
+    // Allow optional dash between number and unit (handles "32-oz")
     this.valueUnit = new RegExp(
-      `^(-?\\d{1,}(?:[.,\\s]\\d{3})*(?:[.,]\\d+)?|\\d+/\\d+)\\s*(${this.currencySymbol}+|[a-zA-Z]+(?:\\s+[a-zA-Z]+)*)[.,;:!?]*$`,
+      `^(-?\\d{1,}(?:[.,\\s]\\d{3})*(?:[.,]\\d+)?|\\d+/\\d+)[\\s-]*(${this.currencySymbol}+|[a-zA-Z]+(?:\\s+[a-zA-Z]+)*)[.,;:!?]*$`,
       "i",
     );
 
     // Construct unit-value pattern (unit followed by number)
+    // Allow optional dash between unit and number (handles "oz-32")
     this.unitValue = new RegExp(
-      `^(${this.currencySymbol}+|[a-zA-Z]+(?:\\s+[a-zA-Z]+)*)\\s*(-?\\d{1,}(?:[.,\\s]\\d{3})*(?:[.,]\\d+)?|\\d+/\\d+)[.,;:!?]*$`,
+      `^(${this.currencySymbol}+|[a-zA-Z]+(?:\\s+[a-zA-Z]+)*)[\\s-]*(-?\\d{1,}(?:[.,\\s]\\d{3})*(?:[.,]\\d+)?|\\d+/\\d+)[.,;:!?]*$`,
       "i",
     );
   },
@@ -387,11 +388,11 @@ const UNIT_CONVERSIONS = {
   grams: { to: "oz", factor: 0.0352739619 },
 
   // Temperature
-  "°F": { to: "°C", convert: (val) => ((val - 32) * 5) / 9 },
-  "°C": { to: "°F", convert: (val) => (val * 9) / 5 + 32 },
-  fahrenheit: { to: "°C", convert: (val) => ((val - 32) * 5) / 9 },
-  celsius: { to: "°F", convert: (val) => (val * 9) / 5 + 32 },
-  centigrade: { to: "°F", convert: (val) => (val * 9) / 5 + 32 },
+  "\u00B0F": { to: "\u00B0C", convert: (val) => ((val - 32) * 5) / 9 },
+  "\u00B0C": { to: "\u00B0F", convert: (val) => (val * 9) / 5 + 32 },
+  fahrenheit: { to: "\u00B0C", convert: (val) => ((val - 32) * 5) / 9 },
+  celsius: { to: "\u00B0F", convert: (val) => (val * 9) / 5 + 32 },
+  centigrade: { to: "\u00B0F", convert: (val) => (val * 9) / 5 + 32 },
 
   // Cooking Measurements
   cup: { to: "ml", factor: 236.588 },
@@ -987,10 +988,8 @@ const DOMCache = {
         this.conversionContainer.querySelector(".copy-button");
     }
 
-    // Cache button container
-    this.buttonContainer =
-      shadowRoot.querySelector('[style*="display: flex"]') ||
-      shadowRoot.querySelector('div[style*="flex"]');
+    // Cache button container - use popupElements reference instead of fragile style query
+    this.buttonContainer = popupElements?.buttonContainer || null;
 
     // Store references to optimized elements if available
     if (typeof popupElements !== "undefined") {
@@ -1003,8 +1002,7 @@ const DOMCache = {
         this.convertedValueSpan || popupElements.convertedValueSpan;
       this.copyConvertedButton =
         this.copyConvertedButton || popupElements.copyButton;
-      this.buttonContainer =
-        this.buttonContainer || popupElements.buttonContainer;
+      this.buttonContainer = popupElements.buttonContainer;
     }
   },
 
@@ -1997,8 +1995,8 @@ function handleTemperatureConversion(text, value) {
   if (tempMatch || value === null) {
     const tempValue = tempMatch ? parseFloat(tempMatch[1]) : value;
     return {
-      original: `${tempValue}°`,
-      converted: `${(((tempValue - 32) * 5) / 9).toFixed(1)}°C`,
+      original: `${tempValue}\u00B0`,
+      converted: `${(((tempValue - 32) * 5) / 9).toFixed(1)}\u00B0C`,
       value: ((tempValue - 32) * 5) / 9,
     };
   }
@@ -2010,8 +2008,8 @@ function handleTemperatureConversion(text, value) {
  */
 function applyUnitConversion(value, unit) {
   // Find matching unit conversion
-  // Normalize unit: trim, lowercase, remove spaces and handle common variants
-  let normUnit = (unit || "").toLowerCase().replace(/\s+/g, "");
+  // Normalize unit: trim, lowercase, remove spaces AND dashes (handles "32-oz")
+  let normUnit = (unit || "").toLowerCase().replace(/[\s-]+/g, "");
 
   if (normUnit === "l/100km") {
     normUnit = "l/100km";
@@ -2020,7 +2018,7 @@ function applyUnitConversion(value, unit) {
   }
 
   for (const [key, conversion] of Object.entries(UNIT_CONVERSIONS)) {
-    let normKey = key.toLowerCase().replace(/\s+/g, "");
+    let normKey = key.toLowerCase().replace(/[\s-]+/g, "");
     if (normKey === normUnit) {
       let converted;
       if (conversion.convert) {
@@ -2031,9 +2029,8 @@ function applyUnitConversion(value, unit) {
       // If rates are missing (e.g., API/cache unavailable), conversions can produce NaN.
       // Treat that as "conversion not available" instead of rendering "NaN".
       if (!Number.isFinite(converted)) return null;
-      // Round to 2 decimal places for currency, 4 for other units
-      const decimals =
-        key.match(/[€$£]/) || CRYPTO_CURRENCIES[key.toUpperCase()] ? 2 : 4;
+      // Use .test() for boolean check; round to 2 decimal places for currency, 4 for other units
+      const decimals = /[€$£]/.test(key) || CRYPTO_CURRENCIES[key.toUpperCase()] ? 2 : 4;
       converted =
         Math.round(converted * Math.pow(10, decimals)) / Math.pow(10, decimals);
       return {
@@ -2484,7 +2481,8 @@ async function handleClipboardFallback(textToCopy) {
     } finally {
       // Clean up with optimized removal
       DOMOptimizer.cleanupElement(textArea);
-      hidePopup();
+      // NOTE: hidePopup() already called in try block on success; removed from finally
+      // to avoid double-fire racing with the fade-out timeout.
     }
   }
 }
@@ -2535,6 +2533,16 @@ function getEffectiveBackgroundColor(element) {
 }
 
 function isColorDark(colorString) {
+  // named-color resolution without appending to document.body
+  function resolveNamedColor(name) {
+    const testEl = document.createElement("div");
+    testEl.setAttribute("style", `display:none;position:absolute;color:${name}`);
+    document.body.appendChild(testEl);
+    const computed = window.getComputedStyle(testEl).color;
+    document.body.removeChild(testEl);
+    return computed;
+  }
+
   if (isEffectivelyTransparent(colorString)) return false;
   let r, g, b;
   const lowerColorString = colorString.toLowerCase();
@@ -2557,11 +2565,7 @@ function isColorDark(colorString) {
       parseInt(hex.substring(4, 6), 16),
     ];
   } else {
-    const tempElem = document.createElement("div");
-    tempElem.style.color = lowerColorString;
-    document.body.appendChild(tempElem);
-    const computedColor = window.getComputedStyle(tempElem).color;
-    document.body.removeChild(tempElem);
+    const computedColor = resolveNamedColor(lowerColorString);
     if (!computedColor.startsWith("rgb")) return false;
     const match = computedColor.match(REGEX_PATTERNS.rgb);
     if (!match) return false;
