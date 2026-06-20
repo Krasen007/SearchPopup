@@ -51,10 +51,10 @@ const CONFIG = {
   CRYPTO_CACHE_DURATION: 24 * 60 * 60 * 1000,
 
   /** @type {number} Maximum number of API retry attempts */
-  MAX_API_ATTEMPTS: 3,
+  MAX_API_ATTEMPTS: 2,
 
   /** @type {number} Base delay in milliseconds for API retry exponential backoff */
-  BASE_RETRY_DELAY: 1000,
+  BASE_RETRY_DELAY: 2000,
 
   /** @type {number} Margin in pixels from viewport edges for popup positioning */
   POPUP_MARGIN: 10,
@@ -1617,8 +1617,10 @@ async function fetchExchangeRates() {
     return;
   }
 
-  // Store the API URL for debugging
-  const apiUrl = "https://api.exchangerate-api.com/v4/latest/EUR";
+  // Primary and fallback exchange rate APIs
+  const primaryApiUrl = "https://api.exchangerate-api.com/v4/latest/EUR";
+  const fallbackApiUrl = "https://open.er-api.com/v6/latest/EUR";
+  let apiUrl = primaryApiUrl;
   ErrorHandler.setLastApiUrl("exchange-rates", apiUrl);
 
   const handleExchangeError = (errorMessage) => {
@@ -1760,7 +1762,75 @@ async function fetchExchangeRates() {
       ErrorHandler.log(storageError, "exchange-rates-storage", "warn");
     }
   } catch (error) {
-    // Exponential backoff for retries
+    // If primary API failed and haven't tried fallback yet, switch to fallback
+    if (apiUrl === primaryApiUrl) {
+      apiUrl = fallbackApiUrl;
+      ErrorHandler.setLastApiUrl("exchange-rates", fallbackApiUrl);
+      ErrorHandler.log(
+        "Primary exchange rate API failed, trying fallback API",
+        "exchange-rates-fallback",
+        "info",
+      );
+      // Reset attempt counter so fallback gets a full try
+      apiCallAttempts--;
+      try {
+        const fallbackResponse = await fetch(fallbackApiUrl);
+        if (fallbackResponse.ok) {
+          const fallbackData = await fallbackResponse.json();
+          if (fallbackData && fallbackData.rates && typeof fallbackData.rates === "object") {
+            // Process fallback data the same way
+            apiCallAttempts = 0;
+            exchangeRatesError = null;
+            exchangeRates.rates = {};
+            const target = preferredCurrency || "BGN";
+            for (const [currency, rate] of Object.entries(fallbackData.rates)) {
+              if (typeof rate !== "number" || isNaN(rate)) continue;
+              if (currency !== target) {
+                exchangeRates.rates[currency] = fallbackData.rates[target] / rate;
+              } else {
+                exchangeRates.rates[currency] = 1;
+              }
+              if (currency !== target) {
+                UNIT_CONVERSIONS[currency] = {
+                  to: target,
+                  convert: (val) => val * exchangeRates.rates[currency],
+                };
+                if (CURRENCY_SYMBOLS[currency]) {
+                  UNIT_CONVERSIONS[CURRENCY_SYMBOLS[currency]] = {
+                    to: target,
+                    convert: (val) => val * exchangeRates.rates[currency],
+                  };
+                }
+              }
+            }
+            for (const [name, code] of Object.entries(CURRENCY_NAMES)) {
+              if (exchangeRates.rates[code] && code !== target) {
+                UNIT_CONVERSIONS[name] = {
+                  to: target,
+                  convert: (val) => val * exchangeRates.rates[code],
+                };
+              }
+            }
+            exchangeRates.lastUpdated = Date.now();
+            try {
+              localStorage.setItem("exchangeRates", JSON.stringify(exchangeRates));
+            } catch (storageError) {
+              ErrorHandler.log(storageError, "exchange-rates-storage", "warn");
+            }
+            ErrorHandler.log(
+              "Fallback exchange rate API succeeded",
+              "exchange-rates-fallback",
+              "info",
+            );
+            return;
+          }
+        }
+      } catch (fallbackError) {
+        ErrorHandler.log(fallbackError, "exchange-rates-fallback", "warn");
+      }
+    }
+
+    // Exponential backoff for retries (try primary again after fallback also failed)
     if (apiCallAttempts < CONFIG.MAX_API_ATTEMPTS) {
       const retryDelay =
         CONFIG.BASE_RETRY_DELAY * Math.pow(2, apiCallAttempts - 1);
