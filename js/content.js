@@ -50,6 +50,9 @@ const CONFIG = {
   /** @type {number} Cache duration for crypto rates in milliseconds (24 hours) */
   CRYPTO_CACHE_DURATION: 24 * 60 * 60 * 1000,
 
+  /** @type {number} Backoff after crypto fetch failure (10 minutes) */
+  CRYPTO_ERROR_BACKOFF_MS: 10 * 60 * 1000,
+
   /** @type {number} Maximum number of API retry attempts */
   MAX_API_ATTEMPTS: 2,
 
@@ -640,12 +643,23 @@ const ErrorHandler = {
       userMessage = "Access forbidden. Using cached data.";
     }
 
+    // Downgrade transient/fallback-backed API errors to warnings to reduce noise
+    const isTransient =
+      error.message.includes("Failed to fetch") ||
+      error.message.includes("Network") ||
+      error.message.includes("ERR_FAILED") ||
+      error.message.includes("CORS") ||
+      error.message.includes("blocked") ||
+      error.message.includes("429") ||
+      error.message.includes("403");
+    const logLevel = isTransient ? "warn" : "error";
+
     // Log retry information if applicable
     if (retryCount > 0) {
       this.log(
-        `Retry attempt ${retryCount}/${maxRetries}`,
-        `${context}-retry`,
-        "info",
+        `API Error Details: ${JSON.stringify(errorDetails, null, 2)}`,
+        context,
+        logLevel,
       );
     }
 
@@ -1314,6 +1328,10 @@ const EventManager = {
     window.addEventListener("resize", this.debouncedResizeHandler, {
       passive: true,
     });
+    // Escape closes popup for keyboard accessibility
+    window.addEventListener("keydown", (e) => {
+      if (e.key === "Escape" && PopupManager.isVisible) PopupManager.hide();
+    });
 
     // Error handlers
     window.addEventListener("error", this.handleError.bind(this));
@@ -1533,7 +1551,7 @@ async function fetchCryptoRates() {
       ErrorHandler.log(
         "No cached crypto data available",
         "crypto-rates-cache",
-        "warn",
+        "info",
       );
       cryptoRatesError = "No crypto data available (API and cache unavailable)";
       return;
@@ -1564,44 +1582,105 @@ async function fetchCryptoRates() {
   // Prevents hitting CoinGecko rate limits when multiple iframes load simultaneously
   await new Promise((resolve) => setTimeout(resolve, Math.random() * 3000));
 
-  try {
-    const response = await fetch(apiUrl, {
-      method: "GET",
-      headers: {
-        Accept: "application/json",
-      },
-      mode: "cors",
-    });
+  const maxCryptoRetries = 2;
+  let lastCryptoError = null;
+  for (let attempt = 1; attempt <= maxCryptoRetries; attempt++) {
+    try {
+      const response = await fetch(apiUrl, {
+        method: "GET",
+        headers: {
+          Accept: "application/json",
+        },
+        mode: "cors",
+      });
 
-    if (!response.ok) {
-      if (response.status === 429) {
-        throw new Error("Rate limit exceeded. Please try again later.");
-      } else if (response.status === 403) {
-        throw new Error("API access forbidden. Using cached data.");
-      } else {
-        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+      if (!response.ok) {
+        if (response.status === 429) {
+          throw new Error("Rate limit exceeded. Please try again later.");
+        } else if (response.status === 403) {
+          throw new Error("API access forbidden. Using cached data.");
+        } else {
+          throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+        }
+      }
+
+      const data = await response.json();
+      if (!data) {
+        throw new Error("Invalid response format from CoinGecko API");
+      }
+
+      cryptoRates.prices = data;
+      cryptoRates.lastUpdated = now;
+      cryptoRates.vsCurrency = fetchVs;
+      cryptoRatesError = null; // Clear error on success
+      applyCryptoRatesToUnitConversions(fetchVs, vsCurrency);
+
+      localStorage.setItem("cryptoRates", JSON.stringify(cryptoRates));
+      lastCryptoError = null;
+      break;
+    } catch (error) {
+      lastCryptoError = error;
+      if (attempt < maxCryptoRetries) {
+        await new Promise((resolve) => setTimeout(resolve, 1000 * attempt));
       }
     }
-
-    const data = await response.json();
-    if (!data) {
-      throw new Error("Invalid response format from CoinGecko API");
-    }
-
-    cryptoRates.prices = data;
-    cryptoRates.lastUpdated = now;
-    cryptoRates.vsCurrency = fetchVs;
-    cryptoRatesError = null; // Clear error on success
-    applyCryptoRatesToUnitConversions(fetchVs, vsCurrency);
-
-    localStorage.setItem("cryptoRates", JSON.stringify(cryptoRates));
-  } catch (error) {
-    ErrorHandler.handleApiError(error, "crypto-rates", handleCryptoError);
   }
+
+  if (lastCryptoError) {
+    const friendly =
+      lastCryptoError.message === "Failed to fetch"
+        ? "Crypto price service unreachable; using cached data if available."
+        : lastCryptoError.message;
+    cryptoRatesError = friendly;
+    ErrorHandler.log(
+      `Crypto fetch failed after ${maxCryptoRetries} attempts: ${friendly}`,
+      "crypto-rates",
+      "warn",
+    );
+    handleCryptoError(friendly);
+  }
+}
+
+// Shared helper: apply API data into exchangeRates + UNIT_CONVERSIONS
+// Eliminates duplicated processing between primary and fallback branches.
+function processExchangeRateData(data) {
+  const target = preferredCurrency || "BGN";
+  exchangeRates.rates = {};
+  for (const [currency, rate] of Object.entries(data.rates)) {
+    if (typeof rate !== "number" || isNaN(rate)) continue;
+    if (currency !== target) {
+      exchangeRates.rates[currency] = data.rates[target] / rate;
+    } else {
+      exchangeRates.rates[currency] = 1;
+    }
+    if (currency !== target) {
+      UNIT_CONVERSIONS[currency] = {
+        to: target,
+        convert: (val) => val * exchangeRates.rates[currency],
+      };
+      if (CURRENCY_SYMBOLS[currency]) {
+        UNIT_CONVERSIONS[CURRENCY_SYMBOLS[currency]] = {
+          to: target,
+          convert: (val) => val * exchangeRates.rates[currency],
+        };
+      }
+    }
+  }
+  for (const [name, code] of Object.entries(CURRENCY_NAMES)) {
+    if (exchangeRates.rates[code] && code !== target) {
+      UNIT_CONVERSIONS[name] = {
+        to: target,
+        convert: (val) => val * exchangeRates.rates[code],
+      };
+    }
+  }
+  exchangeRates.lastUpdated = Date.now();
 }
 
 // ... (rest of the code remains the same)
 let apiCallAttempts = 0;
+let lastApiAttemptTime = 0;
+const API_ATTEMPT_RESET_MS = 5 * 60 * 1000; // periodic reset prevents permanent dead-state
 // --- Exchange Rate API Service ---
 async function fetchExchangeRates() {
   // Check if we need to update rates (once per day)
@@ -1611,6 +1690,11 @@ async function fetchExchangeRates() {
     now - exchangeRates.lastUpdated < CONFIG.CACHE_DURATION
   ) {
     return; // Use cached rates if less than 24 hours old
+  }
+
+  // Periodic reset prevents permanent dead-state from transient failures
+  if (now - lastApiAttemptTime > API_ATTEMPT_RESET_MS) {
+    apiCallAttempts = 0;
   }
 
   // Rate limiting check
@@ -1702,6 +1786,7 @@ async function fetchExchangeRates() {
 
   try {
     apiCallAttempts++;
+    lastApiAttemptTime = now;
     const response = await fetch(apiUrl);
     if (!response.ok) {
       throw new Error(`HTTP ${response.status}: ${response.statusText}`);
@@ -1716,48 +1801,9 @@ async function fetchExchangeRates() {
 
     // Reset API attempts on success
     apiCallAttempts = 0;
+    lastApiAttemptTime = 0;
     exchangeRatesError = null; // Clear error on success
-
-    // Update rates (converting to preferredCurrency)
-    exchangeRates.rates = {};
-    const target = preferredCurrency || "BGN";
-
-    for (const [currency, rate] of Object.entries(data.rates)) {
-      if (typeof rate !== "number" || isNaN(rate)) {
-        continue;
-      }
-      // Calculate conversion rate to preferred currency
-      if (currency !== target) {
-        exchangeRates.rates[currency] = data.rates[target] / rate;
-      } else {
-        exchangeRates.rates[currency] = 1; // Correct: base currency rate is always 1
-      }
-      // Add currency conversion to UNIT_CONVERSIONS
-      if (currency !== target) {
-        UNIT_CONVERSIONS[currency] = {
-          to: target,
-          convert: (val) => val * exchangeRates.rates[currency],
-        };
-        // Add symbol conversion if available
-        if (CURRENCY_SYMBOLS[currency]) {
-          UNIT_CONVERSIONS[CURRENCY_SYMBOLS[currency]] = {
-            to: target,
-            convert: (val) => val * exchangeRates.rates[currency],
-          };
-        }
-      }
-    }
-
-    // Add currency names to UNIT_CONVERSIONS
-    for (const [name, code] of Object.entries(CURRENCY_NAMES)) {
-      if (exchangeRates.rates[code] && code !== target) {
-        UNIT_CONVERSIONS[name] = {
-          to: target,
-          convert: (val) => val * exchangeRates.rates[code],
-        };
-      }
-    }
-    exchangeRates.lastUpdated = now; // store epoch ms
+    processExchangeRateData(data);
     // Save to localStorage
     try {
       localStorage.setItem("exchangeRates", JSON.stringify(exchangeRates));
@@ -1781,38 +1827,9 @@ async function fetchExchangeRates() {
           if (fallbackData && fallbackData.rates && typeof fallbackData.rates === "object") {
             // Process fallback data the same way
             apiCallAttempts = 0;
+            lastApiAttemptTime = 0;
             exchangeRatesError = null;
-            exchangeRates.rates = {};
-            const target = preferredCurrency || "BGN";
-            for (const [currency, rate] of Object.entries(fallbackData.rates)) {
-              if (typeof rate !== "number" || isNaN(rate)) continue;
-              if (currency !== target) {
-                exchangeRates.rates[currency] = fallbackData.rates[target] / rate;
-              } else {
-                exchangeRates.rates[currency] = 1;
-              }
-              if (currency !== target) {
-                UNIT_CONVERSIONS[currency] = {
-                  to: target,
-                  convert: (val) => val * exchangeRates.rates[currency],
-                };
-                if (CURRENCY_SYMBOLS[currency]) {
-                  UNIT_CONVERSIONS[CURRENCY_SYMBOLS[currency]] = {
-                    to: target,
-                    convert: (val) => val * exchangeRates.rates[currency],
-                  };
-                }
-              }
-            }
-            for (const [name, code] of Object.entries(CURRENCY_NAMES)) {
-              if (exchangeRates.rates[code] && code !== target) {
-                UNIT_CONVERSIONS[name] = {
-                  to: target,
-                  convert: (val) => val * exchangeRates.rates[code],
-                };
-              }
-            }
-            exchangeRates.lastUpdated = Date.now();
+            processExchangeRateData(fallbackData);
             try {
               localStorage.setItem("exchangeRates", JSON.stringify(exchangeRates));
             } catch (storageError) {
@@ -2171,8 +2188,8 @@ shadowHost.id = "text-selection-popup-shadow-host";
 shadowHost.style.cssText =
   "position: fixed; z-index: 2147483647; pointer-events: none;";
 
-// Attach shadow root (closed mode prevents external JS from accessing shadow DOM)
-const shadowRoot = shadowHost.attachShadow({ mode: "closed" });
+// Attach shadow root (open mode allows assistive technology to access popup content)
+const shadowRoot = shadowHost.attachShadow({ mode: "open" });
 
 // ===== CSS OPTIMIZATION SYSTEM =====
 
@@ -2349,6 +2366,8 @@ const DOMOptimizer = {
     // Create main popup element
     const popup = document.createElement("div");
     popup.id = "text-selection-popup-extension";
+    popup.setAttribute("role", "dialog");
+    popup.setAttribute("aria-label", "Text selection actions popup");
 
     // Batch create all child elements before appending
     const elements = this.createAllElements();
@@ -2370,11 +2389,12 @@ const DOMOptimizer = {
     // Error container
     const errorContainer = document.createElement("div");
     errorContainer.id = "errorContainer";
+    errorContainer.setAttribute("aria-live", "polite");
 
     // Batch style operations to minimize reflows
     Object.assign(errorContainer.style, {
       display: "none",
-      color: "red",
+      color: "#b00020",
       padding: "4px",
       textAlign: "center",
     });
@@ -2382,6 +2402,7 @@ const DOMOptimizer = {
     // Conversion container with nested elements
     const conversionContainer = document.createElement("div");
     conversionContainer.id = "conversionContainer";
+    conversionContainer.setAttribute("aria-live", "polite");
     conversionContainer.style.display = "none";
 
     const conversionResult = document.createElement("div");
@@ -2896,16 +2917,11 @@ function applyPopupStyling(left, top, isPopupBelow, selectionContextElement) {
   applyThemeAndArrow(isPageDark, isPopupBelow);
 
   // Re-enable transitions and show popup
-  requestAnimationFrame(() => {
-    DOMOptimizer.applyStylesBatch(popup, {
-      transition: "opacity 0.2s ease-in-out",
-    });
-    shadowHost.style.pointerEvents = "auto";
-
-    requestAnimationFrame(() => {
-      popup.style.opacity = "1";
-    });
+  DOMOptimizer.applyStylesBatch(popup, {
+    transition: "opacity 0.2s ease-in-out",
   });
+  shadowHost.style.pointerEvents = "auto";
+  popup.style.opacity = "1";
 }
 
 // --- Optimized popup positioning with minimal reflows ---

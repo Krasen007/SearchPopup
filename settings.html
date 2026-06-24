@@ -4,7 +4,8 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self'; form-action 'self'; base-uri 'self';">
+    <meta http-equiv="Content-Security-Policy"
+        content="default-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self'; form-action 'self'; base-uri 'self';">
     <title>Search Popup Settings</title>
     <style>
         * {
@@ -31,8 +32,8 @@
         }
 
         .header {
-            background: linear-gradient(135deg, #2f855a 0%, #38a169 100%);
-            color: white;
+            background: linear-gradient(135deg, #276b49 0%, #2f855a 100%);
+            color: #ffffff;
             padding: 25px;
             text-align: center;
         }
@@ -117,8 +118,8 @@
 
         .btn {
             display: inline-block;
-            background: #2f855a;
-            color: white;
+            background: #276b49;
+            color: #ffffff;
             padding: 12px 24px;
             text-decoration: none;
             border-radius: 6px;
@@ -130,9 +131,14 @@
         }
 
         .btn:hover {
-            background: #276b49;
+            background: #1f5638;
             transform: translateY(-2px);
-            box-shadow: 0 4px 12px rgba(46, 139, 87, 0.18);
+            box-shadow: 0 4px 12px rgba(46, 139, 87, 0.28);
+        }
+
+        .btn:focus-visible {
+            outline: none;
+            box-shadow: 0 0 0 3px rgba(46, 139, 90, 0.35);
         }
 
         .footer {
@@ -160,6 +166,12 @@
             text-decoration: underline;
         }
 
+        .footer-links a:focus-visible {
+            outline: none;
+            box-shadow: 0 0 0 3px rgba(46, 139, 90, 0.25);
+            border-radius: 4px;
+        }
+
         .reload-message {
             margin-top: 18px;
             color: #b15a00;
@@ -184,12 +196,11 @@
             text-align: center;
         }
 
-        /* Steps styling to match the rest of the settings UI */
+        /* Steps styling */
         .section>.step {
             margin-top: 8px;
         }
 
-        /* Individual step cards */
         .section .step .step {
             background: #fafbfc;
             border: 1px solid #e6fffa;
@@ -203,7 +214,6 @@
         }
 
         .step-content h4 {
-            color: #2b2540;
             font-size: 1.05rem;
             margin-bottom: 6px;
             font-weight: 600;
@@ -217,7 +227,7 @@
             margin: 0;
         }
 
-        /* small icon area (optional) */
+        /* small icon area */
         .section .step .step::before {
             content: '●';
             font-size: 18px;
@@ -236,6 +246,28 @@
 
             .content {
                 padding: 30px 20px;
+            }
+        }
+
+        @media (max-width: 360px) {
+            .header h1 {
+                font-size: 1.5rem;
+            }
+
+            .content {
+                padding: 18px 12px;
+            }
+
+            .btn {
+                width: 100%;
+                text-align: center;
+            }
+        }
+
+        @media (prefers-reduced-motion: reduce) {
+            * {
+                animation: none !important;
+                transition: none !important;
             }
         }
     </style>
