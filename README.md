@@ -15,7 +15,7 @@ A blazing-fast browser extension that revolutionizes how you interact with text 
 ### **Performance Optimized**
 - **Zero-Lag Operation:** Instant popup response with no delays
 - **Memory Efficient:** Runs smoothly without slowing down your browser
-- **Smart Caching:** Conversions work instantly even when offline
+- **Smart Caching:** Shared exchange rates and fallback APIs keep conversions working instantly, even when offline
 - **Fast Rendering:** Popup appears immediately when you select text
 
 ### **Intelligent Design**
@@ -23,6 +23,8 @@ A blazing-fast browser extension that revolutionizes how you interact with text 
 - **Smart Positioning:** Popup appears above/below selection with directional arrow
 - **Viewport Aware:** Always stays within screen boundaries
 - **Smooth Animations:** Elegant fade transitions and micro-interactions
+- **Keyboard Accessible:** Press Escape to close the popup
+- **Screen Reader Support:** ARIA labels and live regions for assistive technology
 
 ### **Privacy & Security**
 - **Local Processing:** All conversions happen on your device - no data sent to external servers
@@ -42,7 +44,7 @@ The extension supports a wide range of unit and currency conversions. Simply sel
 
 | Category      | Example From                                      | To          |
 |---------------|---------------------------------------------------|-------------|
-| **Weight**    | `10 lb`, `5 kg`, `8 oz`, `500 g`                    | `kg`, `lb`, `g`, `oz` |
+| **Weight**    | `10 lb`, `5 kg`, `8 oz`, `500 g`, `32-oz`           | `kg`, `lb`, `g`, `oz` |
 | **Temperature**| `68 °F`, `20 °C`                                  | `°C`, `°F`    |
 | **Speed**     | `60 mph`, `100 km/h`, `30 mpg`, `8 l/100km`         | `km/h`, `mph`, `l/100km`, `mpg` |
 | **Volume**    | `5 gal`, `20 l`, `2 qt`, `12 fl`, `250 ml`          | `l`, `gal`, `l`, `ml`, `fl` |
