@@ -584,41 +584,18 @@ const ErrorHandler = {
   },
 
   /**
-   * Get error statistics for debugging
-   */
-  getStats() {
-    return { ...this.stats };
-  },
-
-  /**
-   * Clear error statistics
-   */
-  clearStats() {
-    this.stats = {
-      total: 0,
-      byContext: {},
-      byLevel: { error: 0, warn: 0, info: 0 },
-      recent: [],
-    };
-  },
-
-  /**
    * Handle API errors with fallback and retry logic
    * @param {Error} error - The API error
    * @param {string} context - API context (e.g., 'exchange-rates', 'crypto-rates')
    * @param {Function} fallback - Fallback function to execute
-   * @param {Object} options - Additional options
    */
-  handleApiError(error, context, fallback = null, options = {}) {
-    const { retryCount = 0, maxRetries = 3 } = options;
-
+  handleApiError(error, context, fallback = null) {
     // Enhanced error logging with more details
     const errorDetails = {
       message: error.message,
       name: error.name,
       context: context,
       timestamp: new Date().toISOString(),
-      retryCount,
       userAgent: navigator.userAgent,
       url: this.getLastApiUrl(context),
     };
@@ -650,26 +627,6 @@ const ErrorHandler = {
       userMessage = "Too many requests. Please try again later.";
     } else if (error.message.includes("403")) {
       userMessage = "Access forbidden. Using cached data.";
-    }
-
-    // Downgrade transient/fallback-backed API errors to warnings to reduce noise
-    const isTransient =
-      error.message.includes("Failed to fetch") ||
-      error.message.includes("Network") ||
-      error.message.includes("ERR_FAILED") ||
-      error.message.includes("CORS") ||
-      error.message.includes("blocked") ||
-      error.message.includes("429") ||
-      error.message.includes("403");
-    const logLevel = isTransient ? "warn" : "error";
-
-    // Log retry information if applicable
-    if (retryCount > 0) {
-      this.log(
-        `API Error Details: ${JSON.stringify(errorDetails, null, 2)}`,
-        context,
-        logLevel,
-      );
     }
 
     // Execute fallback if provided
@@ -740,47 +697,6 @@ const ErrorHandler = {
       context,
       timestamp: Date.now(),
       ...additional,
-    };
-  },
-
-  /**
-   * Wrap a function with error handling
-   * @param {Function} fn - Function to wrap
-   * @param {string} context - Error context
-   * @param {Function} errorHandler - Custom error handler
-   */
-  wrap(fn, context, errorHandler = null) {
-    return (...args) => {
-      try {
-        return fn(...args);
-      } catch (error) {
-        if (errorHandler && typeof errorHandler === "function") {
-          return errorHandler(error, context);
-        } else {
-          this.handleDomError(error, context);
-          return null;
-        }
-      }
-    };
-  },
-
-  /**
-   * Wrap an async function with error handling
-   * @param {Function} fn - Async function to wrap
-   * @param {string} context - Error context
-   * @param {Function} errorHandler - Custom error handler
-   */
-  wrapAsync(fn, context, errorHandler = null) {
-    return async (...args) => {
-      try {
-        return await fn(...args);
-      } catch (error) {
-        if (errorHandler && typeof errorHandler === "function") {
-          return errorHandler(error, context);
-        } else {
-          return this.handleApiError(error, context);
-        }
-      }
     };
   },
 
@@ -890,95 +806,6 @@ const PerformanceValidator = {
     }
   },
 
-  /**
-   * Get performance statistics for an operation
-   * @param {string} operation - Operation name
-   * @returns {Object} Performance statistics
-   */
-  getStats(operation) {
-    const times = this.metrics[operation + "Times"] || [];
-    if (times.length === 0) return null;
-
-    const durations = times.map((t) => t.duration);
-    return {
-      count: durations.length,
-      average: durations.reduce((a, b) => a + b, 0) / durations.length,
-      min: Math.min(...durations),
-      max: Math.max(...durations),
-      median: this.calculateMedian(durations),
-      p95: this.calculatePercentile(durations, 95),
-      recent: times.slice(-10), // Last 10 measurements
-    };
-  },
-
-  /**
-   * Calculate median value
-   * @param {number[]} values - Array of values
-   * @returns {number} Median value
-   */
-  calculateMedian(values) {
-    const sorted = [...values].sort((a, b) => a - b);
-    const mid = Math.floor(sorted.length / 2);
-    return sorted.length % 2 === 0
-      ? (sorted[mid - 1] + sorted[mid]) / 2
-      : sorted[mid];
-  },
-
-  /**
-   * Calculate percentile value
-   * @param {number[]} values - Array of values
-   * @param {number} percentile - Percentile to calculate (0-100)
-   * @returns {number} Percentile value
-   */
-  calculatePercentile(values, percentile) {
-    const sorted = [...values].sort((a, b) => a - b);
-    const index = Math.ceil((percentile / 100) * sorted.length) - 1;
-    return sorted[Math.max(0, index)];
-  },
-
-  /**
-   * Validate performance against expected thresholds
-   * @returns {Object} Validation results
-   */
-  validatePerformance() {
-    const results = {
-      passed: true,
-      violations: [],
-      summary: {},
-    };
-
-    const thresholds = {
-      popupShow: 50, // ms
-      conversion: 100, // ms
-      apiCall: 2000, // ms
-      domOperation: 20, // ms
-    };
-
-    for (const [operation, threshold] of Object.entries(thresholds)) {
-      const stats = this.getStats(operation);
-      if (stats && stats.p95 > threshold) {
-        results.passed = false;
-        results.violations.push({
-          operation,
-          threshold,
-          actual: stats.p95,
-          severity: stats.p95 > threshold * 2 ? "high" : "medium",
-        });
-      }
-      results.summary[operation] = stats;
-    }
-
-    return results;
-  },
-
-  /**
-   * Clear all performance metrics
-   */
-  clearMetrics() {
-    Object.keys(this.metrics).forEach((key) => {
-      this.metrics[key] = [];
-    });
-  },
 };
 
 // --- DOM Caching System for Performance Optimization ---
@@ -1011,21 +838,8 @@ const DOMCache = {
         this.conversionContainer.querySelector(".copy-button");
     }
 
-    // Store references to optimized elements if available
-    if (typeof popupElements !== "undefined") {
-      this.searchButton = this.searchButton || popupElements.searchButton;
-      this.copyButton = this.copyButton || popupElements.copyButton2;
-      this.conversionContainer =
-        this.conversionContainer || popupElements.conversionContainer;
-      this.errorContainer = this.errorContainer || popupElements.errorContainer;
-      this.convertedValueSpan =
-        this.convertedValueSpan || popupElements.convertedValueSpan;
-      this.copyConvertedButton =
-        this.copyConvertedButton || popupElements.copyButton;
-      this.buttonContainer = popupElements.buttonContainer;
-    } else {
-      this.buttonContainer = null;
-    }
+    // Store reference to the button container from the optimized structure
+    this.buttonContainer = popupElements.buttonContainer;
   },
 
   /**
@@ -1038,18 +852,6 @@ const DOMCache = {
     return element || null;
   },
 
-  /**
-   * Clear cache (useful for cleanup or re-initialization)
-   */
-  clear() {
-    this.searchButton = null;
-    this.copyButton = null;
-    this.conversionContainer = null;
-    this.errorContainer = null;
-    this.convertedValueSpan = null;
-    this.copyConvertedButton = null;
-    this.buttonContainer = null;
-  },
 };
 
 // ===== PERFORMANCE UTILITIES =====
@@ -1102,13 +904,11 @@ const PopupManager = {
   lastSelection: null,
   showDebounceTimeout: null,
   isShowing: false,
-  mouseDownTimeout: null,
 
   /**
    * Initialize popup manager
    */
   init() {
-    this.bindEvents();
     initPopupButtons();
   },
 
@@ -1165,7 +965,6 @@ const PopupManager = {
     this.currentSelection = null;
     this.lastSelection = null; // Allow re-showing popup for the same text
     clearTimeout(this.hideTimeout);
-    clearTimeout(this.mouseDownTimeout);
     clearTimeout(this.showDebounceTimeout);
 
     hidePopup();
@@ -1202,12 +1001,6 @@ const PopupManager = {
    */
   handleMouseUp(e) {
     if (this.isPopupTarget(e.target)) return;
-
-    // Clear any pending mouse down timeout to prevent race conditions
-    if (this.mouseDownTimeout) {
-      clearTimeout(this.mouseDownTimeout);
-      this.mouseDownTimeout = null;
-    }
 
     let selection, selectedTextTrimmed;
     try {
@@ -1255,7 +1048,7 @@ const PopupManager = {
           ErrorHandler.handleDomError(err, "selection-range-deferred", true);
         }
       }, 80); // Slightly longer delay to let double-click selection stabilise
-    } else if (!this.isPopupTarget(e.target)) {
+    } else {
       this.hide();
     }
   },
@@ -1280,11 +1073,10 @@ const PopupManager = {
   },
 
   /**
-   * Bind popup events
+   * Check if click target is within popup
    */
-  bindEvents() {
-    // Events are now handled by EventManager
-    // This method is kept for consistency but doesn't need to bind individual events
+  isPopupTarget(target) {
+    return shadowHost.contains(target);
   },
 };
 
@@ -1387,7 +1179,6 @@ let isUrlSelected = false;
 let convertedValue = null;
 let exchangeRatesError = null;
 let cryptoRatesError = null;
-let isSelectionComplete = false;
 
 // --- Preferred currency (default to BGN) ---
 let preferredCurrency = "BGN";
@@ -2110,12 +1901,6 @@ function applyUnitConversion(value, unit) {
   // Normalize unit: trim, lowercase, remove spaces AND dashes (handles "32-oz")
   let normUnit = (unit || "").toLowerCase().replace(/[\s-]+/g, "");
 
-  if (normUnit === "l/100km") {
-    normUnit = "l/100km";
-  } else if (normUnit === "mpg") {
-    normUnit = "mpg";
-  }
-
   for (const [key, conversion] of Object.entries(UNIT_CONVERSIONS)) {
     let normKey = key.toLowerCase().replace(/[\s-]+/g, "");
     if (normKey === normUnit) {
@@ -2488,8 +2273,6 @@ const DOMOptimizer = {
     if (element && element.parentNode) {
       element.parentNode.removeChild(element);
     }
-    // Clear references to help garbage collection
-    element = null;
   },
 };
 

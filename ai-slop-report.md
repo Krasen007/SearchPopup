@@ -50,7 +50,7 @@ Verdict mix: 17 slop / 2 false-positive-or-intentional / 2 possibly-intentional 
 - **Severity:** 🔴 High
 - **Snippet:** `fetchExchangeRates().then(() => { return detectAndConvertUnit(text); });`
 - **Verdict:** slop
-- **Action:** flagged for follow-up — **needs a product decision (see User Review Required)**. Two problems stacked: (a) the retried `detectAndConvertUnit` result is discarded — nothing re-renders the popup when rates arrive (only `showAndPositionPopup` calls `updatePopupContent`); (b) the "refresh" usually no-ops anyway: `fetchExchangeRates` early-returns whenever a cached `exchangeRates.lastUpdated` is fresh, which the cache-loading error path (`handleExchangeError`) just set. Net effect: user sees "Loading exchange rates..." but the popup never updates until they reselect. Also no `.catch` — a rejection falls through to the global `unhandledrejection` handler only.
+- **Action:** scheduled Phase 2 (author decision: option (a) — re-render popup with correct rate when rates arrive) — implementation must await the chain, call `updatePopupContent()` after refresh, and guard against the early-return no-op; the chain's rejection should also be handled so it isn't silent. Two problems stacked: (a) the retried `detectAndConvertUnit` result is discarded — nothing re-renders the popup when rates arrive (only `showAndPositionPopup` calls `updatePopupContent`); (b) the "refresh" usually no-ops anyway: `fetchExchangeRates` early-returns whenever a cached `exchangeRates.lastUpdated` is fresh, which the cache-loading error path (`handleExchangeError`) just set. Net effect: user sees "Loading exchange rates..." but the popup never updates until they reselect.
 
 ### [Rule 2] — F4: global `error`/`unhandledrejection` handlers are invisible by configuration
 - **File:** js/content.js
@@ -58,7 +58,7 @@ Verdict mix: 17 slop / 2 false-positive-or-intentional / 2 possibly-intentional 
 - **Severity:** 🟡 Medium
 - **Snippet:** `ErrorHandler.handleDomError(event.error || new Error(event.message), "global-error", true); event.preventDefault();`
 - **Verdict:** possibly intentional — confirm with author
-- **Action:** left as-is (reason: cross-origin noise suppression is an explicit AGENTS.md convention, and `preventDefault` stops the extension's errors from polluting page consoles). However, with `silent=true` these log at level `info`, and **all `info` console output is commented out** (579, 582) — so every global error and unhandled rejection is effectively invisible outside the in-memory `stats` object. If that silencing is deliberate, keep; otherwise route global errors at `warn`.
+- **Action:** left as-is (author confirmed: keep global errors invisible). Cross-origin noise suppression is an explicit AGENTS.md convention, and `preventDefault` stops the extension's errors from polluting page consoles. Note the mechanics: with `silent=true` these log at level `info`, and **all `info` console output is commented out** (579, 582) — so every global error and unhandled rejection is effectively invisible outside the in-memory `stats` object.
 
 ### [Rule 3] — F5: always-true guard on popup-hide branch
 - **File:** js/content.js
@@ -66,7 +66,7 @@ Verdict mix: 17 slop / 2 false-positive-or-intentional / 2 possibly-intentional 
 - **Severity:** 🔴 High
 - **Snippet:** `} else if (!this.isPopupTarget(e.target)) { this.hide(); }` — but `handleMouseUp` opens with `if (this.isPopupTarget(e.target)) return;`
 - **Verdict:** slop
-- **Action:** flagged for follow-up — same handler, same `e.target`, no reassignment in between; the condition can never be false. Reduce to plain `else { this.hide(); }`.
+- **Action:** fixed in this session (Phase 1) — collapsed to plain `else { this.hide(); }`.
 
 ### [Rule 3] — F6: `mouseDownTimeout` is cleared but never set
 - **File:** js/content.js
@@ -74,7 +74,7 @@ Verdict mix: 17 slop / 2 false-positive-or-intentional / 2 possibly-intentional 
 - **Severity:** 🔴 High
 - **Snippet:** `if (this.mouseDownTimeout) { clearTimeout(this.mouseDownTimeout); this.mouseDownTimeout = null; }`
 - **Verdict:** slop
-- **Action:** flagged for follow-up — grep over the whole repo shows no assignment (`= setTimeout`) anywhere; the checks/clears can never fire. Dead defensive state machine.
+- **Action:** fixed in this session (Phase 1) — declaration, both clears, and the check block removed; grep confirms zero remaining references.
 
 ### [Rule 3] — F7: no-op normalization branches in `applyUnitConversion`
 - **File:** js/content.js
@@ -82,7 +82,7 @@ Verdict mix: 17 slop / 2 false-positive-or-intentional / 2 possibly-intentional 
 - **Severity:** 🔴 High
 - **Snippet:** `if (normUnit === "l/100km") { normUnit = "l/100km"; } else if (normUnit === "mpg") { normUnit = "mpg"; }`
 - **Verdict:** slop (safe removal regardless of original intent — each branch assigns the value the variable already has)
-- **Action:** flagged for follow-up — likely a leftover special-case from the dashed-units work (commit 0c6ff1b added the `[\s-]+` normalization two lines above, which made these redundant). Blame inconclusive (blame invocation failed); downgraded from "delete now" to "flagged" per checklist #6.
+- **Action:** fixed in this session (Phase 1, author-confirmed safe) — branches deleted; `l/100km`/`mpg` conversion definitions remain untouched.
 
 ### [Rule 3] — F8: always-true `typeof popupElements` guard in `DOMCache.init`
 - **File:** js/content.js
@@ -90,7 +90,7 @@ Verdict mix: 17 slop / 2 false-positive-or-intentional / 2 possibly-intentional 
 - **Severity:** 🔴 High
 - **Snippet:** `if (typeof popupElements !== "undefined") { this.searchButton = this.searchButton || popupElements.searchButton; ... }`
 - **Verdict:** slop
-- **Action:** flagged for follow-up — `DOMCache.init()` is only called at line 2989, after `const popupElements` (2504) has executed, so the guard is always true; and since `init()` queries by the exact IDs `createAllElements()` just assigned (2447, 2453, 2415, 2402), the `||` fallbacks and `else { this.buttonContainer = null; }` branch can never fire.
+- **Action:** fixed in this session (Phase 1) — guard, six `||` fallbacks, and the `else` branch removed; `this.buttonContainer = popupElements.buttonContainer;` retained (always reachable).
 
 ### [Rule 4] — F9: dead error/perf utility cluster (zero external callsites)
 - **File:** js/content.js
@@ -98,7 +98,7 @@ Verdict mix: 17 slop / 2 false-positive-or-intentional / 2 possibly-intentional 
 - **Severity:** 🔴 High
 - **Snippet:** `wrap(fn, context, errorHandler = null) { return (...args) => { try { return fn(...args); } ... } }` — never invoked
 - **Verdict:** slop (grep-verified: zero callsites repo-wide for each symbol; `PerformanceValidator.getStats`/`calculateMedian`/`calculatePercentile` are only reachable via the dead `validatePerformance`)
-- **Action:** flagged for follow-up — quarantine-style removal in one commit (per the guide's quarantine-before-delete procedure; these are functions, not files, so direct removal after one last grep pass is proportionate).
+- **Action:** fixed in this session (Phase 1) — all seven symbols removed in one pass; post-removal grep shows zero remaining references.
 
 ### [Rule 4] — F10: `PopupManager.bindEvents` is an empty method kept "for consistency"
 - **File:** js/content.js
@@ -106,7 +106,7 @@ Verdict mix: 17 slop / 2 false-positive-or-intentional / 2 possibly-intentional 
 - **Severity:** 🔴 High
 - **Snippet:** `// Events are now handled by EventManager` / `// This method is kept for consistency but doesn't need to bind individual events`
 - **Verdict:** slop (blame: f661376f, 2026-03-22 — the comment admits the body is dead)
-- **Action:** flagged for follow-up — delete method and its call.
+- **Action:** fixed in this session (Phase 1) — method and its `init()` call removed; `bindEvents` now exists only on EventManager (alive).
 
 ### [Rule 4] — F11: `isSelectionComplete` is declared and never used
 - **File:** js/content.js
@@ -114,7 +114,7 @@ Verdict mix: 17 slop / 2 false-positive-or-intentional / 2 possibly-intentional 
 - **Severity:** 🔴 High
 - **Snippet:** `let isSelectionComplete = false;`
 - **Verdict:** slop (single grep hit = its own declaration)
-- **Action:** flagged for follow-up — delete.
+- **Action:** fixed in this session (Phase 1) — declaration removed.
 
 ### [Rule 4] — F12: `cleanupElement` sets its parameter to null "for GC"
 - **File:** js/content.js
@@ -122,7 +122,7 @@ Verdict mix: 17 slop / 2 false-positive-or-intentional / 2 possibly-intentional 
 - **Severity:** 🔴 High
 - **Snippet:** `element.parentNode.removeChild(element); ... // Clear references to help garbage collection` / `element = null;`
 - **Verdict:** slop
-- **Action:** flagged for follow-up — reassigning a parameter has no effect on the caller's reference; the statement and its comment are misleading.
+- **Action:** fixed in this session (Phase 1) — statement and misleading comment removed; DOM removal retained.
 
 ### [Rule 4] — F13: `handleApiError` options path is unreachable and double-logs
 - **File:** js/content.js
@@ -130,7 +130,7 @@ Verdict mix: 17 slop / 2 false-positive-or-intentional / 2 possibly-intentional 
 - **Severity:** 🔴 High
 - **Snippet:** `if (retryCount > 0) { this.log(\`API Error Details: ...\`, context, logLevel); }` — re-logs the identical JSON already emitted at 626–630
 - **Verdict:** slop
-- **Action:** flagged for follow-up — `retryCount` is always 0 and `maxRetries` is never read; remove the dead options plumbing (or wire it up), which also removes the rule-#9 double log.
+- **Action:** fixed in this session (Phase 1) — dead options plumbing removed; the `isTransient`/`logLevel` logic that only fed the unreachable block removed with it; a leftover `retryCount,` shorthand in `errorDetails` (would have thrown at runtime) was caught by post-edit symbol grep and fixed, along with the stale `@param options` JSDoc.
 
 ### [Rule 5] — F14: mixed color notations and inline styles outside the CSS system
 - **File:** js/content.js
@@ -224,7 +224,7 @@ Verdict mix: 17 slop / 2 false-positive-or-intentional / 2 possibly-intentional 
 - **Severity:** 🟡 Medium
 - **Snippet:** one classic script containing CONFIG, 6 data tables, ErrorHandler, PerformanceValidator, DOMCache, PerformanceUtils, PopupManager, EventManager, 2 API services, the conversion engine, CSS generation, DOM builder, clipboard, theme detection, URL/search, and init
 - **Verdict:** bloat correlate confirmed — this audit's dead-code cluster (F9), duplication (F18/F19), and stale comments (F22) all live in sections nobody re-reads
-- **Action:** deferred — **its own follow-up**, not bundled into slop cleanup (guide's explicit instruction). AGENTS.md states no line limit; note for the follow-up: MV3 content scripts are classic scripts, so a split means multiple files in the manifest `js` array sharing globals, or an IIFE/module build step — a real design decision.
+- **Action:** closed (author decision: do not split the file — keep the monolith).
 
 ## False positives / intentional (explicitly recorded)
 
@@ -246,10 +246,10 @@ Per checklist #7 (be suspicious of a clean sweep), the following were investigat
 | Finding | Destination |
 |---|---|
 | F1, F2 | Phase 2 (add logging to silent catches) |
-| F3 | **User Review Required** — product decision, then Phase 2 |
-| F4 | **User Review Required** — confirm intent of global-error silencing |
-| F5, F6, F7, F8 | Phase 1 (dead-guard removal) |
-| F9, F10, F11, F12, F13 | Phase 1 (dead-code removal, one commit) |
+| F3 | Phase 2 (author decision: re-render popup with correct rate) |
+| F4 | Closed — author confirmed: keep global errors invisible |
+| F5, F6, F7, F8 | **fixed this session (Phase 1)** |
+| F9, F10, F11, F12, F13 | **fixed this session (Phase 1)** |
 | F14 | Phase 3 (cosmetic consistency) |
 | F15 | Phase 3 |
 | F16 | Left as-is (author confirmation requested) |
@@ -258,7 +258,7 @@ Per checklist #7 (be suspicious of a clean sweep), the following were investigat
 | F20 | Phase 4 (comment sweep) |
 | F22, F23 | Phase 4 |
 | F24, F25 | Closed — false positive / intentional (documented above) |
-| F26 | Deferred — own follow-up (file split) |
+| F26 | Closed — author decision: keep the monolith |
 
 No 🔒 security-sensitive findings: this extension has no auth/ownership/deletion surface, and the review of `manifest.json` permissions/CSP found them deliberate. Nothing in this report is auto-remediated in the same pass it was discovered — all code changes below await plan approval.
 
