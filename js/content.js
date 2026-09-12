@@ -90,10 +90,11 @@ const REGEX_PATTERNS = {
   /**
    * Time zone pattern for conversion
    * Supports formats: "5 PM PST", "11:30 am CET", "14:00 EST", "10:00pm PT", "6 PM Pacific Time"
+   * Also dot/comma hour-minute separators (UK/EU style): "6.30pm BST", "18,30 CET", "6.30 pm bst"
    * @type {RegExp}
    */
   timeZone:
-    /^(\d{1,2})(?::(\d{2}))?\s*(AM|PM|am|pm)?\s*([A-Z]{2,5}|[A-Za-z\s]+)$/i,
+    /^(\d{1,2})(?:[.:,](\d{2}))?(?:\s*(AM|PM|am|pm)\s*|\s+)([A-Z]{2,5}|[A-Za-z\s]+)$/i,
 
   /**
    * Currency symbol pattern for unit detection
@@ -336,6 +337,14 @@ const TIME_ZONE_ABBRS = {
   AWST: "Australia/Perth",
   "Australian Western Standard Time": "Australia/Perth",
 };
+
+// Lowercased mirror of TIME_ZONE_ABBRS for case-insensitive lookups (e.g. "bst", "pacific time")
+const TIME_ZONE_ABBRS_LOWER = Object.fromEntries(
+  Object.entries(TIME_ZONE_ABBRS).map(([abbr, iana]) => [
+    abbr.toLowerCase(),
+    iana,
+  ]),
+);
 
 // --- Currency Names to ISO Codes Mapping ---
 const CURRENCY_NAMES = {
@@ -1871,7 +1880,7 @@ function convertTimeZone(
   text,
   userTimeZone = Intl.DateTimeFormat().resolvedOptions().timeZone,
 ) {
-  // 12-hour: 5 PM PST, 11:30 am CET, 10:00pm PT; 24-hour: 14:00 EST
+  // 12-hour: 5 PM PST, 11:30 am CET, 10:00pm PT, 6.30pm BST; 24-hour: 14:00 EST
   const matchTZ = text.trim().match(REGEX_PATTERNS.timeZone);
   if (!matchTZ) return null;
   let hour = parseInt(matchTZ[1], 10);
@@ -1884,14 +1893,16 @@ function convertTimeZone(
     if (ampm === "PM" && hour < 12) hour += 12;
     if (ampm === "AM" && hour === 12) hour = 0;
   }
-  if (!TIME_ZONE_ABBRS[tz]) return null;
+  // Case-insensitive zone lookup (handles "BST", "bst", "pacific time", etc.)
+  const tzKey = tz.trim().replace(/\s+/g, " ");
+  const srcTimeZone =
+    TIME_ZONE_ABBRS[tzKey] || TIME_ZONE_ABBRS_LOWER[tzKey.toLowerCase()];
+  if (!srcTimeZone) return null;
   try {
     // Use today's date for conversion
     const now = new Date();
     // Build a date string in the source time zone
     const dateStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}T${String(hour).padStart(2, "0")}:${String(minute).padStart(2, "0")}:00`;
-    // Get the source time zone IANA name
-    const srcTimeZone = TIME_ZONE_ABBRS[tz];
     // Convert to UTC from the source time zone
     const srcDate = new Date(
       new Date(

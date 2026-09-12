@@ -2,7 +2,7 @@
 
 2. run cd "C:\Users\krase\repos\SearchPopup" && .\gitlog.bat
 
-3. bump @gitlog.bat with +0.0.1
+3. bump @gitlog.bat with +0.0.1 or with the latest tag
 
 4. read @changelog.txt and update it for github changelog page, 
 summarize it in few notes but reword it so it's more easily understood, 
@@ -15,4 +15,4 @@ update the changelog.txt file itself.
 
 7. WAIT for confirmation before you push all changes to remote repository
 
-8. run package.bat or package-extension.ps1
+8. run package.bat or .\package-extension.ps1

@@ -41,6 +41,9 @@ $excludeFiles = @(
   "AGENTS.md",
   "STORE_LISTING_CHROME.md",
   "bump.bat",
+  "bump.txt",
+  "changelog.txt",
+  "package.bat",
   "package-extension.ps1"
 )
 

@@ -1,4 +1,6 @@
 What's Changed
+- Fixed time zone detection for dot/comma-separated times like "6.30pm BST" or "11,30 CET" (previously only "6:30" with a colon was recognized)
+- Time zone abbreviations are now matched case-insensitively, so lowercase selections like "6.30pm bst" also convert
 - Fixed accessibility: added dialog roles, aria-labels, Escape-key support, and aria-live regions for screen readers
 - Consolidated exchange-rate fetching to avoid duplicate API calls
 - Reduced crypto API error noise by trimming retry logs

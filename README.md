@@ -69,6 +69,8 @@ The extension supports a wide range of unit and currency conversions. Simply sel
 | `8:00 UTC`     | 24-hour Coordinated Universal Time | `11:00 (your time)`     |
 | `10:00pm PT`     | 12-hour America/Los_Angeles | `08:00 (your time)`     |
 | `6 PM Pacific Time` | 12-hour with full US zone name | `04:00 (your time)`     |
+| `6.30pm BST`     | 12-hour UK dot-separated (BST)     | `20:30 (your time)`      |
+| `11,30 CET`      | 12-hour comma-separated (CET)      | `12:30 (your time)`      |
 
 ### Fiat Currency Examples
 
