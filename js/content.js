@@ -1415,7 +1415,11 @@ async function fetchCryptoRates() {
       cryptoRatesError = null; // Clear error on success
       applyCryptoRatesToUnitConversions(fetchVs, vsCurrency);
 
-      localStorage.setItem("cryptoRates", JSON.stringify(cryptoRates));
+      try {
+        localStorage.setItem("cryptoRates", JSON.stringify(cryptoRates));
+      } catch (storageError) {
+        ErrorHandler.log(storageError, "crypto-rates-storage", "warn");
+      }
       lastCryptoError = null;
       break;
     } catch (error) {
@@ -1714,6 +1718,7 @@ function convertTimeZone(
       value: localTime,
     };
   } catch (e) {
+    ErrorHandler.log(e, "timezone-convert", "warn");
     return null;
   }
 }
@@ -1745,7 +1750,8 @@ function getTimeZoneOffsetString(timeZone, dateStr) {
     const hh = String(Math.floor(abs / 60)).padStart(2, "0");
     const mm = String(abs % 60).padStart(2, "0");
     return `${sign}${hh}:${mm}`;
-  } catch {
+  } catch (e) {
+    ErrorHandler.log(e, "timezone-offset", "warn");
     return "+00:00";
   }
 }
@@ -1795,14 +1801,21 @@ async function handleCryptoConversion(text) {
   return null;
 }
 
+// Re-entry guard: while a rate refresh is in flight, the re-conversion it
+// triggers must not loop back into another refresh (the nested call would
+// otherwise re-enter handleCurrencyLoading as long as exchangeRatesError is set).
+let isRefreshingExchangeRates = false;
+
 /**
  * Handle currency loading state and refresh
  */
-function handleCurrencyLoading(text) {
+async function handleCurrencyLoading(text) {
   const currencyRegex = /[€$£¥₺₽₹₩₪₱฿₣₦₲₵₡₫₭₮₯₠₢₳₴₸₼₾₿]|[A-Z]{3}/;
   const isCurrencyLike = currencyRegex.test(text);
 
-  if (isCurrencyLike && exchangeRatesError) {
+  if (isCurrencyLike && exchangeRatesError && !isRefreshingExchangeRates) {
+    isRefreshingExchangeRates = true;
+
     // Show loading state for currency rates
     const errorContainer = DOMCache.get("errorContainer");
     const conversionContainer = DOMCache.get("conversionContainer");
@@ -1813,11 +1826,24 @@ function handleCurrencyLoading(text) {
     }
     if (conversionContainer) conversionContainer.style.display = "none";
 
-    // Trigger a refresh of exchange rates
-    fetchExchangeRates().then(() => {
-      // Retry conversion after rates are loaded
-      return detectAndConvertUnit(text);
-    });
+    try {
+      // Refresh rates (no-op early-return when the cached rates are fresh)
+      await fetchExchangeRates();
+    } catch (error) {
+      ErrorHandler.log(error, "exchange-rates-refresh", "error");
+    }
+
+    // Re-run conversion and re-render the popup once the rates are available
+    if (PopupManager.isVisible && currentSelectedText === text) {
+      try {
+        convertedValue = await detectAndConvertUnit(text);
+        updatePopupContent();
+      } catch (error) {
+        ErrorHandler.log(error, "currency-rerender", "error");
+      }
+    }
+
+    isRefreshingExchangeRates = false;
   }
 }
 

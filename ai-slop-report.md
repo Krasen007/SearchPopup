@@ -34,7 +34,7 @@ Verdict mix: 17 slop / 2 false-positive-or-intentional / 2 possibly-intentional 
 - **Severity:** 🔴 High
 - **Snippet:** `} catch (e) { return null; }`
 - **Verdict:** slop
-- **Action:** flagged for follow-up — minimum bar is `ErrorHandler.log(e, "timezone-convert", "warn")` before `return null`; zones are pre-validated so this fires only on unexpected `Intl` failures, which currently produce a silently-missing popup conversion with zero diagnostic trace.
+- **Action:** fixed in this session (Phase 2) — `ErrorHandler.log(e, "timezone-convert", "warn")` added before `return null`; zones are pre-validated so this fires only on unexpected `Intl` failures, which previously produced a silently-missing popup conversion with zero diagnostic trace.
 
 ### [Rule 2] — F2: `getTimeZoneOffsetString` bare catch silently returns UTC
 - **File:** js/content.js
@@ -42,7 +42,7 @@ Verdict mix: 17 slop / 2 false-positive-or-intentional / 2 possibly-intentional 
 - **Severity:** 🔴 High
 - **Snippet:** `} catch { return "+00:00"; }`
 - **Verdict:** slop
-- **Action:** flagged for follow-up — if this ever fires for a real zone the conversion is **silently wrong by hours** (the wrong-offset string is baked into the parsed date). All callers pass IANA names from `TIME_ZONE_ABBRS`, so the catch is near-unreachable (see also #3) — but a silent default for a *correctness-critical* path needs at least a log line.
+- **Action:** fixed in this session (Phase 2) — bare catch renamed to `catch (e)` and logged via `ErrorHandler.log(e, "timezone-offset", "warn")` before returning `"+00:00"`; the near-unreachable (pre-validated IANA names) defeat path now leaves a diagnostic trace even though it stays a graceful default.
 
 ### [Rule 2] — F3: `handleCurrencyLoading` retry chain is a dead end (result discarded)
 - **File:** js/content.js
@@ -50,7 +50,7 @@ Verdict mix: 17 slop / 2 false-positive-or-intentional / 2 possibly-intentional 
 - **Severity:** 🔴 High
 - **Snippet:** `fetchExchangeRates().then(() => { return detectAndConvertUnit(text); });`
 - **Verdict:** slop
-- **Action:** scheduled Phase 2 (author decision: option (a) — re-render popup with correct rate when rates arrive) — implementation must await the chain, call `updatePopupContent()` after refresh, and guard against the early-return no-op; the chain's rejection should also be handled so it isn't silent. Two problems stacked: (a) the retried `detectAndConvertUnit` result is discarded — nothing re-renders the popup when rates arrive (only `showAndPositionPopup` calls `updatePopupContent`); (b) the "refresh" usually no-ops anyway: `fetchExchangeRates` early-returns whenever a cached `exchangeRates.lastUpdated` is fresh, which the cache-loading error path (`handleExchangeError`) just set. Net effect: user sees "Loading exchange rates..." but the popup never updates until they reselect.
+- **Action:** fixed in this session (Phase 2, author decision: option (a)) — `handleCurrencyLoading` is now `async`: it awaits `fetchExchangeRates()` (rejection logged under `"exchange-rates-refresh"`), then recomputes `convertedValue = await detectAndConvertUnit(text)` and calls `updatePopupContent()` so the popup re-renders when rates arrive. The re-render is guarded by `PopupManager.isVisible && currentSelectedText === text`, and a module-level `isRefreshingExchangeRates` flag prevents the nested re-conversion from re-entering the refresh loop while `exchangeRatesError` is still set.
 
 ### [Rule 2] — F4: global `error`/`unhandledrejection` handlers are invisible by configuration
 - **File:** js/content.js
@@ -162,7 +162,7 @@ Verdict mix: 17 slop / 2 false-positive-or-intentional / 2 possibly-intentional 
 - **Severity:** 🟡 Medium
 - **Snippet:** `localStorage.setItem("cryptoRates", JSON.stringify(cryptoRates));` — bare, inside the retry `try`
 - **Verdict:** slop
-- **Action:** flagged for follow-up — in quota/privacy-restricted contexts the throw is misattributed to the API call: it lands in the 1630 catch, burns the retry budget with backoff, and surfaces "Crypto fetch failed after 2 attempts" for a response that actually succeeded. Wrap + log like the exchange path.
+- **Action:** fixed in this session (Phase 2) — `localStorage.setItem("cryptoRates", ...)` is now wrapped in try/catch with `ErrorHandler.log(storageError, "crypto-rates-storage", "warn")`, mirroring the exchange path; a quota/privacy throw no longer lands in the retry catch, burns the retry budget with backoff, or misreports a successful response as "Crypto fetch failed after 2 attempts".
 
 ### [Rule 9] — F18: currency-detection regex duplicated
 - **File:** js/content.js
@@ -245,15 +245,15 @@ Per checklist #7 (be suspicious of a clean sweep), the following were investigat
 
 | Finding | Destination |
 |---|---|
-| F1, F2 | Phase 2 (add logging to silent catches) |
-| F3 | Phase 2 (author decision: re-render popup with correct rate) |
+| F1, F2 | **fixed this session (Phase 2)** |
+| F3 | **fixed this session (Phase 2)** |
 | F4 | Closed — author confirmed: keep global errors invisible |
 | F5, F6, F7, F8 | **fixed this session (Phase 1)** |
 | F9, F10, F11, F12, F13 | **fixed this session (Phase 1)** |
 | F14 | Phase 3 (cosmetic consistency) |
 | F15 | Phase 3 |
 | F16 | Left as-is (author confirmation requested) |
-| F17 | Phase 2 |
+| F17 | **fixed this session (Phase 2)** |
 | F18, F19 | Phase 3 |
 | F20 | Phase 4 (comment sweep) |
 | F22, F23 | Phase 4 |
