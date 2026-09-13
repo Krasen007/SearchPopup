@@ -1,6 +1,6 @@
 # Search Popup Extension - Smart Text Selection Assistant
 
-A blazing-fast browser extension that revolutionizes how you interact with text on any webpage. Select any text and instantly get a context-aware popup with smart actions: search, copy, convert units/currencies, visit URLs, and more. Built with cutting-edge performance optimizations for zero-lag operation, the extension intelligently adapts its theme (light/dark) to match any website design.
+A fast browser extension for interacting with text on any webpage. Select any text and instantly get a context-aware popup with smart actions: search, copy, convert units/currencies, visit URLs, and more. The extension adapts its theme (light/dark) to match the website design.
 
 ## Features
 
@@ -9,21 +9,22 @@ A blazing-fast browser extension that revolutionizes how you interact with text 
 - **Quick Copy:** One-click copy to clipboard with intelligent fallback handling
 - **URL Detection:** Automatically detects links and offers to visit them directly
 - **Unit Conversion:** Real-time conversion of weights, temperatures, speeds, distances, and more
-- **Currency & Crypto:** Live exchange rates for 100+ currencies and major cryptocurrencies, including large amounts (e.g. `2351.06 EUR`)
+- **Currency & Crypto:** Live exchange rates for 48 currencies and 13 major cryptocurrencies, including large amounts (e.g. `2351.06 EUR`)
 - **Time Zone Conversion:** Convert times using abbreviations (PST, CET, GMT) or full zone names (Pacific Time, Eastern Standard Time, Central European Time) to your local time instantly. Supports `h:mm`, `h.mm`, and `h,mm` separators (`6.30pm BST`, `18,30 CET`) and case-insensitive abbreviations (`6.30 pm bst`)
 
 ### **Performance Optimized**
-- **Zero-Lag Operation:** Instant popup response with no delays
-- **Fast Rendering:** Popup appears immediately when you select text
+- **Fast Rendering:** Popup appears immediately when you select text, with an 80ms debounce to avoid double-click spam
+- **Non-Blocking Conversions:** A selection never waits on the network; conversions render from cached rates and update live if fresh rates arrive
 - **Memory Efficient:** Runs smoothly without slowing down your browser
-- **Smart Caching:** Exchange rates are cached locally so conversions keep working instantly, even when offline
-- **API Resilience:** Automatic fallback to a secondary exchange-rate API, exponential-backoff retries with a periodic reset, and rate-limit-aware staggering of crypto requests
+- **Smart Caching:** Exchange and crypto rates are cached locally so conversions keep working instantly, even when offline
+- **API Resilience:** Automatic fallback to a secondary exchange-rate API, exponential-backoff retries with a periodic reset, and crypto requests that stagger on load and back off after failures
+- **Popup Auto-Hide:** Fades out after 3 seconds; hovering the popup pauses the timer until you leave
 
 ### **Intelligent Design**
 - **Adaptive Theming:** Automatically switches between light/dark mode based on page background
 - **Smart Positioning:** Popup appears above/below selection with directional arrow
 - **Viewport Aware:** Always stays within screen boundaries
-- **Smooth Animations:** Elegant fade transitions and micro-interactions
+- **Smooth Animations:** Elegant fade transitions
 - **Keyboard Accessible:** Press Escape to close the popup
 - **Screen Reader Support:** ARIA labels and live regions for assistive technology
 
@@ -98,7 +99,7 @@ The extension supports a wide range of unit and currency conversions. Simply sel
 
 ### Cryptocurrencies
 
-All cryptocurrency conversions are fetched from the CoinGecko API and converted to `USD`. Just select the amount and symbol (e.g., `0.5 BTC`).
+All cryptocurrency conversions are fetched from the CoinGecko API and converted to your preferred crypto target currency (default USD). Just select the amount and symbol (e.g., `0.5 BTC`).
 
 | Example | Name | Example | Name |
 |--------------|-----------------|--------------|---------------|
@@ -110,7 +111,7 @@ All cryptocurrency conversions are fetched from the CoinGecko API and converted 
 | `0.5 YFI` | Yearn.finance | `20 BITS` | Bitcoin Bits |
 | `250 SATS` | Bitcoin Satoshis | | |
 
-**Note:** Bitcoin subunits (BITS, SATS) require API connectivity and will show USD values based on current Bitcoin prices.
+**Note:** Bitcoin subunits (BITS, SATS) require API connectivity and will show values in your preferred crypto target currency based on current Bitcoin prices.
 
 ## Installation
 

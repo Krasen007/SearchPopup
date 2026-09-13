@@ -15,13 +15,13 @@ Simply select any text on any webpage and get instant, context-aware actions. No
 **Key Features:**
 - Instant search with your preferred search engine
 - Automatic URL detection and opening
-- Real-time currency conversion (50+ currencies)
-- Live cryptocurrency prices (30+ coins)
+- Real-time currency conversion (48 currencies)
+- Live cryptocurrency prices (13 major coins)
 - Unit conversions for temperature, weight, distance, and more
-- Time zone conversion between major cities
+- Time zone conversion for major abbreviations (PST, CET, GMT, and more) and full zone names
 - One-click clipboard operations
 - Smart theme adaptation (light/dark mode)
-- Optimized performance with minimal page impact
+- Light footprint on the pages you browse
 
 **How It Works:**
 1. Select any text - words, numbers, URLs, or phrases

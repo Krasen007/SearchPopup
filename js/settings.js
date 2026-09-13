@@ -69,8 +69,11 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   // Populate the currency and crypto-currency dropdowns
+  // D4 — the crypto dropdown is curated to quote currencies the product
+  // actually supports; obsolete/unsupported codes (e.g. VEF) are removed.
+  const cryptoCurrencies = currencies.filter((code) => code !== "VEF");
   populateCurrencyDropdown(currencySelect, currencies);
-  populateCurrencyDropdown(cryptoCurrencySelect, currencies);
+  populateCurrencyDropdown(cryptoCurrencySelect, cryptoCurrencies);
 
   // Set version from manifest
   if (

@@ -711,113 +711,6 @@ const ErrorHandler = {
       ...additional,
     };
   },
-
-  /**
-   * Log performance metrics
-   * @param {string} operation - Operation name
-   * @param {number} duration - Duration in milliseconds
-   * @param {Object} metadata - Additional metadata
-   */
-  logPerformance(operation, duration, metadata = {}) {
-    const level = duration > 1000 ? "warn" : "info";
-    const message = `Operation "${operation}" took ${duration}ms`;
-    this.log(message, `performance-${operation}`, level);
-
-    // Log additional metadata if provided
-    if (Object.keys(metadata).length > 0) {
-      this.log(
-        `Metadata: ${JSON.stringify(metadata)}`,
-        `performance-${operation}-metadata`,
-        "info",
-      );
-    }
-  },
-
-  /**
-   * Log user interactions for debugging
-   * @param {string} action - User action
-   * @param {Object} details - Action details
-   */
-  logUserAction(action, details = {}) {
-    const message = `User action: ${action}`;
-    this.log(message, `user-action-${action}`, "info");
-
-    if (Object.keys(details).length > 0) {
-      this.log(
-        `Action details: ${JSON.stringify(details)}`,
-        `user-action-${action}-details`,
-        "info",
-      );
-    }
-  },
-};
-
-// ===== PERFORMANCE VALIDATION SYSTEM =====
-
-/**
- * Performance monitoring and validation system
- * @namespace PerformanceValidator
- * @readonly
- */
-const PerformanceValidator = {
-  // Performance metrics tracking
-  metrics: {
-    popupShowTimes: [],
-    conversionTimes: [],
-    apiCallTimes: [],
-    domOperationTimes: [],
-  },
-
-  /**
-   * Start timing an operation
-   * @param {string} operation - Operation name to track
-   * @returns {number} Start timestamp
-   */
-  startTimer(operation) {
-    return performance.now();
-  },
-
-  /**
-   * End timing an operation and record the result
-   * @param {string} operation - Operation name
-   * @param {number} startTime - Start timestamp from startTimer()
-   * @returns {number} Duration in milliseconds
-   */
-  endTimer(operation, startTime) {
-    const duration = performance.now() - startTime;
-    this.recordMetric(operation, duration);
-    return duration;
-  },
-
-  /**
-   * Record a performance metric
-   * @param {string} operation - Operation name
-   * @param {number} duration - Duration in milliseconds
-   */
-  recordMetric(operation, duration) {
-    if (!this.metrics[operation + "Times"]) {
-      this.metrics[operation + "Times"] = [];
-    }
-
-    this.metrics[operation + "Times"].push({
-      duration,
-      timestamp: Date.now(),
-    });
-
-    // Keep only last 50 measurements to prevent memory leaks
-    if (this.metrics[operation + "Times"].length > 50) {
-      this.metrics[operation + "Times"].shift();
-    }
-
-    // Log performance warnings for slow operations
-    if (duration > 100) {
-      ErrorHandler.logPerformance(operation, duration, {
-        warning: "Slow operation detected",
-        threshold: "100ms",
-      });
-    }
-  },
-
 };
 
 // --- DOM Caching System for Performance Optimization ---
@@ -946,25 +839,15 @@ const PopupManager = {
 
     this.isShowing = true;
 
-    const startTime = PerformanceValidator.startTimer("popupShow");
-
     this.lastSelection = currentSelectedText;
     this.currentSelection = currentSelectedText;
     this.isVisible = true;
-
-    // Log user action for debugging
-    ErrorHandler.logUserAction("popup-show", {
-      textLength: this.currentSelection?.length,
-      position: { x: rect.left, y: rect.top },
-    });
 
     try {
       await showAndPositionPopup(rect, selectionContextElement);
     } finally {
       this.isShowing = false;
     }
-
-    PerformanceValidator.endTimer("popupShow", startTime);
   },
 
   /**
@@ -980,9 +863,6 @@ const PopupManager = {
     clearTimeout(this.showDebounceTimeout);
 
     hidePopup();
-
-    // Log user action for debugging
-    ErrorHandler.logUserAction("popup-hide");
   },
 
   /**
@@ -1083,12 +963,6 @@ const PopupManager = {
     }
   },
 
-  /**
-   * Check if click target is within popup
-   */
-  isPopupTarget(target) {
-    return shadowHost.contains(target);
-  },
 };
 
 // ===== EVENT MANAGEMENT SYSTEM =====
@@ -1143,6 +1017,13 @@ const EventManager = {
     // Escape closes popup for keyboard accessibility
     window.addEventListener("keydown", (e) => {
       if (e.key === "Escape" && PopupManager.isVisible) PopupManager.hide();
+    });
+
+    // Hovering the popup pauses the auto-hide timer; leaving restarts it
+    // (D5 — the timer must not fire while the mouse travels toward the popup)
+    popup.addEventListener("mouseenter", () => PopupManager.cancelAutoHide());
+    popup.addEventListener("mouseleave", () => {
+      if (PopupManager.isVisible) PopupManager.scheduleAutoHide();
     });
 
     window.addEventListener("error", this.handleError.bind(this));
@@ -1245,6 +1126,25 @@ if (typeof chrome !== "undefined" && chrome.storage && chrome.storage.sync) {
 } else {
   fetchExchangeRates();
   fetchCryptoRates();
+}
+
+// 4.2 — a crypto quote-currency preference change is a first-class
+// cache-invalidation event: in-memory and localStorage caches in the old
+// quote currency must never be reused for the new one.
+if (
+  typeof chrome !== "undefined" &&
+  chrome.storage &&
+  chrome.storage.onChanged
+) {
+  chrome.storage.onChanged.addListener((changes, areaName) => {
+    if (areaName !== "sync" || !changes.preferredCryptoCurrency) return;
+    preferredCryptoCurrency = changes.preferredCryptoCurrency.newValue;
+    cryptoRates = { lastUpdated: 0, prices: {} };
+    cryptoRatesRetryAfter = null;
+    cryptoRatesError = null;
+    localStorage.removeItem("cryptoRates");
+    fetchCryptoRates();
+  });
 }
 
 async function fetchCryptoRates() {
@@ -1786,16 +1686,6 @@ async function handleCryptoConversion(text) {
   const upperCaseText = text.toUpperCase();
   if (!CRYPTO_CURRENCIES[upperCaseText]) return null;
 
-  // Show loading state
-  const errorContainer = DOMCache.get("errorContainer");
-  const conversionContainer = DOMCache.get("conversionContainer");
-
-  if (errorContainer) {
-    errorContainer.textContent = "Loading crypto prices...";
-    errorContainer.style.display = "block";
-  }
-  if (conversionContainer) conversionContainer.style.display = "none";
-
   await fetchCryptoRates();
   const id = CRYPTO_CURRENCIES[upperCaseText];
   let vsCurrency = preferredCryptoCurrency
@@ -1975,19 +1865,15 @@ function applyUnitConversion(value, unit) {
 
 // --- Unit Detection and Conversion ---
 async function detectAndConvertUnit(text) {
-  const startTime = PerformanceValidator.startTimer("conversion");
-
   // First, check for crypto
   const cryptoResult = await handleCryptoConversion(text);
   if (cryptoResult) {
-    PerformanceValidator.endTimer("conversion", startTime);
     return cryptoResult;
   }
 
   // Time Zone Conversion
   const tzResult = convertTimeZone(text);
   if (tzResult) {
-    PerformanceValidator.endTimer("conversion", startTime);
     return tzResult;
   }
 
@@ -1997,7 +1883,6 @@ async function detectAndConvertUnit(text) {
   // Parse value and unit
   const parsed = parseValueAndUnit(text);
   if (!parsed) {
-    PerformanceValidator.endTimer("conversion", startTime);
     return null;
   }
 
@@ -2006,21 +1891,17 @@ async function detectAndConvertUnit(text) {
   // Parse numeric value
   const value = parseNumericValue(valueStr);
   if (value === null) {
-    PerformanceValidator.endTimer("conversion", startTime);
     return null;
   }
 
   // Handle temperature conversion
   const tempResult = handleTemperatureConversion(text, value);
   if (tempResult) {
-    PerformanceValidator.endTimer("conversion", startTime);
     return tempResult;
   }
 
   // Apply unit conversion
-  const result = applyUnitConversion(value, unit);
-  PerformanceValidator.endTimer("conversion", startTime);
-  return result;
+  return applyUnitConversion(value, unit);
 }
 
 // --- Create shadow host and attach shadow root ---
@@ -2032,16 +1913,10 @@ shadowHost.style.cssText =
 // Attach shadow root (open mode allows assistive technology to access popup content)
 const shadowRoot = shadowHost.attachShadow({ mode: "open" });
 
-// ===== CSS OPTIMIZATION SYSTEM =====
-
-// --- Optimized CSS Generation using array.join() for better performance ---
+// --- Popup CSS (static string; same output the previous array-join path produced) ---
 const CSSOptimizer = {
-  /**
-   * Generate CSS using array.join() instead of template literals for better performance
-   * @returns {string} - Optimized CSS string
-   */
   generateCSS() {
-    const cssRules = [
+    return [
       "#text-selection-popup-extension {",
       "    position: fixed;",
       "    background: white;",
@@ -2192,9 +2067,7 @@ const CSSOptimizer = {
       "#text-selection-popup-extension.dark-mode .conversion-result:hover {",
       "    background: #6a6a6a;",
       "}",
-    ];
-
-    return cssRules.join("\n");
+    ].join("\n");
   },
 };
 
@@ -2640,16 +2513,14 @@ function updatePopupContent() {
     if (convertedValueSpan)
       convertedValueSpan.textContent = convertedValue.converted;
   } else {
-    // Only show error if selection looks like a currency/crypto value
-    const upperCaseText = currentSelectedText.toUpperCase();
-    const isCrypto = CRYPTO_CURRENCIES[upperCaseText];
-    if (
-      (isCrypto && cryptoRatesError) ||
-      (REGEX_PATTERNS.currencyLike.test(currentSelectedText) &&
-        exchangeRatesError)
-    ) {
+    // D6 — one calm state: machine detail stays in the ErrorHandler log
+    const isConversionLike =
+      CRYPTO_CURRENCIES[currentSelectedText.toUpperCase()] ||
+      REGEX_PATTERNS.currencyLike.test(currentSelectedText);
+    if (isConversionLike && (exchangeRatesError || cryptoRatesError)) {
       if (errorContainer) {
-        errorContainer.textContent = exchangeRatesError || cryptoRatesError;
+        errorContainer.textContent =
+          "Conversions unavailable — using cached data";
         errorContainer.style.display = "block";
       }
     } else {

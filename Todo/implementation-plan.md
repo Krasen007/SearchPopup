@@ -1,6 +1,6 @@
 # Implementation Plan — SearchPopup
 
-**Status:** draft — Phase 0 decisions D1–D8 + cooking units settled (2026-09-13)
+**Status:** executing — Phase 0 settled; Phases 1–2 merged to `main` (`78c7610`); Phases 3–4 executed (2026-09-13)
 **Anchoring:** current `js/content.js` on `main`, tag `1.79.0`, plus `ai-slop-report.md`
 **Anchoring (2026-09-13 update):** taste audit against `Todo/tasteful-software-guide.md` — adds feature-selection and instrumentation findings on top of the hygiene report
 **Goal:** keep the product’s core interaction and defaults, then remove or fix the parts that currently reduce coherence and taste.
@@ -151,6 +151,7 @@ Do this after Phase 1 and Phase 2, because some of it depends on knowing which f
 
 **3.6** Resolve the `l/100km` / `mpg` no-op branches (slop report F7, still open).
 - Provably no-op. Either delete the branches or confirm they are intentional and comment why — do not leave an undecided branch in the live file.
+- **Outcome (2026-09-13):** resolved by verification — the live file has no no-op branches. The only `mpg`/`l/100km` code is the `UNIT_CONVERSIONS` pair at lines 455–456, which performs real conversions (factor `235.214583 / val`). F7's concern no longer applies to the current revision.
 
 **3.7** Collapse the performance system (decision D8 settled: keep DOMCache + show-debounce only).
 - Remove `PerformanceValidator` and its write-only metric recorders (`startTimer` / `endTimer` / `recordMetric`) plus every call site that only feeds them (e.g. in `PopupManager.show`, `detectAndConvertUnit`).
