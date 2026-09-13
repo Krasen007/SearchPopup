@@ -10,13 +10,14 @@ A blazing-fast browser extension that revolutionizes how you interact with text 
 - **URL Detection:** Automatically detects links and offers to visit them directly
 - **Unit Conversion:** Real-time conversion of weights, temperatures, speeds, distances, and more
 - **Currency & Crypto:** Live exchange rates for 100+ currencies and major cryptocurrencies, including large amounts (e.g. `2351.06 EUR`)
-- **Time Zone Conversion:** Convert times using abbreviations (PST, CET, GMT) or full zone names (Pacific Time, Eastern Standard Time, Central European Time) to your local time instantly
+- **Time Zone Conversion:** Convert times using abbreviations (PST, CET, GMT) or full zone names (Pacific Time, Eastern Standard Time, Central European Time) to your local time instantly. Supports `h:mm`, `h.mm`, and `h,mm` separators (`6.30pm BST`, `18,30 CET`) and case-insensitive abbreviations (`6.30 pm bst`)
 
 ### **Performance Optimized**
 - **Zero-Lag Operation:** Instant popup response with no delays
-- **Memory Efficient:** Runs smoothly without slowing down your browser
-- **Smart Caching:** Shared exchange rates and fallback APIs keep conversions working instantly, even when offline
 - **Fast Rendering:** Popup appears immediately when you select text
+- **Memory Efficient:** Runs smoothly without slowing down your browser
+- **Smart Caching:** Exchange rates are cached locally so conversions keep working instantly, even when offline
+- **API Resilience:** Automatic fallback to a secondary exchange-rate API, exponential-backoff retries with a periodic reset, and rate-limit-aware staggering of crypto requests
 
 ### **Intelligent Design**
 - **Adaptive Theming:** Automatically switches between light/dark mode based on page background
@@ -70,7 +71,9 @@ The extension supports a wide range of unit and currency conversions. Simply sel
 | `10:00pm PT`     | 12-hour America/Los_Angeles | `08:00 (your time)`     |
 | `6 PM Pacific Time` | 12-hour with full US zone name | `04:00 (your time)`     |
 | `6.30pm BST`     | 12-hour UK dot-separated (BST)     | `20:30 (your time)`      |
-| `11,30 CET`      | 12-hour comma-separated (CET)      | `12:30 (your time)`      |
+| `11,30 CET`      | 24-hour comma-separated (CET)      | `12:30 (your time)`      |
+| `18,30 CET`      | 24-hour comma-separated (CET)      | `19:30 (your time)`      |
+| `6.30 pm bst`    | Case-insensitive dot-separated     | `20:30 (your time)`      |
 
 ### Fiat Currency Examples
 

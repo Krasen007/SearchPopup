@@ -107,8 +107,7 @@ const REGEX_PATTERNS = {
    * Used to decide whether to show exchange-rate loading/error states
    * @type {RegExp}
    */
-  currencyLike:
-    /[€$£¥₺₽₹₩₪₱฿₣₦₲₵₡₫₭₮₯₠₢₳₴₸₼₾₿]|[A-Z]{3}/,
+  currencyLike: null,
 
   /**
    * Value-unit pattern (number followed by unit)
@@ -214,6 +213,11 @@ const CURRENCY_SYMBOLS = {
   MYR: "RM",
   BGN: "лв",
 };
+
+REGEX_PATTERNS.currencyLike = new RegExp(
+  `[€$£¥₺₽₹₩₪₱฿₣₦₲₵₡₫₭₮₯₠₢₳₴₸₼₾₿]|\\b(?:${Object.keys(CURRENCY_SYMBOLS).join("|")})\\b`,
+  "i",
+);
 
 // --- Utility Functions for Date Formatting ---
 
@@ -1659,8 +1663,9 @@ async function fetchExchangeRates() {
         "exchange-rates-retry",
         "info",
       );
-      setTimeout(() => fetchExchangeRates(), retryDelay);
-      return; // Exit early to prevent fallback execution during retry attempts
+      return new Promise((resolve) =>
+        setTimeout(() => resolve(fetchExchangeRates()), retryDelay),
+      ); // Exit early to prevent fallback execution during retry attempts
     }
     ErrorHandler.handleApiError(error, "exchange-rates", handleExchangeError);
   }
@@ -1831,9 +1836,9 @@ async function handleCurrencyLoading(text) {
     }
 
     // Re-run conversion and re-render the popup once the rates are available
-    if (PopupManager.isVisible && currentSelectedText === text) {
+    if (PopupManager.isVisible) {
       try {
-        convertedValue = await detectAndConvertUnit(text);
+        convertedValue = await detectAndConvertUnit(currentSelectedText);
         updatePopupContent();
       } catch (error) {
         ErrorHandler.log(error, "currency-rerender", "error");
@@ -1970,7 +1975,7 @@ async function detectAndConvertUnit(text) {
   }
 
   // Handle currency loading
-  handleCurrencyLoading(text);
+  await handleCurrencyLoading(text);
 
   // Parse value and unit
   const parsed = parseValueAndUnit(text);
