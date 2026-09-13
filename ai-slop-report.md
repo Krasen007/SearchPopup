@@ -138,7 +138,7 @@ Verdict mix: 17 slop / 2 false-positive-or-intentional / 2 possibly-intentional 
 - **Severity:** ⚪ Low
 - **Snippet:** `"    background-color: #9e9e9eff;"` vs `"    background: #f0f0f0;"` vs `color: "#b00020"` inline
 - **Verdict:** slop (minor). This project has **no design-token layer** (`COLORS`/`SPACING` constants don't exist; per AGENTS.md inline strings are the convention), so raw values per se are convention, not slop. Actionable inconsistencies: 8-digit alpha-hex in two rules vs `rgba()`/6-digit everywhere else, and `errorContainer` styled imperatively while every sibling element lives in `CSSOptimizer.generateCSS()`.
-- **Action:** flagged for follow-up (cosmetic normalization only).
+- **Action:** fixed in this session (Phase 3) — alpha-hex `#9e9e9eff`/`#5a5959ff` normalized to 6-digit `#9e9e9e`/`#5a5959`, and the `errorContainer` inline `Object.assign` moved into a `#errorContainer` rule in `CSSOptimizer.generateCSS()` (runtime `display` toggles still win as inline styles).
 
 ### [Rule 6] — F15: three single-use button-init wrappers
 - **File:** js/content.js
@@ -146,7 +146,7 @@ Verdict mix: 17 slop / 2 false-positive-or-intentional / 2 possibly-intentional 
 - **Severity:** 🟡 Medium
 - **Snippet:** `function initSearchButton(searchButton) { if (searchButton) { searchButton.addEventListener("click", handleSearchClick); } }`
 - **Verdict:** slop — zero added logic beyond a truthiness check on elements this same file just created
-- **Action:** flagged for follow-up — inline into `initPopupButtons` (or a single `[handler, element].forEach`).
+- **Action:** fixed in this session (Phase 3) — the three wrappers were removed and replaced by a single `[handler, element].forEach` binding loop inside `initPopupButtons`; grep confirms zero remaining references.
 
 ### [Rule 6] — F16: `DOMCache.get(key)` is a trivial property-read facade
 - **File:** js/content.js
@@ -170,7 +170,7 @@ Verdict mix: 17 slop / 2 false-positive-or-intentional / 2 possibly-intentional 
 - **Severity:** 🟡 Medium
 - **Snippet:** `/[€$£¥₺₽₹...₿]|[A-Z]{3}/` — byte-identical inline regex in `handleCurrencyLoading` and `updatePopupContent`
 - **Verdict:** slop
-- **Action:** flagged for follow-up — hoist to `REGEX_PATTERNS`, which already hosts the project's pre-compiled patterns.
+- **Action:** fixed in this session (Phase 3) — hoisted as `REGEX_PATTERNS.currencyLike`; both inline copies (`handleCurrencyLoading`, `updatePopupContent`) now reference the pre-compiled pattern.
 
 ### [Rule 9] — F19: "reset to default rates" object literal repeated 4×
 - **File:** js/content.js
@@ -178,7 +178,7 @@ Verdict mix: 17 slop / 2 false-positive-or-intentional / 2 possibly-intentional 
 - **Severity:** 🟡 Medium
 - **Snippet:** `exchangeRates = { lastUpdated: 0, /* Force refresh on next call */ rates: {} };` ×4
 - **Verdict:** slop
-- **Action:** flagged for follow-up — extract a `resetExchangeRates()` helper.
+- **Action:** fixed in this session (Phase 3) — `resetExchangeRates()` helper extracted next to the state declaration; all four duplicated literals now call it.
 
 ### [Rule 1] — F20: restating batch-comments across the DOM/render code
 - **File:** js/content.js
@@ -186,7 +186,7 @@ Verdict mix: 17 slop / 2 false-positive-or-intentional / 2 possibly-intentional 
 - **Severity:** ⚪ Low
 - **Snippet:** `// Search button` directly above `const searchButton = document.createElement("button");`
 - **Verdict:** slop — the guide's >30% no-information threshold is met in the DOM-optimization section (though the file's section-banner comments are an explicit AGENTS.md convention and stay)
-- **Action:** flagged for follow-up — cosmetic sweep, lowest priority; do NOT touch the `// ===== SECTION =====` banners.
+- **Action:** fixed in this session (Phase 4) — all representative no-information comments removed (selection-length, error-handler, DocumentFragment, batch-append, button-label, cached-DOM, per-button-init, API-attempt-reset); section banners untouched.
 
 ### [Rule 10] — F24: `openUrlOrSearch` uses `new URL()` throw as validation — false positive
 - **File:** js/content.js
@@ -208,7 +208,7 @@ Verdict mix: 17 slop / 2 false-positive-or-intentional / 2 possibly-intentional 
 - **Severity:** 🟡 Medium
 - **Snippet:** `// ... (rest of the code remains the same)`
 - **Verdict:** slop (blame: 24c1bf44, 2026-03-29) — describes nothing; the code below it is fully present
-- **Action:** flagged for follow-up — delete.
+- **Action:** fixed in this session (Phase 4) — comment deleted.
 
 ### [Rule 11] — F23: stale "for future settings logic" comment
 - **File:** js/settings.js
@@ -216,7 +216,7 @@ Verdict mix: 17 slop / 2 false-positive-or-intentional / 2 possibly-intentional 
 - **Severity:** 🟡 Medium
 - **Snippet:** `// settings.js - for future settings logic` — the file has contained real settings logic (dropdowns, load/save) since long before this comment
 - **Verdict:** slop
-- **Action:** flagged for follow-up — delete.
+- **Action:** fixed in this session (Phase 4) — comment deleted.
 
 ### [Rule 14] — F26: `content.js` is a 2,991-line single file
 - **File:** js/content.js
@@ -250,13 +250,13 @@ Per checklist #7 (be suspicious of a clean sweep), the following were investigat
 | F4 | Closed — author confirmed: keep global errors invisible |
 | F5, F6, F7, F8 | **fixed this session (Phase 1)** |
 | F9, F10, F11, F12, F13 | **fixed this session (Phase 1)** |
-| F14 | Phase 3 (cosmetic consistency) |
-| F15 | Phase 3 |
+| F14 | **fixed this session (Phase 3)** |
+| F15 | **fixed this session (Phase 3)** |
 | F16 | Left as-is (author confirmation requested) |
 | F17 | **fixed this session (Phase 2)** |
-| F18, F19 | Phase 3 |
-| F20 | Phase 4 (comment sweep) |
-| F22, F23 | Phase 4 |
+| F18, F19 | **fixed this session (Phase 3)** |
+| F20 | **fixed this session (Phase 4)** |
+| F22, F23 | **fixed this session (Phase 4)** |
 | F24, F25 | Closed — false positive / intentional (documented above) |
 | F26 | Closed — author decision: keep the monolith |
 

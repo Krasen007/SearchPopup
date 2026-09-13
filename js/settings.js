@@ -48,8 +48,6 @@ const currencies = [
   "BGN",
 ];
 
-// settings.js - for future settings logic
-
 document.addEventListener("DOMContentLoaded", () => {
   const currencySelect = document.getElementById("currency-select");
   const cryptoCurrencySelect = document.getElementById(

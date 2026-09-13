@@ -103,6 +103,14 @@ const REGEX_PATTERNS = {
   currencySymbol: "[a-zA-Z°/€$£¥₺₽₹₩₪₱฿₣₦₲₵₡₫₭₮₯₠₢₳₴₸₼₾₿]",
 
   /**
+   * Currency-like detection pattern (single currency symbol or 3-letter ISO code)
+   * Used to decide whether to show exchange-rate loading/error states
+   * @type {RegExp}
+   */
+  currencyLike:
+    /[€$£¥₺₽₹₩₪₱฿₣₦₲₵₡₫₭₮₯₠₢₳₴₸₼₾₿]|[A-Z]{3}/,
+
+  /**
    * Value-unit pattern (number followed by unit)
    * Dynamically constructed at runtime
    * @type {RegExp|null}
@@ -1012,7 +1020,6 @@ const PopupManager = {
       return;
     }
 
-    // Validate selection length
     if (
       selectedTextTrimmed &&
       selectedTextTrimmed.length >= CONFIG.MIN_SELECTION_LENGTH &&
@@ -1134,7 +1141,6 @@ const EventManager = {
       if (e.key === "Escape" && PopupManager.isVisible) PopupManager.hide();
     });
 
-    // Error handlers
     window.addEventListener("error", this.handleError.bind(this));
     window.addEventListener(
       "unhandledrejection",
@@ -1193,6 +1199,16 @@ let exchangeRates = {
     // Intentionally empty until API or cache provides values
   },
 };
+
+/**
+ * Reset exchange rates to a force-refresh state (empties rates and expires the cache)
+ */
+function resetExchangeRates() {
+  exchangeRates = {
+    lastUpdated: 0, // Force refresh on next call
+    rates: {},
+  };
+}
 
 let cryptoRates = {
   lastUpdated: 0,
@@ -1481,7 +1497,6 @@ function processExchangeRateData(data) {
   exchangeRates.lastUpdated = Date.now();
 }
 
-// ... (rest of the code remains the same)
 let apiCallAttempts = 0;
 let lastApiAttemptTime = 0;
 const API_ATTEMPT_RESET_MS = 5 * 60 * 1000; // periodic reset prevents permanent dead-state
@@ -1543,11 +1558,7 @@ async function fetchExchangeRates() {
               "info",
             );
           } else {
-            // Reset to default rates
-            exchangeRates = {
-              lastUpdated: 0, // Force refresh on next call
-              rates: {},
-            };
+            resetExchangeRates();
             ErrorHandler.log(
               "Cached exchange rates expired; rates cleared",
               "exchange-rates-cache",
@@ -1555,11 +1566,7 @@ async function fetchExchangeRates() {
             );
           }
         } else {
-          // Reset to default rates
-          exchangeRates = {
-            lastUpdated: 0, // Force refresh on next call
-            rates: {},
-          };
+          resetExchangeRates();
           ErrorHandler.log(
             "Invalid cached exchange rates structure; rates cleared",
             "exchange-rates-cache",
@@ -1567,11 +1574,7 @@ async function fetchExchangeRates() {
           );
         }
       } else {
-        // Reset to default rates
-        exchangeRates = {
-          lastUpdated: 0, // Force refresh on next call
-          rates: {},
-        };
+        resetExchangeRates();
         ErrorHandler.log(
           "No cached exchange rates available; rates cleared",
           "exchange-rates-cache",
@@ -1580,11 +1583,7 @@ async function fetchExchangeRates() {
       }
     } catch (parseError) {
       ErrorHandler.log(parseError, "exchange-rates-cache-parse", "error");
-      // Reset to default rates
-      exchangeRates = {
-        lastUpdated: 0, // Force refresh on next call
-        rates: {},
-      };
+      resetExchangeRates();
     }
   };
 
@@ -1603,7 +1602,6 @@ async function fetchExchangeRates() {
       throw new Error("Invalid response format from exchange rate API");
     }
 
-    // Reset API attempts on success
     apiCallAttempts = 0;
     lastApiAttemptTime = 0;
     exchangeRatesError = null; // Clear error on success
@@ -1810,8 +1808,7 @@ let isRefreshingExchangeRates = false;
  * Handle currency loading state and refresh
  */
 async function handleCurrencyLoading(text) {
-  const currencyRegex = /[€$£¥₺₽₹₩₪₱฿₣₦₲₵₡₫₭₮₯₠₢₳₴₸₼₾₿]|[A-Z]{3}/;
-  const isCurrencyLike = currencyRegex.test(text);
+  const isCurrencyLike = REGEX_PATTERNS.currencyLike.test(text);
 
   if (isCurrencyLike && exchangeRatesError && !isRefreshingExchangeRates) {
     isRefreshingExchangeRates = true;
@@ -2108,7 +2105,7 @@ const CSSOptimizer = {
       "}",
       "",
       ".extension-action-button:hover, .extension-action-button:focus {",
-      "    background-color: #9e9e9eff;",
+      "    background-color: #9e9e9e;",
       "    box-shadow: 0 2px 8px rgba(0,0,0,0.10);",
       "    outline: none;",
       "}",
@@ -2120,9 +2117,16 @@ const CSSOptimizer = {
       "",
       "#text-selection-popup-extension.dark-mode .extension-action-button:hover,",
       "#text-selection-popup-extension.dark-mode .extension-action-button:focus {",
-      "    background-color: #5a5959ff;",
+      "    background-color: #5a5959;",
       "    box-shadow: 0 2px 8px rgba(0,0,0,0.18);",
       "    outline: none;",
+      "}",
+      "",
+      "#errorContainer {",
+      "    display: none;",
+      "    color: #b00020;",
+      "    padding: 4px;",
+      "    text-align: center;",
       "}",
       "",
       ".conversion-result {",
@@ -2182,19 +2186,15 @@ const DOMOptimizer = {
    * @returns {DocumentFragment} - Optimized popup structure
    */
   createPopupStructure() {
-    // Use DocumentFragment for batch DOM operations
     const fragment = document.createDocumentFragment();
 
-    // Create main popup element
     const popup = document.createElement("div");
     popup.id = "text-selection-popup-extension";
     popup.setAttribute("role", "dialog");
     popup.setAttribute("aria-label", "Text selection actions popup");
 
-    // Batch create all child elements before appending
     const elements = this.createAllElements();
 
-    // Append all elements in a single batch operation
     popup.appendChild(elements.errorContainer);
     popup.appendChild(elements.conversionContainer);
     popup.appendChild(elements.buttonContainer);
@@ -2208,18 +2208,9 @@ const DOMOptimizer = {
    * @returns {Object} - Object containing all created elements
    */
   createAllElements() {
-    // Error container
     const errorContainer = document.createElement("div");
     errorContainer.id = "errorContainer";
     errorContainer.setAttribute("aria-live", "polite");
-
-    // Batch style operations to minimize reflows
-    Object.assign(errorContainer.style, {
-      display: "none",
-      color: "#b00020",
-      padding: "4px",
-      textAlign: "center",
-    });
 
     // Conversion container with nested elements
     const conversionContainer = document.createElement("div");
@@ -2237,12 +2228,10 @@ const DOMOptimizer = {
     copyButton.className = "copy-button";
     copyButton.textContent = "Copy";
 
-    // Batch append conversion elements
     conversionResult.appendChild(convertedValueSpan);
     conversionResult.appendChild(copyButton);
     conversionContainer.appendChild(conversionResult);
 
-    // Button container
     const buttonContainer = document.createElement("div");
 
     // Batch style operations
@@ -2253,19 +2242,16 @@ const DOMOptimizer = {
       justifyContent: "space-between",
     });
 
-    // Search button
     const searchButton = document.createElement("button");
     searchButton.id = "extensionSearchButton";
     searchButton.className = "extension-action-button";
     searchButton.textContent = "Search";
 
-    // Copy button
     const copyButton2 = document.createElement("button");
     copyButton2.id = "extensionCopyButton";
     copyButton2.className = "extension-action-button";
     copyButton2.textContent = "Copy";
 
-    // Batch append buttons
     buttonContainer.appendChild(searchButton);
     buttonContainer.appendChild(copyButton2);
 
@@ -2595,44 +2581,18 @@ function handleCopyConvertedClick(e) {
   }
 }
 
-/**
- * Initialize search button event listener
- */
-function initSearchButton(searchButton) {
-  if (searchButton) {
-    searchButton.addEventListener("click", handleSearchClick);
-  }
-}
-
-/**
- * Initialize copy button event listener
- */
-function initCopyButton(copyButton) {
-  if (copyButton) {
-    copyButton.addEventListener("click", handleCopyClick);
-  }
-}
-
-/**
- * Initialize copy converted button event listener
- */
-function initCopyConvertedButton(copyConvertedButton) {
-  if (copyConvertedButton) {
-    copyConvertedButton.addEventListener("click", handleCopyConvertedClick);
-  }
-}
-
 // --- Event Handlers and User Interactions ---
 function initPopupButtons() {
-  // Use cached DOM elements for better performance
-  const searchButton = DOMCache.get("searchButton");
-  const copyButton = DOMCache.get("copyButton");
-  const copyConvertedButton = DOMCache.get("copyConvertedButton");
-
-  // Initialize each button separately for single responsibility
-  initSearchButton(searchButton);
-  initCopyButton(copyButton);
-  initCopyConvertedButton(copyConvertedButton);
+  // Bind each cached action button to its click handler
+  [
+    [handleSearchClick, DOMCache.get("searchButton")],
+    [handleCopyClick, DOMCache.get("copyButton")],
+    [handleCopyConvertedClick, DOMCache.get("copyConvertedButton")],
+  ].forEach(([handler, button]) => {
+    if (button) {
+      button.addEventListener("click", handler);
+    }
+  });
 }
 
 // --- Popup Content Management ---
@@ -2654,10 +2614,10 @@ function updatePopupContent() {
     // Only show error if selection looks like a currency/crypto value
     const upperCaseText = currentSelectedText.toUpperCase();
     const isCrypto = CRYPTO_CURRENCIES[upperCaseText];
-    const currencyRegex = /[€$£¥₺₽₹₩₪₱฿₣₦₲₵₡₫₭₮₯₠₢₳₴₸₼₾₿]|[A-Z]{3}/;
     if (
       (isCrypto && cryptoRatesError) ||
-      (currencyRegex.test(currentSelectedText) && exchangeRatesError)
+      (REGEX_PATTERNS.currencyLike.test(currentSelectedText) &&
+        exchangeRatesError)
     ) {
       if (errorContainer) {
         errorContainer.textContent = exchangeRatesError || cryptoRatesError;
