@@ -1,9 +1,7 @@
 What's Changed
-- Fixed time zone detection for dot/comma-separated times like "6.30pm BST" or "11,30 CET" (previously only "6:30" with a colon was recognized)
-- Time zone abbreviations are now matched case-insensitively, so lowercase selections like "6.30pm bst" also convert
-- Fixed accessibility: added dialog roles, aria-labels, Escape-key support, and aria-live regions for screen readers
-- Consolidated exchange-rate fetching to avoid duplicate API calls
-- Reduced crypto API error noise by trimming retry logs
-- Improved exchange rate API resilience with fallback and reduced retry frequency
-- Added random 0-3 second delay to CoinGecko API calls to stay under rate limits
-- Minor fixes, including proper handling of dashed units like "32-oz"
+- Fuel-efficiency conversions now work in both directions, including `8 l/100km` to mpg and slash-units like `km/h` written before the number
+- Switching the crypto target currency now clears old prices immediately, so conversions never mix rates from the previous currency
+- Currency conversions refresh when cached rates expire, not only after an error, while the popup still appears instantly and updates live
+- Hovering the popup pauses its 3-second auto-hide until you move away
+- Conversion failures now show a single calm "using cached data" note instead of technical error text
+- Removed internal performance recorders and simplified popup styling with no visible change

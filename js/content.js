@@ -162,17 +162,17 @@ const REGEX_PATTERNS = {
   initDynamicPatterns() {
     // Construct value-unit pattern (number followed by unit)
     // Allow optional dash between number and unit (handles "32-oz") and
-    // digit slash-units (handles "l/100km")
+    // slash-units (handles "km/h" and "l/100km")
     this.valueUnit = new RegExp(
-      `^(-?\\d{1,}(?:[.,\\s]\\d{3})*(?:[.,]\\d+)?|\\d+/\\d+)[\\s-]*(${this.currencySymbol}+|[a-zA-Z]+(?:\\s+[a-zA-Z]+)*|[a-zA-Z]+/\\d+[a-zA-Z]+)[.,;:!?]*$`,
+      `^(-?\\d{1,}(?:[.,\\s]\\d{3})*(?:[.,]\\d+)?|\\d+/\\d+)[\\s-]*(${this.currencySymbol}+|[a-zA-Z]+(?:\\s+[a-zA-Z]+)*|[a-zA-Z]+/(?:\\d+)?[a-zA-Z]+)[.,;:!?]*$`,
       "i",
     );
 
     // Construct unit-value pattern (unit followed by number)
     // Allow optional dash between unit and number (handles "oz-32") and
-    // digit slash-units (handles "l/100km 8")
+    // slash-units (handles "km/h 10" and "l/100km 8")
     this.unitValue = new RegExp(
-      `^(${this.currencySymbol}+|[a-zA-Z]+(?:\\s+[a-zA-Z]+)*|[a-zA-Z]+/\\d+[a-zA-Z]+)[\\s-]*(-?\\d{1,}(?:[.,\\s]\\d{3})*(?:[.,]\\d+)?|\\d+/\\d+)[.,;:!?]*$`,
+      `^(${this.currencySymbol}+|[a-zA-Z]+(?:\\s+[a-zA-Z]+)*|[a-zA-Z]+/(?:\\d+)?[a-zA-Z]+)[\\s-]*(-?\\d{1,}(?:[.,\\s]\\d{3})*(?:[.,]\\d+)?|\\d+/\\d+)[.,;:!?]*$`,
       "i",
     );
   },
@@ -1101,6 +1101,13 @@ let cryptoRates = {
   lastUpdated: 0,
   prices: {}, // e.g., { bitcoin: { usd: 50000 } }
 };
+let cryptoPreferenceGeneration = 0;
+
+function clearCryptoUnitConversions() {
+  for (const symbol of Object.keys(CRYPTO_CURRENCIES)) {
+    delete UNIT_CONVERSIONS[symbol];
+  }
+}
 
 // Timestamp of the next allowed crypto API attempt. Set after a fetch fails so a
 // broken network cannot trigger CoinGecko traffic on every crypto selection.
@@ -1141,15 +1148,19 @@ if (
   chrome.storage.onChanged.addListener((changes, areaName) => {
     if (areaName !== "sync" || !changes.preferredCryptoCurrency) return;
     preferredCryptoCurrency = changes.preferredCryptoCurrency.newValue;
+    cryptoPreferenceGeneration++;
     cryptoRates = { lastUpdated: 0, prices: {} };
     cryptoRatesRetryAfter = null;
     cryptoRatesError = null;
+    clearCryptoUnitConversions();
     localStorage.removeItem("cryptoRates");
     fetchCryptoRates();
   });
 }
 
 async function fetchCryptoRates() {
+  const generation = cryptoPreferenceGeneration;
+
   // CoinGecko has no BGN quote currency, so BGN is quoted via EUR + exchangeRates.
   let vsCurrency = preferredCryptoCurrency
     ? preferredCryptoCurrency.toLowerCase()
@@ -1179,6 +1190,8 @@ async function fetchCryptoRates() {
    * @param {string} vsCurrencyLocal - Preferred crypto currency (e.g. "usd" or "bgn")
    */
   const applyCryptoRatesToUnitConversions = (fetchVsLocal, vsCurrencyLocal) => {
+    if (generation !== cryptoPreferenceGeneration) return false;
+
     for (const [symbol, id] of Object.entries(CRYPTO_CURRENCIES)) {
       const coinPrices = cryptoRates.prices?.[id];
       const quotePrice = coinPrices?.[fetchVsLocal];
@@ -1205,6 +1218,7 @@ async function fetchCryptoRates() {
         convert: convertFn,
       };
     }
+    return true;
   };
 
   /**
@@ -1261,6 +1275,7 @@ async function fetchCryptoRates() {
   // Try to use cached data immediately (prevents CORS failures from being noisy)
   const earlyCacheResult = validateAndLoadCryptoCache(fetchVs);
   if (earlyCacheResult.valid) {
+    if (generation !== cryptoPreferenceGeneration) return;
     cryptoRates = earlyCacheResult.parsed;
     applyCryptoRatesToUnitConversions(fetchVs, vsCurrency);
     cryptoRatesError = null;
@@ -1276,6 +1291,7 @@ async function fetchCryptoRates() {
   }
 
   const handleCryptoError = (errorMessage) => {
+    if (generation !== cryptoPreferenceGeneration) return;
     cryptoRatesError = errorMessage;
 
     // Try to load from cache
@@ -1348,6 +1364,7 @@ async function fetchCryptoRates() {
         throw new Error("Invalid response format from CoinGecko API");
       }
 
+      if (generation !== cryptoPreferenceGeneration) return;
       cryptoRates.prices = data;
       cryptoRates.lastUpdated = now;
       cryptoRates.vsCurrency = fetchVs;
@@ -1725,7 +1742,12 @@ let isRefreshingExchangeRates = false;
  */
 async function handleCurrencyLoading(text) {
   const isCurrencyLike = REGEX_PATTERNS.currencyLike.test(text);
-  if (!(isCurrencyLike && exchangeRatesError && !isRefreshingExchangeRates)) {
+  const ratesExpired =
+    !exchangeRates.lastUpdated ||
+    Date.now() - exchangeRates.lastUpdated >= CONFIG.CACHE_DURATION;
+  if (
+    !(isCurrencyLike && (exchangeRatesError || ratesExpired) && !isRefreshingExchangeRates)
+  ) {
     return;
   }
 

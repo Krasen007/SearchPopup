@@ -11,8 +11,6 @@ update the changelog.txt file itself.
 
 5. Update @readme.md with the new features from the changelog.txt, in the readme do not add a what's new section, just update the readme itself to contain the features
 
-6. WAIT for commit bump with message "bump version %VERSION%"
+6. run package.bat or .\package-extension.ps1
 
-7. WAIT for confirmation before you push all changes to remote repository
-
-8. run package.bat or .\package-extension.ps1
+7. WAIT for commit bump with message "bump version %VERSION%"
