@@ -161,16 +161,18 @@ const REGEX_PATTERNS = {
    */
   initDynamicPatterns() {
     // Construct value-unit pattern (number followed by unit)
-    // Allow optional dash between number and unit (handles "32-oz")
+    // Allow optional dash between number and unit (handles "32-oz") and
+    // digit slash-units (handles "l/100km")
     this.valueUnit = new RegExp(
-      `^(-?\\d{1,}(?:[.,\\s]\\d{3})*(?:[.,]\\d+)?|\\d+/\\d+)[\\s-]*(${this.currencySymbol}+|[a-zA-Z]+(?:\\s+[a-zA-Z]+)*)[.,;:!?]*$`,
+      `^(-?\\d{1,}(?:[.,\\s]\\d{3})*(?:[.,]\\d+)?|\\d+/\\d+)[\\s-]*(${this.currencySymbol}+|[a-zA-Z]+(?:\\s+[a-zA-Z]+)*|[a-zA-Z]+/\\d+[a-zA-Z]+)[.,;:!?]*$`,
       "i",
     );
 
     // Construct unit-value pattern (unit followed by number)
-    // Allow optional dash between unit and number (handles "oz-32")
+    // Allow optional dash between unit and number (handles "oz-32") and
+    // digit slash-units (handles "l/100km 8")
     this.unitValue = new RegExp(
-      `^(${this.currencySymbol}+|[a-zA-Z]+(?:\\s+[a-zA-Z]+)*)[\\s-]*(-?\\d{1,}(?:[.,\\s]\\d{3})*(?:[.,]\\d+)?|\\d+/\\d+)[.,;:!?]*$`,
+      `^(${this.currencySymbol}+|[a-zA-Z]+(?:\\s+[a-zA-Z]+)*|[a-zA-Z]+/\\d+[a-zA-Z]+)[\\s-]*(-?\\d{1,}(?:[.,\\s]\\d{3})*(?:[.,]\\d+)?|\\d+/\\d+)[.,;:!?]*$`,
       "i",
     );
   },

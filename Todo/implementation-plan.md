@@ -151,7 +151,7 @@ Do this after Phase 1 and Phase 2, because some of it depends on knowing which f
 
 **3.6** Resolve the `l/100km` / `mpg` no-op branches (slop report F7, still open).
 - Provably no-op. Either delete the branches or confirm they are intentional and comment why — do not leave an undecided branch in the live file.
-- **Outcome (2026-09-13):** resolved by verification — the live file has no no-op branches. The only `mpg`/`l/100km` code is the `UNIT_CONVERSIONS` pair at lines 455–456, which performs real conversions (factor `235.214583 / val`). F7's concern no longer applies to the current revision.
+- **Outcome (2026-09-13, corrected):** F7 was real, but not where first assumed. The `UNIT_CONVERSIONS` entries are genuine; the *no-op* was the `"l/100km"` entry being **unreachable through the parser** — the dynamic unit pattern (`currencySymbol` + letter words) allows `/` but not digits, so no selection could ever yield the unit `l/100km` (a grep of the entries alone missed this). Fixed in `initDynamicPatterns()`: both `valueUnit` and `unitValue` gained a digit slash-unit alternative (`[a-zA-Z]+/\d+[a-zA-Z]+`, digits required so arbitrary `a/b` text behaves exactly as before). Verified with a 17-case harness (old vs. new agreement + `8 l/100km` → `29.4018 mpg`, `12,5 l/100km` → `18.8172 mpg`, `l/100km 8` both directions).
 
 **3.7** Collapse the performance system (decision D8 settled: keep DOMCache + show-debounce only).
 - Remove `PerformanceValidator` and its write-only metric recorders (`startTimer` / `endTimer` / `recordMetric`) plus every call site that only feeds them (e.g. in `PopupManager.show`, `detectAndConvertUnit`).
