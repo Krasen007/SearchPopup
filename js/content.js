@@ -1219,6 +1219,10 @@ let cryptoRates = {
   prices: {}, // e.g., { bitcoin: { usd: 50000 } }
 };
 
+// Timestamp of the next allowed crypto API attempt. Set after a fetch fails so a
+// broken network cannot trigger CoinGecko traffic on every crypto selection.
+let cryptoRatesRetryAfter = null;
+
 // Fetch all preferences from chrome.storage.sync
 if (typeof chrome !== "undefined" && chrome.storage && chrome.storage.sync) {
   chrome.storage.sync.get(
@@ -1244,20 +1248,27 @@ if (typeof chrome !== "undefined" && chrome.storage && chrome.storage.sync) {
 }
 
 async function fetchCryptoRates() {
-  const now = Date.now();
-  if (
-    cryptoRates.lastUpdated &&
-    now - cryptoRates.lastUpdated < CONFIG.CRYPTO_CACHE_DURATION
-  ) {
-    return;
-  }
-
-  const coinIds = Object.values(CRYPTO_CURRENCIES).join(",");
+  // CoinGecko has no BGN quote currency, so BGN is quoted via EUR + exchangeRates.
   let vsCurrency = preferredCryptoCurrency
     ? preferredCryptoCurrency.toLowerCase()
     : "usd";
   let fetchVs = vsCurrency;
   if (vsCurrency === "bgn") fetchVs = "eur"; // Fetch EUR if BGN is selected
+
+  const now = Date.now();
+
+  // Rule 1 — the in-memory cache is reusable only when it is both fresh AND
+  // quoted in the currency currently requested. A quote-currency preference
+  // change must never silently reuse prices in the old currency.
+  const cacheIsUsable =
+    cryptoRates.lastUpdated &&
+    now - cryptoRates.lastUpdated < CONFIG.CRYPTO_CACHE_DURATION &&
+    cryptoRates.vsCurrency === fetchVs;
+  if (cacheIsUsable) {
+    return;
+  }
+
+  const coinIds = Object.values(CRYPTO_CURRENCIES).join(",");
 
   /**
    * Apply crypto quote prices to UNIT_CONVERSIONS.
@@ -1398,6 +1409,12 @@ async function fetchCryptoRates() {
     }
   };
 
+  // Rule 2 — after a failed fetch, back off for CONFIG.CRYPTO_ERROR_BACKOFF_MS
+  // instead of re-hitting the API on every crypto selection.
+  if (cryptoRatesRetryAfter && now < cryptoRatesRetryAfter) {
+    return;
+  }
+
   // Add jittered delay (0-3s) to stagger requests from concurrent frames
   // Prevents hitting CoinGecko rate limits when multiple iframes load simultaneously
   await new Promise((resolve) => setTimeout(resolve, Math.random() * 3000));
@@ -1433,6 +1450,7 @@ async function fetchCryptoRates() {
       cryptoRates.lastUpdated = now;
       cryptoRates.vsCurrency = fetchVs;
       cryptoRatesError = null; // Clear error on success
+      cryptoRatesRetryAfter = null; // Clear error backoff
       applyCryptoRatesToUnitConversions(fetchVs, vsCurrency);
 
       try {
@@ -1461,6 +1479,7 @@ async function fetchCryptoRates() {
       "crypto-rates",
       "warn",
     );
+    cryptoRatesRetryAfter = Date.now() + CONFIG.CRYPTO_ERROR_BACKOFF_MS;
     handleCryptoError(friendly);
   }
 }
@@ -1814,39 +1833,37 @@ let isRefreshingExchangeRates = false;
  */
 async function handleCurrencyLoading(text) {
   const isCurrencyLike = REGEX_PATTERNS.currencyLike.test(text);
-
-  if (isCurrencyLike && exchangeRatesError && !isRefreshingExchangeRates) {
-    isRefreshingExchangeRates = true;
-
-    // Show loading state for currency rates
-    const errorContainer = DOMCache.get("errorContainer");
-    const conversionContainer = DOMCache.get("conversionContainer");
-
-    if (errorContainer) {
-      errorContainer.textContent = "Loading exchange rates...";
-      errorContainer.style.display = "block";
-    }
-    if (conversionContainer) conversionContainer.style.display = "none";
-
-    try {
-      // Refresh rates (no-op early-return when the cached rates are fresh)
-      await fetchExchangeRates();
-    } catch (error) {
-      ErrorHandler.log(error, "exchange-rates-refresh", "error");
-    }
-
-    // Re-run conversion and re-render the popup once the rates are available
-    if (PopupManager.isVisible) {
-      try {
-        convertedValue = await detectAndConvertUnit(currentSelectedText);
-        updatePopupContent();
-      } catch (error) {
-        ErrorHandler.log(error, "currency-rerender", "error");
-      }
-    }
-
-    isRefreshingExchangeRates = false;
+  if (!(isCurrencyLike && exchangeRatesError && !isRefreshingExchangeRates)) {
+    return;
   }
+
+  // Decision D7 — non-blocking: the popup renders immediately from whatever is
+  // cached; a selection never waits on the network. Refresh in the background
+  // and re-render the conversion once the rates arrive.
+  isRefreshingExchangeRates = true;
+
+  fetchExchangeRates()
+    .catch((error) => {
+      ErrorHandler.log(error, "exchange-rates-refresh", "error");
+    })
+    .then(() => {
+      // Re-render only if the popup is still showing the same selection.
+      // Keep the guard set until this completes so the re-conversion below
+      // cannot trigger a nested refresh.
+      if (PopupManager.isVisible && currentSelectedText === text) {
+        return detectAndConvertUnit(currentSelectedText)
+          .then((result) => {
+            convertedValue = result;
+            updatePopupContent();
+          })
+          .catch((error) => {
+            ErrorHandler.log(error, "currency-rerender", "error");
+          });
+      }
+    })
+    .finally(() => {
+      isRefreshingExchangeRates = false;
+    });
 }
 
 /**
@@ -2353,6 +2370,10 @@ async function handleClipboardFallback(textToCopy) {
     await navigator.clipboard.writeText(textToCopy);
     hidePopup();
   } catch (err) {
+    // Trace the primary clipboard failure; the legacy fallback below is a
+    // graceful degradation, not a silent one.
+    ErrorHandler.log(err, "clipboard-primary", "info");
+
     // Optimized fallback approach with minimal reflows
     const textArea = document.createElement("textarea");
 
@@ -2562,6 +2583,9 @@ function openUrlOrSearch(text) {
       window.open(searchUrl, "_blank", "noopener,noreferrer");
     }
   } catch (e) {
+    // Regex-validated URL rejected by new URL() — trace the divergence and
+    // degrade gracefully to a search.
+    ErrorHandler.log(e, "url-open-fallback", "info");
     const searchUrl = getSearchUrl(text);
     window.open(searchUrl, "_blank", "noopener,noreferrer");
   }
