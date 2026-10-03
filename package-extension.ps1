@@ -40,11 +40,14 @@ $excludeFiles = @(
   "LICENSE",
   "AGENTS.md",
   "STORE_LISTING_CHROME.md",
+  "ai-slop-report.md",
+  "gitlog.bat",
   "bump.bat",
   "bump.txt",
   "changelog.txt",
   "package.bat",
-  "package-extension.ps1"
+  "package-extension.ps1",
+  "*.py"
 )
 
 try {
@@ -82,7 +85,26 @@ try {
     Copy-Item -Path $_.FullName -Destination $stagingPath -Force
   }
 
-  Compress-Archive -Path (Join-Path $stagingPath "*") -DestinationPath $archivePath -CompressionLevel Optimal
+  # Create the ZIP with forward-slash entry names and files at the ZIP root.
+  # Do NOT use Compress-Archive here: on Windows PowerShell 5.1 it stores
+  # subfolders with backslashes (e.g. "img\icon.png"), which the Firefox
+  # AMO validator rejects with "Invalid file name in archive".
+  Add-Type -AssemblyName System.IO.Compression
+  Add-Type -AssemblyName System.IO.Compression.FileSystem
+  $zipStream = [System.IO.File]::Open($archivePath, [System.IO.FileMode]::Create)
+  try {
+    $zip = New-Object System.IO.Compression.ZipArchive($zipStream, [System.IO.Compression.ZipArchiveMode]::Create)
+    try {
+      Get-ChildItem -Path $stagingPath -Recurse -File | ForEach-Object {
+        $entryName = $_.FullName.Substring($stagingPath.Length + 1) -replace '\\', '/'
+        [System.IO.Compression.ZipFileExtensions]::CreateEntryFromFile($zip, $_.FullName, $entryName, [System.IO.Compression.CompressionLevel]::Optimal) | Out-Null
+      }
+    } finally {
+      $zip.Dispose()
+    }
+  } finally {
+    $zipStream.Dispose()
+  }
 
   Write-Host "Created package:"
   Write-Host $archivePath

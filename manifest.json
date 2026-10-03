@@ -29,9 +29,18 @@
 		}
 	],
 	"options_page": "settings.html",
+	"options_ui": {
+		"page": "settings.html",
+		"open_in_tab": true
+	},
 	"browser_specific_settings": {
 		"gecko": {
-			"id": "@searchpopup.krasenivanov"
+			"id": "@searchpopup.krasenivanov",
+			"data_collection_permissions": {
+				"required": [
+					"none"
+				]
+			}
 		}
 	}
 }
