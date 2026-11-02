@@ -1452,6 +1452,9 @@ async function fetchCryptoRates() {
 
     // Try to load from cache
     const cached = await readRateCache(RATE_CACHE_KEYS.cryptoRates);
+    // The read is async, so the preference may have changed while it was in
+    // flight. Re-check the generation before touching shared crypto state.
+    if (generation !== cryptoPreferenceGeneration) return;
     if (!cached) {
       ErrorHandler.log(
         "No cached crypto data available",
@@ -1532,6 +1535,7 @@ async function fetchCryptoRates() {
     }
   }
 
+  if (generation !== cryptoPreferenceGeneration) return;
   if (lastCryptoError) {
     const friendly =
       lastCryptoError.message === "Failed to fetch"
