@@ -603,7 +603,7 @@ const ErrorHandler = {
    * @param {string} context - API context (e.g., 'exchange-rates', 'crypto-rates')
    * @param {Function} fallback - Fallback function to execute
    */
-  handleApiError(error, context, fallback = null) {
+  async handleApiError(error, context, fallback = null) {
     // Enhanced error logging with more details
     const errorDetails = {
       message: error.message,
@@ -646,7 +646,7 @@ const ErrorHandler = {
     // Execute fallback if provided
     if (fallback && typeof fallback === "function") {
       try {
-        fallback(userMessage);
+        await fallback(userMessage);
       } catch (fallbackError) {
         this.log(fallbackError, `${context}-fallback`, "error");
       }
@@ -1078,6 +1078,160 @@ let preferredCurrency = "BGN";
 let preferredCryptoCurrency = "USD";
 let preferredSearchEngine = "google";
 
+// ===== API ACCESS =====
+
+/** Fixed API URLs used only when the background worker is unavailable. */
+const DIRECT_API_URLS = {
+  "exchange-rates": "https://api.exchangerate-api.com/v4/latest/EUR",
+  "exchange-rates-fallback": "https://open.er-api.com/v6/latest/EUR",
+};
+
+/**
+ * Request JSON directly when running outside an extension (no service worker).
+ * Inside the extension every request goes through `requestJson`.
+ * @param {string} endpoint - Allowlisted endpoint name
+ * @param {{ids?: string, vs?: string}} [params] - Crypto query parameters
+ * @returns {Promise<{ok: boolean, status: number, data?: any, error?: string}>}
+ */
+async function directJsonRequest(endpoint, params = {}) {
+  let url = DIRECT_API_URLS[endpoint];
+  if (endpoint === "crypto") {
+    url = `https://api.coingecko.com/api/v3/simple/price?ids=${params.ids}&vs_currencies=${params.vs}`;
+  }
+  if (!url) {
+    return { ok: false, status: 0, error: "Unknown API endpoint" };
+  }
+
+  try {
+    const response = await fetch(url, {
+      method: "GET",
+      headers: { Accept: "application/json" },
+    });
+    if (!response.ok) {
+      return {
+        ok: false,
+        status: response.status,
+        error: `HTTP ${response.status}: ${response.statusText}`,
+      };
+    }
+    return { ok: true, status: response.status, data: await response.json() };
+  } catch (error) {
+    return {
+      ok: false,
+      status: 0,
+      error: error && error.message ? error.message : String(error),
+    };
+  }
+}
+
+/**
+ * Perform a JSON API request through the background service worker.
+ *
+ * A content script requests on behalf of the page origin, so the host page's CSP
+ * (`connect-src`) and CORS apply and strict-CSP sites block the request. The
+ * service worker runs on the extension origin, where only the extension CSP and
+ * host_permissions apply. The worker also de-duplicates concurrent requests
+ * from multiple frames.
+ *
+ * @param {string} endpoint - "exchange-rates" | "exchange-rates-fallback" | "crypto"
+ * @param {{ids?: string, vs?: string}} [params] - Crypto query parameters
+ * @returns {Promise<{ok: boolean, status: number, data?: any, error?: string}>}
+ */
+async function requestJson(endpoint, params = {}) {
+  const inExtension =
+    typeof chrome !== "undefined" &&
+    chrome.runtime &&
+    chrome.runtime.id &&
+    typeof chrome.runtime.sendMessage === "function";
+
+  if (!inExtension) {
+    return directJsonRequest(endpoint, params);
+  }
+
+  const response = await chrome.runtime.sendMessage({
+    type: "searchpopup:fetch-json",
+    endpoint,
+    params,
+  });
+
+  return (
+    response || {
+      ok: false,
+      status: 0,
+      error: "No response from background worker",
+    }
+  );
+}
+
+// ===== RATE CACHE =====
+
+// Rates live in chrome.storage.local, not localStorage. A content script's
+// localStorage belongs to the visited page: per origin, readable and clearable
+// by the site, and private to each frame. chrome.storage.local is shared by all
+// frames and tabs of the extension and is not exposed to pages.
+const RATE_CACHE_KEYS = {
+  exchangeRates: "exchangeRates",
+  cryptoRates: "cryptoRates",
+};
+
+const hasExtensionStorage = Boolean(
+  typeof chrome !== "undefined" && chrome.storage && chrome.storage.local,
+);
+
+/**
+ * Read a cached rate object.
+ * @param {string} key - Cache key from RATE_CACHE_KEYS
+ * @returns {Promise<any|null>} Parsed cache entry, or null when absent/unreadable
+ */
+async function readRateCache(key) {
+  try {
+    if (hasExtensionStorage) {
+      const stored = await chrome.storage.local.get(key);
+      return stored && stored[key] !== undefined ? stored[key] : null;
+    }
+    const raw = localStorage.getItem(key);
+    return raw ? JSON.parse(raw) : null;
+  } catch (error) {
+    ErrorHandler.log(error, "rate-cache-read", "warn");
+    return null;
+  }
+}
+
+/**
+ * Persist a rate object for other frames, tabs and future page loads.
+ * @param {string} key - Cache key from RATE_CACHE_KEYS
+ * @param {any} value - Cache entry to store
+ * @returns {Promise<void>}
+ */
+async function writeRateCache(key, value) {
+  try {
+    if (hasExtensionStorage) {
+      await chrome.storage.local.set({ [key]: value });
+      return;
+    }
+    localStorage.setItem(key, JSON.stringify(value));
+  } catch (error) {
+    ErrorHandler.log(error, "rate-cache-write", "warn");
+  }
+}
+
+/**
+ * Remove a cached rate object (e.g. after the quote-currency preference changes).
+ * @param {string} key - Cache key from RATE_CACHE_KEYS
+ * @returns {Promise<void>}
+ */
+async function removeRateCache(key) {
+  try {
+    if (hasExtensionStorage) {
+      await chrome.storage.local.remove(key);
+      return;
+    }
+    localStorage.removeItem(key);
+  } catch (error) {
+    ErrorHandler.log(error, "rate-cache-remove", "warn");
+  }
+}
+
 // --- Currency exchange rates cache ---
 let exchangeRates = {
   // Store as Unix epoch (ms) to survive JSON serialisation
@@ -1138,7 +1292,7 @@ if (typeof chrome !== "undefined" && chrome.storage && chrome.storage.sync) {
 }
 
 // 4.2 — a crypto quote-currency preference change is a first-class
-// cache-invalidation event: in-memory and localStorage caches in the old
+// cache-invalidation event: in-memory and shared caches in the old
 // quote currency must never be reused for the new one.
 if (
   typeof chrome !== "undefined" &&
@@ -1153,7 +1307,7 @@ if (
     cryptoRatesRetryAfter = null;
     cryptoRatesError = null;
     clearCryptoUnitConversions();
-    localStorage.removeItem("cryptoRates");
+    removeRateCache(RATE_CACHE_KEYS.cryptoRates);
     fetchCryptoRates();
   });
 }
@@ -1222,19 +1376,18 @@ async function fetchCryptoRates() {
   };
 
   /**
-   * Validate and load cached crypto rates from localStorage.
-   * Ensures cached quote currency matches requested fetchVsLocal.
+   * Validate cached crypto rates and ensure the quote currency matches.
+   * @param {any} cachedRates - Cache entry read via readRateCache
    * @param {string} fetchVsLocal - CoinGecko quote currency ("usd" | "eur" | ...)
    * @returns {{valid: boolean, parsed: any, corrupted: boolean}} cache result
    */
-  const validateAndLoadCryptoCache = (fetchVsLocal) => {
-    const cached = localStorage.getItem("cryptoRates");
-    if (!cached) {
+  const validateAndLoadCryptoCache = (cachedRates, fetchVsLocal) => {
+    if (!cachedRates) {
       return { valid: false, parsed: null, corrupted: false };
     }
 
     try {
-      const parsed = JSON.parse(cached);
+      const parsed = cachedRates;
 
       // Require cache object shape
       if (!parsed || typeof parsed.lastUpdated !== "number" || !parsed.prices) {
@@ -1273,7 +1426,10 @@ async function fetchCryptoRates() {
   ErrorHandler.setLastApiUrl("crypto-rates", apiUrl);
 
   // Try to use cached data immediately (prevents CORS failures from being noisy)
-  const earlyCacheResult = validateAndLoadCryptoCache(fetchVs);
+  const earlyCacheResult = validateAndLoadCryptoCache(
+    await readRateCache(RATE_CACHE_KEYS.cryptoRates),
+    fetchVs,
+  );
   if (earlyCacheResult.valid) {
     if (generation !== cryptoPreferenceGeneration) return;
     cryptoRates = earlyCacheResult.parsed;
@@ -1290,12 +1446,12 @@ async function fetchCryptoRates() {
     return;
   }
 
-  const handleCryptoError = (errorMessage) => {
+  const handleCryptoError = async (errorMessage) => {
     if (generation !== cryptoPreferenceGeneration) return;
     cryptoRatesError = errorMessage;
 
     // Try to load from cache
-    const cached = localStorage.getItem("cryptoRates");
+    const cached = await readRateCache(RATE_CACHE_KEYS.cryptoRates);
     if (!cached) {
       ErrorHandler.log(
         "No cached crypto data available",
@@ -1306,7 +1462,7 @@ async function fetchCryptoRates() {
       return;
     }
 
-    const cacheResult = validateAndLoadCryptoCache(fetchVs);
+    const cacheResult = validateAndLoadCryptoCache(cached, fetchVs);
     if (cacheResult.valid) {
       cryptoRates = cacheResult.parsed;
       const lastUpdateFormatted = formatLastUpdate(
@@ -1333,33 +1489,26 @@ async function fetchCryptoRates() {
     return;
   }
 
-  // Add jittered delay (0-3s) to stagger requests from concurrent frames
-  // Prevents hitting CoinGecko rate limits when multiple iframes load simultaneously
-  await new Promise((resolve) => setTimeout(resolve, Math.random() * 3000));
-
   const maxCryptoRetries = 2;
   let lastCryptoError = null;
   for (let attempt = 1; attempt <= maxCryptoRetries; attempt++) {
     try {
-      const response = await fetch(apiUrl, {
-        method: "GET",
-        headers: {
-          Accept: "application/json",
-        },
-        mode: "cors",
+      const result = await requestJson("crypto", {
+        ids: coinIds,
+        vs: fetchVs,
       });
 
-      if (!response.ok) {
-        if (response.status === 429) {
+      if (!result.ok) {
+        if (result.status === 429) {
           throw new Error("Rate limit exceeded. Please try again later.");
-        } else if (response.status === 403) {
+        } else if (result.status === 403) {
           throw new Error("API access forbidden. Using cached data.");
         } else {
-          throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+          throw new Error(result.error || `HTTP ${result.status}`);
         }
       }
 
-      const data = await response.json();
+      const data = result.data;
       if (!data) {
         throw new Error("Invalid response format from CoinGecko API");
       }
@@ -1372,11 +1521,7 @@ async function fetchCryptoRates() {
       cryptoRatesRetryAfter = null; // Clear error backoff
       applyCryptoRatesToUnitConversions(fetchVs, vsCurrency);
 
-      try {
-        localStorage.setItem("cryptoRates", JSON.stringify(cryptoRates));
-      } catch (storageError) {
-        ErrorHandler.log(storageError, "crypto-rates-storage", "warn");
-      }
+      await writeRateCache(RATE_CACHE_KEYS.cryptoRates, cryptoRates);
       lastCryptoError = null;
       break;
     } catch (error) {
@@ -1399,7 +1544,7 @@ async function fetchCryptoRates() {
       "warn",
     );
     cryptoRatesRetryAfter = Date.now() + CONFIG.CRYPTO_ERROR_BACKOFF_MS;
-    handleCryptoError(friendly);
+    await handleCryptoError(friendly);
   }
 }
 
@@ -1471,73 +1616,54 @@ async function fetchExchangeRates() {
   let apiUrl = primaryApiUrl;
   ErrorHandler.setLastApiUrl("exchange-rates", apiUrl);
 
-  const handleExchangeError = (errorMessage) => {
+  const handleExchangeError = async (errorMessage) => {
     exchangeRatesError = errorMessage;
 
-    // Load from localStorage if available (only when max retries reached)
-    try {
-      const cached = localStorage.getItem("exchangeRates");
-      if (cached) {
-        const parsed = JSON.parse(cached);
-        // Validate cached data structure
-        if (
-          parsed &&
-          typeof parsed === "object" &&
-          parsed.rates &&
-          typeof parsed.rates === "object" &&
-          parsed.lastUpdated &&
-          typeof parsed.lastUpdated === "number"
-        ) {
-          // Validate that cached data is not too old (more than 7 days)
-          const now = Date.now();
-          const cacheAge = now - parsed.lastUpdated;
-          const maxCacheAge = 7 * 24 * 60 * 60 * 1000; // 7 days in milliseconds
-          if (cacheAge < maxCacheAge) {
-            exchangeRates = parsed;
-            ErrorHandler.log(
-              `Using cached exchange rates from ${formatLastUpdate(parsed.lastUpdated)}`,
-              "exchange-rates-cache",
-              "info",
-            );
-          } else {
-            resetExchangeRates();
-            ErrorHandler.log(
-              "Cached exchange rates expired; rates cleared",
-              "exchange-rates-cache",
-              "warn",
-            );
-          }
-        } else {
-          resetExchangeRates();
-          ErrorHandler.log(
-            "Invalid cached exchange rates structure; rates cleared",
-            "exchange-rates-cache",
-            "warn",
-          );
-        }
+    const parsed = await readRateCache(RATE_CACHE_KEYS.exchangeRates);
+    if (
+      parsed &&
+      typeof parsed === "object" &&
+      parsed.rates &&
+      typeof parsed.rates === "object" &&
+      parsed.lastUpdated &&
+      typeof parsed.lastUpdated === "number"
+    ) {
+      const cacheAge = Date.now() - parsed.lastUpdated;
+      const maxCacheAge = 7 * 24 * 60 * 60 * 1000; // 7 days in milliseconds
+      if (cacheAge < maxCacheAge) {
+        exchangeRates = parsed;
+        ErrorHandler.log(
+          `Using cached exchange rates from ${formatLastUpdate(parsed.lastUpdated)}`,
+          "exchange-rates-cache",
+          "info",
+        );
       } else {
         resetExchangeRates();
         ErrorHandler.log(
-          "No cached exchange rates available; rates cleared",
+          "Cached exchange rates expired; rates cleared",
           "exchange-rates-cache",
           "warn",
         );
       }
-    } catch (parseError) {
-      ErrorHandler.log(parseError, "exchange-rates-cache-parse", "error");
+    } else {
       resetExchangeRates();
+      ErrorHandler.log(
+        "No usable cached exchange rates; rates cleared",
+        "exchange-rates-cache",
+        "warn",
+      );
     }
   };
 
   try {
     apiCallAttempts++;
     lastApiAttemptTime = now;
-    const response = await fetch(apiUrl);
-    if (!response.ok) {
-      throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+    const result = await requestJson("exchange-rates");
+    if (!result.ok) {
+      throw new Error(result.error || `HTTP ${result.status}`);
     }
 
-    const data = await response.json();
+    const data = result.data;
 
     // Validate response data structure
     if (!data || !data.rates || typeof data.rates !== "object") {
@@ -1548,12 +1674,7 @@ async function fetchExchangeRates() {
     lastApiAttemptTime = 0;
     exchangeRatesError = null; // Clear error on success
     processExchangeRateData(data);
-    // Save to localStorage
-    try {
-      localStorage.setItem("exchangeRates", JSON.stringify(exchangeRates));
-    } catch (storageError) {
-      ErrorHandler.log(storageError, "exchange-rates-storage", "warn");
-    }
+    await writeRateCache(RATE_CACHE_KEYS.exchangeRates, exchangeRates);
   } catch (error) {
     // If primary API failed and haven't tried fallback yet, switch to fallback
     if (apiUrl === primaryApiUrl) {
@@ -1565,20 +1686,16 @@ async function fetchExchangeRates() {
         "info",
       );
       try {
-        const fallbackResponse = await fetch(fallbackApiUrl);
-        if (fallbackResponse.ok) {
-          const fallbackData = await fallbackResponse.json();
+        const fallbackResult = await requestJson("exchange-rates-fallback");
+        if (fallbackResult.ok) {
+          const fallbackData = fallbackResult.data;
           if (fallbackData && fallbackData.rates && typeof fallbackData.rates === "object") {
             // Process fallback data the same way
             apiCallAttempts = 0;
             lastApiAttemptTime = 0;
             exchangeRatesError = null;
             processExchangeRateData(fallbackData);
-            try {
-              localStorage.setItem("exchangeRates", JSON.stringify(exchangeRates));
-            } catch (storageError) {
-              ErrorHandler.log(storageError, "exchange-rates-storage", "warn");
-            }
+            await writeRateCache(RATE_CACHE_KEYS.exchangeRates, exchangeRates);
             ErrorHandler.log(
               "Fallback exchange rate API succeeded",
               "exchange-rates-fallback",
@@ -1605,7 +1722,11 @@ async function fetchExchangeRates() {
         setTimeout(() => resolve(fetchExchangeRates()), retryDelay),
       ); // Exit early to prevent fallback execution during retry attempts
     }
-    ErrorHandler.handleApiError(error, "exchange-rates", handleExchangeError);
+    await ErrorHandler.handleApiError(
+      error,
+      "exchange-rates",
+      handleExchangeError,
+    );
   }
 }
 
