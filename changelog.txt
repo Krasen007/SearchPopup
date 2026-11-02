@@ -1,7 +1,12 @@
 What's Changed
-- Fuel-efficiency conversions now work in both directions, including `8 l/100km` to mpg and slash-units like `km/h` written before the number
-- Switching the crypto target currency now clears old prices immediately, so conversions never mix rates from the previous currency
-- Currency conversions refresh when cached rates expire, not only after an error, while the popup still appears instantly and updates live
+- Currency and crypto conversions now work on sites with a strict security policy, YouTube included: prices are fetched by the extension itself instead of the page, so the popup no longer gets blocked
+- Cached rates moved to extension storage, so all frames on a page share one cache and embedded frames no longer fail to read it
+- The extension now asks for network access only to the three price services it uses, instead of every website
+- The backup exchange-rate service is reachable again, so conversions keep updating when the primary service is down
+- Switching your crypto target currency while prices are loading can no longer apply the previous currency's prices
+- Fuel-efficiency conversions work in both directions, including `8 l/100km` to mpg and slash-units such as `km/h` written before the number
+- Rates refresh as soon as the cache expires, not only after an error, while the popup still appears instantly and updates in place
 - Hovering the popup pauses its 3-second auto-hide until you move away
-- Conversion failures now show a single calm "using cached data" note instead of technical error text
+- Conversion failures show one calm "using cached data" note instead of technical error text
 - Removed internal performance recorders and simplified popup styling with no visible change
+- The Firefox package now ships an event-page background, and store archives no longer include local development folders

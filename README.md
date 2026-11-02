@@ -16,8 +16,8 @@ A fast browser extension for interacting with text on any webpage. Select any te
 - **Fast Rendering:** Popup appears immediately when you select text, with an 80ms debounce to avoid double-click spam
 - **Non-Blocking Conversions:** A selection never waits on the network; conversions render from cached rates and update live if fresh rates arrive
 - **Memory Efficient:** Runs smoothly without slowing down your browser
-- **Smart Caching:** Exchange and crypto rates are cached locally so conversions keep working instantly, even when offline
-- **API Resilience:** Automatic fallback to a secondary exchange-rate API, exponential-backoff retries with a periodic reset, and crypto requests that stagger on load and back off after failures
+- **Smart Caching:** Exchange and crypto rates are cached in extension storage so conversions keep working instantly, even when offline, and on pages with strict security policies
+- **API Resilience:** Prices are requested by the extension's background worker, so a page's Content Security Policy cannot block them; automatic fallback to a secondary exchange-rate API, exponential-backoff retries with a periodic reset, and crypto requests that back off after failures
 - **Popup Auto-Hide:** Fades out after 3 seconds; hovering the popup pauses the timer until you leave
 
 ### **Intelligent Design**
@@ -30,7 +30,7 @@ A fast browser extension for interacting with text on any webpage. Select any te
 
 ### **Privacy & Security**
 - **Local Processing:** All conversions happen on your device - no data sent to external servers
-- **Minimal Permissions:** Only requests clipboard write and storage access
+- **Minimal Permissions:** Only requests clipboard write and storage access, plus network access to the three price services it uses
 - **Secure Links:** All external links open safely
 - **No Tracking:** No analytics, telemetry, or data collection
 
@@ -144,8 +144,9 @@ Right-click the extension icon and select "Options" to configure:
 ## Permissions
 
 - `clipboardWrite`: Copy text to clipboard
-- `storage`: Save user preferences
-- `<all_urls>`: Work on all websites
+- `storage`: Save user preferences and cache exchange and crypto rates
+- API access (`api.exchangerate-api.com`, `open.er-api.com`, `api.coingecko.com`): Fetch live exchange and crypto prices through the background worker
+- `<all_urls>`: Show the popup on any website
 
 ## Browser Support
 
